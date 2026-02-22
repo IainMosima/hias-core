@@ -1,0 +1,35 @@
+-- name: CreateProvider :one
+INSERT INTO providers (name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
+
+-- name: GetProviderByID :one
+SELECT * FROM providers WHERE id = $1;
+
+-- name: GetProviderByLicense :one
+SELECT * FROM providers WHERE license_number = $1;
+
+-- name: GetProviderByUserID :one
+SELECT * FROM providers WHERE user_id = $1;
+
+-- name: ListProviders :many
+SELECT * FROM providers ORDER BY created_at DESC LIMIT $1 OFFSET $2;
+
+-- name: ListProvidersByStatus :many
+SELECT * FROM providers WHERE status = $1 ORDER BY name LIMIT $2 OFFSET $3;
+
+-- name: CountProviders :one
+SELECT COUNT(*) FROM providers;
+
+-- name: UpdateProviderStatus :one
+UPDATE providers SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: UpdateProvider :one
+UPDATE providers SET
+    name = COALESCE(sqlc.narg('name'), name),
+    county = COALESCE(sqlc.narg('county'), county),
+    address = COALESCE(sqlc.narg('address'), address),
+    phone = COALESCE(sqlc.narg('phone'), phone),
+    email = COALESCE(sqlc.narg('email'), email),
+    contact_person = COALESCE(sqlc.narg('contact_person'), contact_person),
+    updated_at = NOW()
+WHERE id = sqlc.arg('id') RETURNING *;

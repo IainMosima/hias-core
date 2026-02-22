@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SQS Queue for extraction results
+Resources:
+  ExtractionResultsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: extraction-results
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ExtractionResultsDLQ.Arn
+        maxReceiveCount: 3
+  ExtractionResultsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: extraction-results-dlq
+      MessageRetentionPeriod: 1209600
+Outputs:
+  QueueURL:
+    Value: !Ref ExtractionResultsQueue
+  QueueArn:
+    Value: !GetAtt ExtractionResultsQueue.Arn

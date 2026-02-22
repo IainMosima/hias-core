@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SQS Queue for notification events
+Resources:
+  NotificationEventsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: notification-events
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt NotificationEventsDLQ.Arn
+        maxReceiveCount: 3
+  NotificationEventsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: notification-events-dlq
+      MessageRetentionPeriod: 1209600
+Outputs:
+  QueueURL:
+    Value: !Ref NotificationEventsQueue
+  QueueArn:
+    Value: !GetAtt NotificationEventsQueue.Arn

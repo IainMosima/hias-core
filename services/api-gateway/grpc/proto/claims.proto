@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package claims;
+
+option go_package = "github.com/bitbiz/hias-core/services/api-gateway/grpc/pkg/claims";
+
+import "google/protobuf/timestamp.proto";
+
+service ClaimService {
+  rpc SubmitClaim(SubmitClaimRequest) returns (ClaimResponse);
+  rpc GetClaimStatus(GetClaimStatusRequest) returns (ClaimResponse);
+  rpc ListClaims(ListClaimsRequest) returns (ListClaimsResponse);
+}
+
+message SubmitClaimRequest {
+  string policy_id = 1;
+  string member_id = 2;
+  string provider_id = 3;
+  string preauth_id = 4;
+  repeated string diagnosis_codes = 5;
+  google.protobuf.Timestamp service_date = 6;
+  google.protobuf.Timestamp admission_date = 7;
+  google.protobuf.Timestamp discharge_date = 8;
+  string notes = 9;
+  repeated LineItem line_items = 10;
+}
+
+message LineItem {
+  string procedure_code = 1;
+  string procedure_name = 2;
+  string diagnosis_code = 3;
+  int32 quantity = 4;
+  int64 unit_price = 5;
+}
+
+message GetClaimStatusRequest {
+  string claim_id = 1;
+}
+
+message ListClaimsRequest {
+  string provider_id = 1;
+  string status = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ClaimResponse {
+  string id = 1;
+  string claim_number = 2;
+  string policy_id = 3;
+  string member_id = 4;
+  string provider_id = 5;
+  string status = 6;
+  int64 total_amount = 7;
+  int64 approved_amount = 8;
+  int64 co_pay_amount = 9;
+  int64 member_responsibility = 10;
+  string rejection_reason = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message ListClaimsResponse {
+  repeated ClaimResponse claims = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}

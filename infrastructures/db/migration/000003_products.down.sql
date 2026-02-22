@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS exclusions;
+DROP TABLE IF EXISTS benefits;
+DROP TABLE IF EXISTS plans;

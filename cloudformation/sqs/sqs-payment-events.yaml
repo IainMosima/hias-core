@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SQS Queue for payment events
+Resources:
+  PaymentEventsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: payment-events
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PaymentEventsDLQ.Arn
+        maxReceiveCount: 3
+  PaymentEventsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: payment-events-dlq
+      MessageRetentionPeriod: 1209600
+Outputs:
+  QueueURL:
+    Value: !Ref PaymentEventsQueue
+  QueueArn:
+    Value: !GetAtt PaymentEventsQueue.Arn

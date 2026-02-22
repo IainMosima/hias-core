@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS rate_cards;
+DROP TABLE IF EXISTS contracts;
+DROP TABLE IF EXISTS providers;

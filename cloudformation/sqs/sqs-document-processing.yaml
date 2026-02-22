@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SQS Queue for document processing requests
+Resources:
+  DocumentProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: document-processing
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DocumentProcessingDLQ.Arn
+        maxReceiveCount: 3
+  DocumentProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: document-processing-dlq
+      MessageRetentionPeriod: 1209600
+Outputs:
+  QueueURL:
+    Value: !Ref DocumentProcessingQueue
+  QueueArn:
+    Value: !GetAtt DocumentProcessingQueue.Arn

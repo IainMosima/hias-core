@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SQS Queue for claim processing
+Resources:
+  ClaimProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: claim-processing
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ClaimProcessingDLQ.Arn
+        maxReceiveCount: 3
+  ClaimProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: claim-processing-dlq
+      MessageRetentionPeriod: 1209600
+Outputs:
+  QueueURL:
+    Value: !Ref ClaimProcessingQueue
+  QueueArn:
+    Value: !GetAtt ClaimProcessingQueue.Arn
