@@ -24,13 +24,14 @@ func (q *Queries) CountPlans(ctx context.Context) (int64, error) {
 }
 
 const createPlan = `-- name: CreatePlan :one
-INSERT INTO plans (name, type, base_premium, currency, status, description, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, type, base_premium, currency, status, description, created_by, created_at, updated_at
+INSERT INTO plans (name, type, segment, base_premium, currency, status, description, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at
 `
 
 type CreatePlanParams struct {
 	Name        string      `json:"name"`
 	Type        string      `json:"type"`
+	Segment     string      `json:"segment"`
 	BasePremium int64       `json:"base_premium"`
 	Currency    string      `json:"currency"`
 	Status      string      `json:"status"`
@@ -42,6 +43,7 @@ func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, e
 	row := q.db.QueryRow(ctx, createPlan,
 		arg.Name,
 		arg.Type,
+		arg.Segment,
 		arg.BasePremium,
 		arg.Currency,
 		arg.Status,
@@ -53,6 +55,7 @@ func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, e
 		&i.ID,
 		&i.Name,
 		&i.Type,
+		&i.Segment,
 		&i.BasePremium,
 		&i.Currency,
 		&i.Status,
@@ -65,7 +68,7 @@ func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, e
 }
 
 const getPlanByID = `-- name: GetPlanByID :one
-SELECT id, name, type, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans WHERE id = $1
+SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans WHERE id = $1
 `
 
 func (q *Queries) GetPlanByID(ctx context.Context, id uuid.UUID) (Plan, error) {
@@ -75,6 +78,7 @@ func (q *Queries) GetPlanByID(ctx context.Context, id uuid.UUID) (Plan, error) {
 		&i.ID,
 		&i.Name,
 		&i.Type,
+		&i.Segment,
 		&i.BasePremium,
 		&i.Currency,
 		&i.Status,
@@ -87,7 +91,7 @@ func (q *Queries) GetPlanByID(ctx context.Context, id uuid.UUID) (Plan, error) {
 }
 
 const listPlans = `-- name: ListPlans :many
-SELECT id, name, type, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListPlansParams struct {
@@ -108,6 +112,49 @@ func (q *Queries) ListPlans(ctx context.Context, arg ListPlansParams) ([]Plan, e
 			&i.ID,
 			&i.Name,
 			&i.Type,
+			&i.Segment,
+			&i.BasePremium,
+			&i.Currency,
+			&i.Status,
+			&i.Description,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlansBySegment = `-- name: ListPlansBySegment :many
+SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans WHERE segment = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+`
+
+type ListPlansBySegmentParams struct {
+	Segment string `json:"segment"`
+	Limit   int32  `json:"limit"`
+	Offset  int32  `json:"offset"`
+}
+
+func (q *Queries) ListPlansBySegment(ctx context.Context, arg ListPlansBySegmentParams) ([]Plan, error) {
+	rows, err := q.db.Query(ctx, listPlansBySegment, arg.Segment, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Plan{}
+	for rows.Next() {
+		var i Plan
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.Segment,
 			&i.BasePremium,
 			&i.Currency,
 			&i.Status,
@@ -127,7 +174,7 @@ func (q *Queries) ListPlans(ctx context.Context, arg ListPlansParams) ([]Plan, e
 }
 
 const listPlansByStatus = `-- name: ListPlansByStatus :many
-SELECT id, name, type, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListPlansByStatusParams struct {
@@ -149,6 +196,7 @@ func (q *Queries) ListPlansByStatus(ctx context.Context, arg ListPlansByStatusPa
 			&i.ID,
 			&i.Name,
 			&i.Type,
+			&i.Segment,
 			&i.BasePremium,
 			&i.Currency,
 			&i.Status,
@@ -171,16 +219,18 @@ const updatePlan = `-- name: UpdatePlan :one
 UPDATE plans SET
     name = COALESCE($1, name),
     type = COALESCE($2, type),
-    base_premium = COALESCE($3, base_premium),
-    description = COALESCE($4, description),
-    status = COALESCE($5, status),
+    segment = COALESCE($3, segment),
+    base_premium = COALESCE($4, base_premium),
+    description = COALESCE($5, description),
+    status = COALESCE($6, status),
     updated_at = NOW()
-WHERE id = $6 RETURNING id, name, type, base_premium, currency, status, description, created_by, created_at, updated_at
+WHERE id = $7 RETURNING id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at
 `
 
 type UpdatePlanParams struct {
 	Name        pgtype.Text `json:"name"`
 	Type        pgtype.Text `json:"type"`
+	Segment     pgtype.Text `json:"segment"`
 	BasePremium pgtype.Int8 `json:"base_premium"`
 	Description pgtype.Text `json:"description"`
 	Status      pgtype.Text `json:"status"`
@@ -191,6 +241,7 @@ func (q *Queries) UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, e
 	row := q.db.QueryRow(ctx, updatePlan,
 		arg.Name,
 		arg.Type,
+		arg.Segment,
 		arg.BasePremium,
 		arg.Description,
 		arg.Status,
@@ -201,6 +252,7 @@ func (q *Queries) UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, e
 		&i.ID,
 		&i.Name,
 		&i.Type,
+		&i.Segment,
 		&i.BasePremium,
 		&i.Currency,
 		&i.Status,

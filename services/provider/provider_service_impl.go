@@ -3,8 +3,10 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 
+	auditService "github.com/bitbiz/hias-core/domains/audit/service"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/bitbiz/hias-core/domains/provider/entity"
 	"github.com/bitbiz/hias-core/domains/provider/repository"
@@ -18,32 +20,25 @@ type providerServiceImpl struct {
 	providerRepo repository.ProviderRepository
 	contractRepo repository.ContractRepository
 	rateCardRepo repository.RateCardRepository
+	auditSvc     auditService.AuditService
 }
 
 func NewProviderService(
 	providerRepo repository.ProviderRepository,
 	contractRepo repository.ContractRepository,
 	rateCardRepo repository.RateCardRepository,
+	auditSvc auditService.AuditService,
 ) service.ProviderService {
 	return &providerServiceImpl{
 		providerRepo: providerRepo,
 		contractRepo: contractRepo,
 		rateCardRepo: rateCardRepo,
+		auditSvc:     auditSvc,
 	}
 }
 
 func (s *providerServiceImpl) RegisterProvider(ctx context.Context, req providerSchema.RegisterProviderRequest, createdBy uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
-	// Check if a provider with this license number already exists
-	existing, _ := s.providerRepo.GetByLicense(ctx, req.LicenseNumber)
-	if existing != nil {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Provider with license number %s already exists", req.LicenseNumber),
-			nil,
-		)
-	}
-
-	provider, err := s.providerRepo.Create(ctx, &entity.Provider{
+	provider := &entity.Provider{
 		Name:          req.Name,
 		Type:          req.Type,
 		LicenseNumber: req.LicenseNumber,
@@ -54,12 +49,16 @@ func (s *providerServiceImpl) RegisterProvider(ctx context.Context, req provider
 		Email:         req.Email,
 		ContactPerson: req.ContactPerson,
 		CreatedBy:     createdBy,
-	})
+	}
+
+	created, err := s.providerRepo.Create(ctx, provider)
 	if err != nil {
 		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to register provider", err)
 	}
 
-	return schema.NewServiceResponse(providerSchema.ToProviderResponse(provider), http.StatusCreated, "Provider registered successfully")
+	s.logAudit(ctx, createdBy, string(shared.AuditEntityTypeProvider), created.ID, string(shared.AuditActionCreate))
+
+	return schema.NewServiceResponse(providerSchema.ToProviderResponse(created), http.StatusCreated, "Provider registered")
 }
 
 func (s *providerServiceImpl) GetProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
@@ -67,7 +66,6 @@ func (s *providerServiceImpl) GetProvider(ctx context.Context, id uuid.UUID) *sc
 	if err != nil {
 		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusNotFound, "Provider not found", err)
 	}
-
 	return schema.NewServiceResponse(providerSchema.ToProviderResponse(provider), http.StatusOK, "Provider retrieved")
 }
 
@@ -87,123 +85,51 @@ func (s *providerServiceImpl) ListProviders(ctx context.Context, page, pageSize 
 }
 
 func (s *providerServiceImpl) CredentialProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
-	provider, err := s.providerRepo.GetByID(ctx, id)
-	if err != nil {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusNotFound, "Provider not found", err)
-	}
-
-	// State machine: only PENDING → CREDENTIALING
-	if provider.Status != string(shared.ProviderStatusPending) {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot credential provider: current status is %s, expected PENDING", provider.Status),
-			nil,
-		)
-	}
-
-	updated, err := s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusCredentialing))
-	if err != nil {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to credential provider", err)
-	}
-
-	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, "Provider credentialing started")
+	return s.updateProviderStatus(ctx, id, string(shared.ProviderStatusCredentialing), string(shared.ProviderStatusPending), "Provider moved to credentialing")
 }
 
 func (s *providerServiceImpl) ActivateProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
-	provider, err := s.providerRepo.GetByID(ctx, id)
-	if err != nil {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusNotFound, "Provider not found", err)
-	}
-
-	// State machine: only CREDENTIALING → ACTIVE
-	if provider.Status != string(shared.ProviderStatusCredentialing) {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot activate provider: current status is %s, expected CREDENTIALING", provider.Status),
-			nil,
-		)
-	}
-
-	updated, err := s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusActive))
-	if err != nil {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to activate provider", err)
-	}
-
-	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, "Provider activated")
+	return s.updateProviderStatus(ctx, id, string(shared.ProviderStatusActive), string(shared.ProviderStatusCredentialing), "Provider activated")
 }
 
 func (s *providerServiceImpl) SuspendProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
-	provider, err := s.providerRepo.GetByID(ctx, id)
-	if err != nil {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusNotFound, "Provider not found", err)
-	}
-
-	// State machine: only ACTIVE → SUSPENDED
-	if provider.Status != string(shared.ProviderStatusActive) {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot suspend provider: current status is %s, expected ACTIVE", provider.Status),
-			nil,
-		)
-	}
-
-	updated, err := s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusSuspended))
-	if err != nil {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to suspend provider", err)
-	}
-
-	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, "Provider suspended")
+	return s.updateProviderStatus(ctx, id, string(shared.ProviderStatusSuspended), string(shared.ProviderStatusActive), "Provider suspended")
 }
 
 func (s *providerServiceImpl) TerminateProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
-	provider, err := s.providerRepo.GetByID(ctx, id)
-	if err != nil {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusNotFound, "Provider not found", err)
-	}
-
-	// State machine: ACTIVE or SUSPENDED → TERMINATED
-	if provider.Status != string(shared.ProviderStatusActive) && provider.Status != string(shared.ProviderStatusSuspended) {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot terminate provider: current status is %s, expected ACTIVE or SUSPENDED", provider.Status),
-			nil,
-		)
-	}
-
 	updated, err := s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusTerminated))
 	if err != nil {
 		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to terminate provider", err)
 	}
-
 	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, "Provider terminated")
 }
 
 func (s *providerServiceImpl) UpdateProvider(ctx context.Context, id uuid.UUID, req providerSchema.UpdateProviderRequest) *schema.ServiceResponse[providerSchema.ProviderResponse] {
-	existing, err := s.providerRepo.GetByID(ctx, id)
+	provider, err := s.providerRepo.GetByID(ctx, id)
 	if err != nil {
 		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusNotFound, "Provider not found", err)
 	}
 
 	if req.Name != nil {
-		existing.Name = *req.Name
+		provider.Name = *req.Name
 	}
 	if req.County != nil {
-		existing.County = *req.County
+		provider.County = *req.County
 	}
 	if req.Address != nil {
-		existing.Address = *req.Address
+		provider.Address = *req.Address
 	}
 	if req.Phone != nil {
-		existing.Phone = *req.Phone
+		provider.Phone = *req.Phone
 	}
 	if req.Email != nil {
-		existing.Email = *req.Email
+		provider.Email = *req.Email
 	}
 	if req.ContactPerson != nil {
-		existing.ContactPerson = *req.ContactPerson
+		provider.ContactPerson = *req.ContactPerson
 	}
 
-	updated, err := s.providerRepo.Update(ctx, existing)
+	updated, err := s.providerRepo.Update(ctx, provider)
 	if err != nil {
 		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to update provider", err)
 	}
@@ -214,7 +140,34 @@ func (s *providerServiceImpl) UpdateProvider(ctx context.Context, id uuid.UUID, 
 func (s *providerServiceImpl) GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64] {
 	count, err := s.providerRepo.Count(ctx)
 	if err != nil {
-		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to count providers", err)
+		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to get count", err)
 	}
 	return schema.NewServiceResponse(count, http.StatusOK, "Count retrieved")
+}
+
+func (s *providerServiceImpl) updateProviderStatus(ctx context.Context, id uuid.UUID, newStatus, requiredStatus, message string) *schema.ServiceResponse[providerSchema.ProviderResponse] {
+	provider, err := s.providerRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusNotFound, "Provider not found", err)
+	}
+
+	if provider.Status != requiredStatus {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, fmt.Sprintf("Provider must be in %s status", requiredStatus), nil)
+	}
+
+	updated, err := s.providerRepo.UpdateStatus(ctx, id, newStatus)
+	if err != nil {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to update provider status", err)
+	}
+
+	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, message)
+}
+
+func (s *providerServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
+	if s.auditSvc != nil {
+		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")
+		if resp.Error != nil {
+			log.Printf("Failed to log audit: %v", resp.Error)
+		}
+	}
 }

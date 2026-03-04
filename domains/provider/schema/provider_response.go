@@ -1,9 +1,9 @@
 package schema
 
 import (
-	"time"
 	"github.com/bitbiz/hias-core/domains/provider/entity"
 	"github.com/google/uuid"
+	"time"
 )
 
 type ProviderResponse struct {
@@ -37,6 +37,10 @@ type RateCardResponse struct {
 	ProcedureName string    `json:"procedure_name"`
 	RateAmount    int64     `json:"rate_amount"`
 	EffectiveDate time.Time `json:"effective_date"`
+	AgeFrom       int       `json:"age_from"`
+	AgeTo         int       `json:"age_to"`
+	Gender        string    `json:"gender,omitempty"`
+	Relationship  string    `json:"relationship,omitempty"`
 }
 
 func ToProviderResponse(p *entity.Provider) ProviderResponse {
@@ -58,6 +62,7 @@ func ToRateCardResponse(r *entity.RateCard) RateCardResponse {
 	return RateCardResponse{
 		ID: r.ID, ProviderID: r.ProviderID, ProcedureCode: r.ProcedureCode,
 		ProcedureName: r.ProcedureName, RateAmount: r.RateAmount,
-		EffectiveDate: r.EffectiveDate,
+		EffectiveDate: r.EffectiveDate, AgeFrom: r.AgeFrom, AgeTo: r.AgeTo,
+		Gender: r.Gender, Relationship: r.Relationship,
 	}
 }

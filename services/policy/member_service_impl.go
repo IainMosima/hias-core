@@ -3,63 +3,59 @@ package policy
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
+	auditService "github.com/bitbiz/hias-core/domains/audit/service"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/bitbiz/hias-core/domains/policy/entity"
 	"github.com/bitbiz/hias-core/domains/policy/repository"
+	policyRepo "github.com/bitbiz/hias-core/domains/policy/repository"
 	policySchema "github.com/bitbiz/hias-core/domains/policy/schema"
 	"github.com/bitbiz/hias-core/domains/policy/service"
 	"github.com/bitbiz/hias-core/shared"
+	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
 )
 
 type memberServiceImpl struct {
 	memberRepo repository.MemberRepository
-	policyRepo repository.PolicyRepository
+	policyRepo policyRepo.PolicyRepository
+	auditSvc   auditService.AuditService
 }
 
 func NewMemberService(
 	memberRepo repository.MemberRepository,
-	policyRepo repository.PolicyRepository,
+	policyRepo policyRepo.PolicyRepository,
+	auditSvc auditService.AuditService,
 ) service.MemberService {
 	return &memberServiceImpl{
 		memberRepo: memberRepo,
 		policyRepo: policyRepo,
+		auditSvc:   auditSvc,
 	}
 }
 
 func (s *memberServiceImpl) EnrollMember(ctx context.Context, policyID uuid.UUID, req policySchema.EnrollMemberRequest) *schema.ServiceResponse[policySchema.MemberResponse] {
-	// Verify the policy exists
-	policy, err := s.policyRepo.GetByID(ctx, policyID)
+	// Verify policy exists
+	pol, err := s.policyRepo.GetByID(ctx, policyID)
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusNotFound, "Policy not found", err)
 	}
 
-	// Only allow enrollment on DRAFT or ACTIVE policies
-	if policy.Status != string(shared.PolicyStatusDraft) && policy.Status != string(shared.PolicyStatusActive) {
-		return schema.NewServiceErrorResponse[policySchema.MemberResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot enroll member: policy status is %s, expected DRAFT or ACTIVE", policy.Status),
-			nil,
-		)
+	if pol.Status != string(shared.PolicyStatusActive) && pol.Status != string(shared.PolicyStatusDraft) {
+		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusBadRequest, fmt.Sprintf("Cannot enroll members in %s policy", pol.Status), nil)
 	}
 
-	// Parse date of birth
 	dob, err := time.Parse("2006-01-02", req.DateOfBirth)
 	if err != nil {
-		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusBadRequest, "Invalid date_of_birth format, expected YYYY-MM-DD", err)
+		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusBadRequest, "Invalid date of birth format (YYYY-MM-DD)", err)
 	}
 
-	// Generate member number: MEM-{policyNumber suffix}-{sequential}
-	count, err := s.memberRepo.CountByPolicy(ctx, policyID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusInternalServerError, "Failed to count existing members", err)
-	}
-	memberNumber := fmt.Sprintf("MEM-%s-%03d", policy.PolicyNumber, count+1)
+	memberNumber := utils.GenerateMemberNumber()
 
-	member, err := s.memberRepo.Create(ctx, &entity.Member{
+	member := &entity.Member{
 		PolicyID:     policyID,
 		NationalID:   req.NationalID,
 		Name:         req.Name,
@@ -69,33 +65,28 @@ func (s *memberServiceImpl) EnrollMember(ctx context.Context, policyID uuid.UUID
 		MemberNumber: memberNumber,
 		Phone:        req.Phone,
 		Email:        req.Email,
+		KRAPin:       req.KRAPin,
+		County:       req.County,
+		Address:      req.Address,
 		Verified:     false,
-	})
+	}
+
+	created, err := s.memberRepo.Create(ctx, member)
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusInternalServerError, "Failed to enroll member", err)
 	}
 
-	return schema.NewServiceResponse(policySchema.ToMemberResponse(member), http.StatusCreated, "Member enrolled successfully")
+	s.logAudit(ctx, uuid.Nil, string(shared.AuditEntityTypeMember), created.ID, string(shared.AuditActionCreate))
+
+	return schema.NewServiceResponse(policySchema.ToMemberResponse(created), http.StatusCreated, "Member enrolled")
 }
 
 func (s *memberServiceImpl) VerifyMember(ctx context.Context, memberID uuid.UUID) *schema.ServiceResponse[policySchema.MemberResponse] {
-	member, err := s.memberRepo.GetByID(ctx, memberID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusNotFound, "Member not found", err)
-	}
-
-	if member.Verified {
-		return schema.NewServiceResponse(policySchema.ToMemberResponse(member), http.StatusOK, "Member already verified")
-	}
-
-	// TODO: Integrate with IPRS (Integrated Population Registration System) for national ID verification.
-	// For now, stub the integration and set verified=true directly.
 	verified, err := s.memberRepo.Verify(ctx, memberID)
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusInternalServerError, "Failed to verify member", err)
 	}
-
-	return schema.NewServiceResponse(policySchema.ToMemberResponse(verified), http.StatusOK, "Member verified successfully")
+	return schema.NewServiceResponse(policySchema.ToMemberResponse(verified), http.StatusOK, "Member verified")
 }
 
 func (s *memberServiceImpl) GetMemberEligibility(ctx context.Context, memberID uuid.UUID) *schema.ServiceResponse[bool] {
@@ -104,32 +95,16 @@ func (s *memberServiceImpl) GetMemberEligibility(ctx context.Context, memberID u
 		return schema.NewServiceErrorResponse[bool](http.StatusNotFound, "Member not found", err)
 	}
 
-	// Check if the member's policy is active
-	policy, err := s.policyRepo.GetByID(ctx, member.PolicyID)
+	pol, err := s.policyRepo.GetByID(ctx, member.PolicyID)
 	if err != nil {
-		return schema.NewServiceErrorResponse[bool](http.StatusInternalServerError, "Failed to retrieve policy", err)
+		return schema.NewServiceErrorResponse[bool](http.StatusNotFound, "Policy not found", err)
 	}
 
-	if policy.Status != string(shared.PolicyStatusActive) {
-		return schema.NewServiceResponse(false, http.StatusOK, fmt.Sprintf("Member not eligible: policy status is %s", policy.Status))
-	}
-
-	// Check if the policy is within the coverage period
-	now := time.Now()
-	if now.Before(policy.StartDate) || now.After(policy.EndDate) {
-		return schema.NewServiceResponse(false, http.StatusOK, "Member not eligible: outside policy coverage period")
-	}
-
-	return schema.NewServiceResponse(true, http.StatusOK, "Member is eligible")
+	eligible := pol.Status == string(shared.PolicyStatusActive) && time.Now().Before(pol.EndDate)
+	return schema.NewServiceResponse(eligible, http.StatusOK, "Eligibility checked")
 }
 
 func (s *memberServiceImpl) ListMembers(ctx context.Context, policyID uuid.UUID) *schema.ServiceResponse[[]policySchema.MemberResponse] {
-	// Verify the policy exists
-	_, err := s.policyRepo.GetByID(ctx, policyID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[[]policySchema.MemberResponse](http.StatusNotFound, "Policy not found", err)
-	}
-
 	members, err := s.memberRepo.ListByPolicy(ctx, policyID)
 	if err != nil {
 		return schema.NewServiceErrorResponse[[]policySchema.MemberResponse](http.StatusInternalServerError, "Failed to list members", err)
@@ -141,4 +116,13 @@ func (s *memberServiceImpl) ListMembers(ctx context.Context, policyID uuid.UUID)
 	}
 
 	return schema.NewServiceResponse(responses, http.StatusOK, "Members retrieved")
+}
+
+func (s *memberServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
+	if s.auditSvc != nil {
+		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")
+		if resp.Error != nil {
+			log.Printf("Failed to log audit: %v", resp.Error)
+		}
+	}
 }

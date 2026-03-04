@@ -48,6 +48,11 @@ type Benefit struct {
 	CoPayType         string    `json:"co_pay_type"`
 	CoPayValue        int64     `json:"co_pay_value"`
 	WaitingPeriodDays int32     `json:"waiting_period_days"`
+	SubLimitType      string    `json:"sub_limit_type"`
+	SubLimitValue     int64     `json:"sub_limit_value"`
+	MinAge            int32     `json:"min_age"`
+	MaxAge            int32     `json:"max_age"`
+	WaitingPeriodType string    `json:"waiting_period_type"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -125,6 +130,32 @@ type FraudFlag struct {
 	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
+type Installment struct {
+	ID                uuid.UUID          `json:"id"`
+	ScheduleID        uuid.UUID          `json:"schedule_id"`
+	InstallmentNumber int32              `json:"installment_number"`
+	DueDate           time.Time          `json:"due_date"`
+	Amount            int64              `json:"amount"`
+	Status            string             `json:"status"`
+	PaidAt            pgtype.Timestamptz `json:"paid_at"`
+	InvoiceID         pgtype.UUID        `json:"invoice_id"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+}
+
+type InstallmentSchedule struct {
+	ID                   uuid.UUID   `json:"id"`
+	PolicyID             uuid.UUID   `json:"policy_id"`
+	Frequency            string      `json:"frequency"`
+	TotalInstallments    int32       `json:"total_installments"`
+	AmountPerInstallment int64       `json:"amount_per_installment"`
+	StartDate            time.Time   `json:"start_date"`
+	Status               string      `json:"status"`
+	CreatedBy            pgtype.UUID `json:"created_by"`
+	CreatedAt            time.Time   `json:"created_at"`
+	UpdatedAt            time.Time   `json:"updated_at"`
+}
+
 type Invoice struct {
 	ID                 uuid.UUID   `json:"id"`
 	PolicyID           uuid.UUID   `json:"policy_id"`
@@ -152,6 +183,9 @@ type Member struct {
 	MemberNumber string             `json:"member_number"`
 	Phone        pgtype.Text        `json:"phone"`
 	Email        pgtype.Text        `json:"email"`
+	KraPin       pgtype.Text        `json:"kra_pin"`
+	County       pgtype.Text        `json:"county"`
+	Address      pgtype.Text        `json:"address"`
 	Verified     bool               `json:"verified"`
 	VerifiedAt   pgtype.Timestamptz `json:"verified_at"`
 	CreatedAt    time.Time          `json:"created_at"`
@@ -208,6 +242,7 @@ type Plan struct {
 	ID          uuid.UUID   `json:"id"`
 	Name        string      `json:"name"`
 	Type        string      `json:"type"`
+	Segment     string      `json:"segment"`
 	BasePremium int64       `json:"base_premium"`
 	Currency    string      `json:"currency"`
 	Status      string      `json:"status"`
@@ -256,6 +291,19 @@ type Preauthorization struct {
 	UpdatedAt      time.Time          `json:"updated_at"`
 }
 
+type PremiumRule struct {
+	ID              uuid.UUID   `json:"id"`
+	PlanID          uuid.UUID   `json:"plan_id"`
+	CalculationType string      `json:"calculation_type"`
+	Relationship    pgtype.Text `json:"relationship"`
+	RateAmount      int64       `json:"rate_amount"`
+	DiscountType    pgtype.Text `json:"discount_type"`
+	DiscountValue   int64       `json:"discount_value"`
+	MinMembers      int32       `json:"min_members"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+}
+
 type Provider struct {
 	ID            uuid.UUID   `json:"id"`
 	Name          string      `json:"name"`
@@ -273,15 +321,29 @@ type Provider struct {
 	UpdatedAt     time.Time   `json:"updated_at"`
 }
 
+type ProviderNetwork struct {
+	ID              uuid.UUID   `json:"id"`
+	PlanID          uuid.UUID   `json:"plan_id"`
+	ProviderID      uuid.UUID   `json:"provider_id"`
+	BenefitCategory pgtype.Text `json:"benefit_category"`
+	Status          string      `json:"status"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+}
+
 type RateCard struct {
-	ID            uuid.UUID `json:"id"`
-	ProviderID    uuid.UUID `json:"provider_id"`
-	ProcedureCode string    `json:"procedure_code"`
-	ProcedureName string    `json:"procedure_name"`
-	RateAmount    int64     `json:"rate_amount"`
-	EffectiveDate time.Time `json:"effective_date"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID            uuid.UUID   `json:"id"`
+	ProviderID    uuid.UUID   `json:"provider_id"`
+	ProcedureCode string      `json:"procedure_code"`
+	ProcedureName string      `json:"procedure_name"`
+	RateAmount    int64       `json:"rate_amount"`
+	EffectiveDate time.Time   `json:"effective_date"`
+	AgeFrom       int32       `json:"age_from"`
+	AgeTo         int32       `json:"age_to"`
+	Gender        pgtype.Text `json:"gender"`
+	Relationship  pgtype.Text `json:"relationship"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
 }
 
 type Remittance struct {
@@ -316,15 +378,16 @@ type RolePermission struct {
 }
 
 type User struct {
-	ID         uuid.UUID   `json:"id"`
-	CognitoSub pgtype.Text `json:"cognito_sub"`
-	Email      string      `json:"email"`
-	Name       string      `json:"name"`
-	Phone      pgtype.Text `json:"phone"`
-	NationalID pgtype.Text `json:"national_id"`
-	RoleID     uuid.UUID   `json:"role_id"`
-	Status     string      `json:"status"`
-	CreatedBy  pgtype.UUID `json:"created_by"`
-	CreatedAt  time.Time   `json:"created_at"`
-	UpdatedAt  time.Time   `json:"updated_at"`
+	ID           uuid.UUID   `json:"id"`
+	CognitoSub   pgtype.Text `json:"cognito_sub"`
+	Email        string      `json:"email"`
+	Name         string      `json:"name"`
+	Phone        pgtype.Text `json:"phone"`
+	NationalID   pgtype.Text `json:"national_id"`
+	RoleID       uuid.UUID   `json:"role_id"`
+	Status       string      `json:"status"`
+	CreatedBy    pgtype.UUID `json:"created_by"`
+	CreatedAt    time.Time   `json:"created_at"`
+	UpdatedAt    time.Time   `json:"updated_at"`
+	PasswordHash string      `json:"password_hash"`
 }

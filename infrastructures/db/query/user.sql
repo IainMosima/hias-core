@@ -1,6 +1,6 @@
 -- name: CreateUser :one
-INSERT INTO users (cognito_sub, email, name, phone, national_id, role_id, status, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+INSERT INTO users (cognito_sub, email, name, phone, national_id, role_id, status, created_by, password_hash)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
@@ -36,3 +36,6 @@ UPDATE users SET role_id = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
 
 -- name: UpdateUserCognitoSub :one
 UPDATE users SET cognito_sub = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: UpdateUserPassword :exec
+UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1;

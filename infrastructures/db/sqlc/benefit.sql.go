@@ -13,8 +13,8 @@ import (
 )
 
 const createBenefit = `-- name: CreateBenefit :one
-INSERT INTO benefits (plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, created_at, updated_at
+INSERT INTO benefits (plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, created_at, updated_at
 `
 
 type CreateBenefitParams struct {
@@ -25,6 +25,11 @@ type CreateBenefitParams struct {
 	CoPayType         string    `json:"co_pay_type"`
 	CoPayValue        int64     `json:"co_pay_value"`
 	WaitingPeriodDays int32     `json:"waiting_period_days"`
+	SubLimitType      string    `json:"sub_limit_type"`
+	SubLimitValue     int64     `json:"sub_limit_value"`
+	MinAge            int32     `json:"min_age"`
+	MaxAge            int32     `json:"max_age"`
+	WaitingPeriodType string    `json:"waiting_period_type"`
 }
 
 func (q *Queries) CreateBenefit(ctx context.Context, arg CreateBenefitParams) (Benefit, error) {
@@ -36,6 +41,11 @@ func (q *Queries) CreateBenefit(ctx context.Context, arg CreateBenefitParams) (B
 		arg.CoPayType,
 		arg.CoPayValue,
 		arg.WaitingPeriodDays,
+		arg.SubLimitType,
+		arg.SubLimitValue,
+		arg.MinAge,
+		arg.MaxAge,
+		arg.WaitingPeriodType,
 	)
 	var i Benefit
 	err := row.Scan(
@@ -47,6 +57,11 @@ func (q *Queries) CreateBenefit(ctx context.Context, arg CreateBenefitParams) (B
 		&i.CoPayType,
 		&i.CoPayValue,
 		&i.WaitingPeriodDays,
+		&i.SubLimitType,
+		&i.SubLimitValue,
+		&i.MinAge,
+		&i.MaxAge,
+		&i.WaitingPeriodType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -63,7 +78,7 @@ func (q *Queries) DeleteBenefit(ctx context.Context, id uuid.UUID) error {
 }
 
 const getBenefitByID = `-- name: GetBenefitByID :one
-SELECT id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, created_at, updated_at FROM benefits WHERE id = $1
+SELECT id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, created_at, updated_at FROM benefits WHERE id = $1
 `
 
 func (q *Queries) GetBenefitByID(ctx context.Context, id uuid.UUID) (Benefit, error) {
@@ -78,6 +93,11 @@ func (q *Queries) GetBenefitByID(ctx context.Context, id uuid.UUID) (Benefit, er
 		&i.CoPayType,
 		&i.CoPayValue,
 		&i.WaitingPeriodDays,
+		&i.SubLimitType,
+		&i.SubLimitValue,
+		&i.MinAge,
+		&i.MaxAge,
+		&i.WaitingPeriodType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -85,7 +105,7 @@ func (q *Queries) GetBenefitByID(ctx context.Context, id uuid.UUID) (Benefit, er
 }
 
 const listBenefitsByCategory = `-- name: ListBenefitsByCategory :many
-SELECT id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, created_at, updated_at FROM benefits WHERE plan_id = $1 AND category = $2
+SELECT id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, created_at, updated_at FROM benefits WHERE plan_id = $1 AND category = $2
 `
 
 type ListBenefitsByCategoryParams struct {
@@ -111,6 +131,11 @@ func (q *Queries) ListBenefitsByCategory(ctx context.Context, arg ListBenefitsBy
 			&i.CoPayType,
 			&i.CoPayValue,
 			&i.WaitingPeriodDays,
+			&i.SubLimitType,
+			&i.SubLimitValue,
+			&i.MinAge,
+			&i.MaxAge,
+			&i.WaitingPeriodType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -125,7 +150,7 @@ func (q *Queries) ListBenefitsByCategory(ctx context.Context, arg ListBenefitsBy
 }
 
 const listBenefitsByPlan = `-- name: ListBenefitsByPlan :many
-SELECT id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, created_at, updated_at FROM benefits WHERE plan_id = $1 ORDER BY category, name
+SELECT id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, created_at, updated_at FROM benefits WHERE plan_id = $1 ORDER BY category, name
 `
 
 func (q *Queries) ListBenefitsByPlan(ctx context.Context, planID uuid.UUID) ([]Benefit, error) {
@@ -146,6 +171,11 @@ func (q *Queries) ListBenefitsByPlan(ctx context.Context, planID uuid.UUID) ([]B
 			&i.CoPayType,
 			&i.CoPayValue,
 			&i.WaitingPeriodDays,
+			&i.SubLimitType,
+			&i.SubLimitValue,
+			&i.MinAge,
+			&i.MaxAge,
+			&i.WaitingPeriodType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -167,8 +197,13 @@ UPDATE benefits SET
     co_pay_type = COALESCE($4, co_pay_type),
     co_pay_value = COALESCE($5, co_pay_value),
     waiting_period_days = COALESCE($6, waiting_period_days),
+    sub_limit_type = COALESCE($7, sub_limit_type),
+    sub_limit_value = COALESCE($8, sub_limit_value),
+    min_age = COALESCE($9, min_age),
+    max_age = COALESCE($10, max_age),
+    waiting_period_type = COALESCE($11, waiting_period_type),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, created_at, updated_at
+WHERE id = $12 RETURNING id, plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, created_at, updated_at
 `
 
 type UpdateBenefitParams struct {
@@ -178,6 +213,11 @@ type UpdateBenefitParams struct {
 	CoPayType         pgtype.Text `json:"co_pay_type"`
 	CoPayValue        pgtype.Int8 `json:"co_pay_value"`
 	WaitingPeriodDays pgtype.Int4 `json:"waiting_period_days"`
+	SubLimitType      pgtype.Text `json:"sub_limit_type"`
+	SubLimitValue     pgtype.Int8 `json:"sub_limit_value"`
+	MinAge            pgtype.Int4 `json:"min_age"`
+	MaxAge            pgtype.Int4 `json:"max_age"`
+	WaitingPeriodType pgtype.Text `json:"waiting_period_type"`
 	ID                uuid.UUID   `json:"id"`
 }
 
@@ -189,6 +229,11 @@ func (q *Queries) UpdateBenefit(ctx context.Context, arg UpdateBenefitParams) (B
 		arg.CoPayType,
 		arg.CoPayValue,
 		arg.WaitingPeriodDays,
+		arg.SubLimitType,
+		arg.SubLimitValue,
+		arg.MinAge,
+		arg.MaxAge,
+		arg.WaitingPeriodType,
 		arg.ID,
 	)
 	var i Benefit
@@ -201,6 +246,11 @@ func (q *Queries) UpdateBenefit(ctx context.Context, arg UpdateBenefitParams) (B
 		&i.CoPayType,
 		&i.CoPayValue,
 		&i.WaitingPeriodDays,
+		&i.SubLimitType,
+		&i.SubLimitValue,
+		&i.MinAge,
+		&i.MaxAge,
+		&i.WaitingPeriodType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

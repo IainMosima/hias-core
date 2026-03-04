@@ -19,4 +19,5 @@ type UserRepository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*entity.User, error)
 	UpdateRole(ctx context.Context, id uuid.UUID, roleID uuid.UUID) (*entity.User, error)
 	UpdateCognitoSub(ctx context.Context, id uuid.UUID, sub string) (*entity.User, error)
+	UpdatePassword(ctx context.Context, id uuid.UUID, hash string) error
 }

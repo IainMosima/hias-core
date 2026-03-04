@@ -15,5 +15,6 @@ type PolicyService interface {
 	LapsePolicy(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[policySchema.PolicyResponse]
 	TerminatePolicy(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[policySchema.PolicyResponse]
 	ReinstatePolicy(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[policySchema.PolicyResponse]
+	CalculateProratedPremium(ctx context.Context, policyID uuid.UUID) *schema.ServiceResponse[int64]
 	GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64]
 }

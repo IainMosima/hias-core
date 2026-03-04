@@ -38,13 +38,13 @@ const (
 type PreAuthStatus string
 
 const (
-	PreAuthStatusSubmitted    PreAuthStatus = "SUBMITTED"
-	PreAuthStatusUnderReview  PreAuthStatus = "UNDER_REVIEW"
-	PreAuthStatusApproved     PreAuthStatus = "APPROVED"
-	PreAuthStatusDenied       PreAuthStatus = "DENIED"
+	PreAuthStatusSubmitted     PreAuthStatus = "SUBMITTED"
+	PreAuthStatusUnderReview   PreAuthStatus = "UNDER_REVIEW"
+	PreAuthStatusApproved      PreAuthStatus = "APPROVED"
+	PreAuthStatusDenied        PreAuthStatus = "DENIED"
 	PreAuthStatusInfoRequested PreAuthStatus = "INFO_REQUESTED"
-	PreAuthStatusExpired      PreAuthStatus = "EXPIRED"
-	PreAuthStatusClaimed      PreAuthStatus = "CLAIMED"
+	PreAuthStatusExpired       PreAuthStatus = "EXPIRED"
+	PreAuthStatusClaimed       PreAuthStatus = "CLAIMED"
 )
 
 // PaymentStatus represents the status of a payment
@@ -174,6 +174,22 @@ const (
 	AuditActionStateChange AuditAction = "STATE_CHANGE"
 )
 
+// AuditEntityType represents the type of entity being audited
+type AuditEntityType string
+
+const (
+	AuditEntityTypeClaim           AuditEntityType = "CLAIM"
+	AuditEntityTypePolicy          AuditEntityType = "POLICY"
+	AuditEntityTypeMember          AuditEntityType = "MEMBER"
+	AuditEntityTypePlan            AuditEntityType = "PLAN"
+	AuditEntityTypeBenefit         AuditEntityType = "BENEFIT"
+	AuditEntityTypeExclusion       AuditEntityType = "EXCLUSION"
+	AuditEntityTypePremiumRule     AuditEntityType = "PREMIUM_RULE"
+	AuditEntityTypeProviderNetwork AuditEntityType = "PROVIDER_NETWORK"
+	AuditEntityTypeProvider        AuditEntityType = "PROVIDER"
+	AuditEntityTypeUser            AuditEntityType = "USER"
+)
+
 // AdjudicationDecision represents the adjudication engine decision
 type AdjudicationDecision string
 
@@ -258,4 +274,108 @@ const (
 	GenderMale   Gender = "male"
 	GenderFemale Gender = "female"
 	GenderOther  Gender = "other"
+)
+
+// PlanStatus represents the status of a plan
+type PlanStatus string
+
+const (
+	PlanStatusActive   PlanStatus = "ACTIVE"
+	PlanStatusInactive PlanStatus = "INACTIVE"
+)
+
+// PlanSegment represents the market segment for a plan
+type PlanSegment string
+
+const (
+	PlanSegmentRetail    PlanSegment = "retail"
+	PlanSegmentCorporate PlanSegment = "corporate"
+	PlanSegmentSME       PlanSegment = "sme"
+)
+
+// SubLimitType represents how sub-limits are applied on a benefit
+type SubLimitType string
+
+const (
+	SubLimitTypeNone     SubLimitType = "none"
+	SubLimitTypePerVisit SubLimitType = "per_visit"
+	SubLimitTypePerItem  SubLimitType = "per_item"
+)
+
+// WaitingPeriodType represents the type of waiting period
+type WaitingPeriodType string
+
+const (
+	WaitingPeriodTypeGeneral     WaitingPeriodType = "general"
+	WaitingPeriodTypeMaternity   WaitingPeriodType = "maternity"
+	WaitingPeriodTypePreExisting WaitingPeriodType = "pre_existing"
+)
+
+// ExclusionType represents the type of plan exclusion
+type ExclusionType string
+
+const (
+	ExclusionTypePreExisting  ExclusionType = "pre_existing"
+	ExclusionTypeCosmetic     ExclusionType = "cosmetic"
+	ExclusionTypeExperimental ExclusionType = "experimental"
+)
+
+// PremiumCalculationType represents how premiums are calculated
+type PremiumCalculationType string
+
+const (
+	PremiumCalculationTypeFlat      PremiumCalculationType = "flat"
+	PremiumCalculationTypePerMember PremiumCalculationType = "per_member"
+	PremiumCalculationTypeTiered    PremiumCalculationType = "tiered"
+)
+
+// DiscountType represents the type of discount applied
+type DiscountType string
+
+const (
+	DiscountTypePercentage DiscountType = "percentage"
+	DiscountTypeFixed      DiscountType = "fixed"
+)
+
+// BillingFrequency represents how often billing occurs
+type BillingFrequency string
+
+const (
+	BillingFrequencyMonthly    BillingFrequency = "monthly"
+	BillingFrequencyQuarterly  BillingFrequency = "quarterly"
+	BillingFrequencySemiAnnual BillingFrequency = "semi_annual"
+	BillingFrequencyAnnual     BillingFrequency = "annual"
+)
+
+// InstallmentScheduleStatus represents the status of an installment schedule
+type InstallmentScheduleStatus string
+
+const (
+	InstallmentScheduleStatusActive    InstallmentScheduleStatus = "ACTIVE"
+	InstallmentScheduleStatusCompleted InstallmentScheduleStatus = "COMPLETED"
+	InstallmentScheduleStatusCancelled InstallmentScheduleStatus = "CANCELLED"
+)
+
+// InstallmentStatus represents the status of an individual installment
+type InstallmentStatus string
+
+const (
+	InstallmentStatusPending InstallmentStatus = "PENDING"
+	InstallmentStatusPaid    InstallmentStatus = "PAID"
+	InstallmentStatusOverdue InstallmentStatus = "OVERDUE"
+)
+
+// ProviderNetworkStatus represents the status of a provider network entry
+type ProviderNetworkStatus string
+
+const (
+	ProviderNetworkStatusActive   ProviderNetworkStatus = "ACTIVE"
+	ProviderNetworkStatusInactive ProviderNetworkStatus = "INACTIVE"
+)
+
+// Currency represents currency codes
+type Currency string
+
+const (
+	CurrencyKES Currency = "KES"
 )

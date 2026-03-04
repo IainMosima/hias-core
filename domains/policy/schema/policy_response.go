@@ -1,9 +1,9 @@
 package schema
 
 import (
-	"time"
 	"github.com/bitbiz/hias-core/domains/policy/entity"
 	"github.com/google/uuid"
+	"time"
 )
 
 type PolicyResponse struct {
@@ -33,6 +33,9 @@ type MemberResponse struct {
 	MemberNumber string     `json:"member_number"`
 	Phone        string     `json:"phone"`
 	Email        string     `json:"email"`
+	KRAPin       string     `json:"kra_pin"`
+	County       string     `json:"county"`
+	Address      string     `json:"address"`
 	Verified     bool       `json:"verified"`
 	VerifiedAt   *time.Time `json:"verified_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
@@ -53,7 +56,8 @@ func ToMemberResponse(m *entity.Member) MemberResponse {
 		ID: m.ID, PolicyID: m.PolicyID, NationalID: m.NationalID,
 		Name: m.Name, DateOfBirth: m.DateOfBirth, Gender: m.Gender,
 		Relationship: m.Relationship, MemberNumber: m.MemberNumber,
-		Phone: m.Phone, Email: m.Email, Verified: m.Verified,
+		Phone: m.Phone, Email: m.Email, KRAPin: m.KRAPin,
+		County: m.County, Address: m.Address, Verified: m.Verified,
 		VerifiedAt: m.VerifiedAt, CreatedAt: m.CreatedAt,
 	}
 }

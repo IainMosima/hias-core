@@ -1,16 +1,17 @@
 package schema
 
 import (
-	"time"
+	"encoding/json"
 	"github.com/bitbiz/hias-core/domains/product/entity"
 	"github.com/google/uuid"
-	"encoding/json"
+	"time"
 )
 
 type PlanResponse struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
 	Type        string    `json:"type"`
+	Segment     string    `json:"segment"`
 	BasePremium int64     `json:"base_premium"`
 	Currency    string    `json:"currency"`
 	Status      string    `json:"status"`
@@ -20,15 +21,20 @@ type PlanResponse struct {
 }
 
 type BenefitResponse struct {
-	ID               uuid.UUID `json:"id"`
-	PlanID           uuid.UUID `json:"plan_id"`
-	Name             string    `json:"name"`
-	Category         string    `json:"category"`
-	AnnualLimit      int64     `json:"annual_limit"`
-	CoPayType        string    `json:"co_pay_type"`
-	CoPayValue       int64     `json:"co_pay_value"`
-	WaitingPeriodDays int      `json:"waiting_period_days"`
-	CreatedAt        time.Time `json:"created_at"`
+	ID                uuid.UUID `json:"id"`
+	PlanID            uuid.UUID `json:"plan_id"`
+	Name              string    `json:"name"`
+	Category          string    `json:"category"`
+	AnnualLimit       int64     `json:"annual_limit"`
+	CoPayType         string    `json:"co_pay_type"`
+	CoPayValue        int64     `json:"co_pay_value"`
+	WaitingPeriodDays int       `json:"waiting_period_days"`
+	SubLimitType      string    `json:"sub_limit_type"`
+	SubLimitValue     int64     `json:"sub_limit_value"`
+	MinAge            int       `json:"min_age"`
+	MaxAge            int       `json:"max_age"`
+	WaitingPeriodType string    `json:"waiting_period_type"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 type ExclusionResponse struct {
@@ -42,9 +48,9 @@ type ExclusionResponse struct {
 
 func ToPlanResponse(p *entity.Plan) PlanResponse {
 	return PlanResponse{
-		ID: p.ID, Name: p.Name, Type: p.Type, BasePremium: p.BasePremium,
-		Currency: p.Currency, Status: p.Status, Description: p.Description,
-		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		ID: p.ID, Name: p.Name, Type: p.Type, Segment: p.Segment,
+		BasePremium: p.BasePremium, Currency: p.Currency, Status: p.Status,
+		Description: p.Description, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }
 
@@ -52,7 +58,9 @@ func ToBenefitResponse(b *entity.Benefit) BenefitResponse {
 	return BenefitResponse{
 		ID: b.ID, PlanID: b.PlanID, Name: b.Name, Category: b.Category,
 		AnnualLimit: b.AnnualLimit, CoPayType: b.CoPayType, CoPayValue: b.CoPayValue,
-		WaitingPeriodDays: b.WaitingPeriodDays, CreatedAt: b.CreatedAt,
+		WaitingPeriodDays: b.WaitingPeriodDays, SubLimitType: b.SubLimitType,
+		SubLimitValue: b.SubLimitValue, MinAge: b.MinAge, MaxAge: b.MaxAge,
+		WaitingPeriodType: b.WaitingPeriodType, CreatedAt: b.CreatedAt,
 	}
 }
 

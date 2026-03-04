@@ -27,6 +27,11 @@ func (r *benefitRepository) Create(ctx context.Context, benefit *entity.Benefit)
 		CoPayType:         benefit.CoPayType,
 		CoPayValue:        benefit.CoPayValue,
 		WaitingPeriodDays: int32(benefit.WaitingPeriodDays),
+		SubLimitType:      benefit.SubLimitType,
+		SubLimitValue:     benefit.SubLimitValue,
+		MinAge:            int32(benefit.MinAge),
+		MaxAge:            int32(benefit.MaxAge),
+		WaitingPeriodType: benefit.WaitingPeriodType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create benefit: %w", err)
@@ -78,6 +83,11 @@ func (r *benefitRepository) Update(ctx context.Context, benefit *entity.Benefit)
 		CoPayType:         stringToPgtypeText(benefit.CoPayType),
 		CoPayValue:        int64ToPgtypeInt8(benefit.CoPayValue),
 		WaitingPeriodDays: intToPgtypeInt4(benefit.WaitingPeriodDays),
+		SubLimitType:      stringToPgtypeText(benefit.SubLimitType),
+		SubLimitValue:     int64ToPgtypeInt8(benefit.SubLimitValue),
+		MinAge:            intToPgtypeInt4(benefit.MinAge),
+		MaxAge:            intToPgtypeInt4(benefit.MaxAge),
+		WaitingPeriodType: stringToPgtypeText(benefit.WaitingPeriodType),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update benefit: %w", err)
@@ -103,6 +113,11 @@ func sqlcBenefitToDomain(b db.Benefit) *entity.Benefit {
 		CoPayType:         b.CoPayType,
 		CoPayValue:        b.CoPayValue,
 		WaitingPeriodDays: int(b.WaitingPeriodDays),
+		SubLimitType:      b.SubLimitType,
+		SubLimitValue:     b.SubLimitValue,
+		MinAge:            int(b.MinAge),
+		MaxAge:            int(b.MaxAge),
+		WaitingPeriodType: b.WaitingPeriodType,
 		CreatedAt:         b.CreatedAt,
 		UpdatedAt:         b.UpdatedAt,
 	}

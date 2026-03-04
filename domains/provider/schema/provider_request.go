@@ -33,4 +33,8 @@ type CreateRateCardRequest struct {
 	ProcedureName string    `json:"procedure_name" binding:"required"`
 	RateAmount    int64     `json:"rate_amount" binding:"required,min=1"`
 	EffectiveDate time.Time `json:"effective_date"`
+	AgeFrom       int       `json:"age_from"`
+	AgeTo         int       `json:"age_to"`
+	Gender        string    `json:"gender"`
+	Relationship  string    `json:"relationship"`
 }

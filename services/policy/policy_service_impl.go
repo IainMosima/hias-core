@@ -3,15 +3,17 @@ package policy
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
+	auditService "github.com/bitbiz/hias-core/domains/audit/service"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/bitbiz/hias-core/domains/policy/entity"
 	"github.com/bitbiz/hias-core/domains/policy/repository"
 	policySchema "github.com/bitbiz/hias-core/domains/policy/schema"
 	"github.com/bitbiz/hias-core/domains/policy/service"
-	productRepo "github.com/bitbiz/hias-core/domains/product/repository"
+	planRepo "github.com/bitbiz/hias-core/domains/product/repository"
 	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
@@ -19,16 +21,19 @@ import (
 
 type policyServiceImpl struct {
 	policyRepo repository.PolicyRepository
-	planRepo   productRepo.PlanRepository
+	planRepo   planRepo.PlanRepository
+	auditSvc   auditService.AuditService
 }
 
 func NewPolicyService(
 	policyRepo repository.PolicyRepository,
-	planRepo productRepo.PlanRepository,
+	planRepo planRepo.PlanRepository,
+	auditSvc auditService.AuditService,
 ) service.PolicyService {
 	return &policyServiceImpl{
 		policyRepo: policyRepo,
 		planRepo:   planRepo,
+		auditSvc:   auditSvc,
 	}
 }
 
@@ -38,42 +43,42 @@ func (s *policyServiceImpl) CreatePolicy(ctx context.Context, req policySchema.C
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, "Invalid plan ID", err)
 	}
 
-	// Verify the plan exists
 	plan, err := s.planRepo.GetByID(ctx, planID)
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusNotFound, "Plan not found", err)
 	}
 
-	// Set default dates if not provided
 	startDate := req.StartDate
 	if startDate.IsZero() {
 		startDate = time.Now()
 	}
 	endDate := req.EndDate
 	if endDate.IsZero() {
-		endDate = startDate.AddDate(1, 0, 0) // Default: 1 year from start
+		endDate = startDate.AddDate(1, 0, 0)
 	}
 
-	policyNumber := utils.GeneratePolicyNumber()
-
-	policy, err := s.policyRepo.Create(ctx, &entity.Policy{
+	policy := &entity.Policy{
 		PlanID:            planID,
 		PolicyholderName:  req.PolicyholderName,
 		PolicyholderEmail: req.PolicyholderEmail,
 		PolicyholderPhone: req.PolicyholderPhone,
-		PolicyNumber:      policyNumber,
+		PolicyNumber:      utils.GeneratePolicyNumber(),
 		Status:            string(shared.PolicyStatusDraft),
 		StartDate:         startDate,
 		EndDate:           endDate,
 		PremiumAmount:     plan.BasePremium,
 		Currency:          plan.Currency,
 		CreatedBy:         createdBy,
-	})
+	}
+
+	created, err := s.policyRepo.Create(ctx, policy)
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusInternalServerError, "Failed to create policy", err)
 	}
 
-	return schema.NewServiceResponse(policySchema.ToPolicyResponse(policy), http.StatusCreated, "Policy created successfully")
+	s.logAudit(ctx, createdBy, string(shared.AuditEntityTypePolicy), created.ID, string(shared.AuditActionCreate))
+
+	return schema.NewServiceResponse(policySchema.ToPolicyResponse(created), http.StatusCreated, "Policy created")
 }
 
 func (s *policyServiceImpl) GetPolicy(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[policySchema.PolicyResponse] {
@@ -81,7 +86,6 @@ func (s *policyServiceImpl) GetPolicy(ctx context.Context, id uuid.UUID) *schema
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusNotFound, "Policy not found", err)
 	}
-
 	return schema.NewServiceResponse(policySchema.ToPolicyResponse(policy), http.StatusOK, "Policy retrieved")
 }
 
@@ -106,13 +110,8 @@ func (s *policyServiceImpl) ActivatePolicy(ctx context.Context, id uuid.UUID) *s
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusNotFound, "Policy not found", err)
 	}
 
-	// State machine: only DRAFT → ACTIVE
 	if policy.Status != string(shared.PolicyStatusDraft) {
-		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot activate policy: current status is %s, expected DRAFT", policy.Status),
-			nil,
-		)
+		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, fmt.Sprintf("Cannot activate policy in %s status", policy.Status), nil)
 	}
 
 	updated, err := s.policyRepo.UpdateStatus(ctx, id, string(shared.PolicyStatusActive))
@@ -129,20 +128,14 @@ func (s *policyServiceImpl) LapsePolicy(ctx context.Context, id uuid.UUID) *sche
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusNotFound, "Policy not found", err)
 	}
 
-	// State machine: only ACTIVE → LAPSED
 	if policy.Status != string(shared.PolicyStatusActive) {
-		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot lapse policy: current status is %s, expected ACTIVE", policy.Status),
-			nil,
-		)
+		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, fmt.Sprintf("Cannot lapse policy in %s status; must be ACTIVE", policy.Status), nil)
 	}
 
 	updated, err := s.policyRepo.UpdateStatus(ctx, id, string(shared.PolicyStatusLapsed))
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusInternalServerError, "Failed to lapse policy", err)
 	}
-
 	return schema.NewServiceResponse(policySchema.ToPolicyResponse(updated), http.StatusOK, "Policy lapsed")
 }
 
@@ -152,20 +145,14 @@ func (s *policyServiceImpl) TerminatePolicy(ctx context.Context, id uuid.UUID) *
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusNotFound, "Policy not found", err)
 	}
 
-	// State machine: ACTIVE or LAPSED → TERMINATED
 	if policy.Status != string(shared.PolicyStatusActive) && policy.Status != string(shared.PolicyStatusLapsed) {
-		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot terminate policy: current status is %s, expected ACTIVE or LAPSED", policy.Status),
-			nil,
-		)
+		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, fmt.Sprintf("Cannot terminate policy in %s status; must be ACTIVE or LAPSED", policy.Status), nil)
 	}
 
 	updated, err := s.policyRepo.UpdateStatus(ctx, id, string(shared.PolicyStatusTerminated))
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusInternalServerError, "Failed to terminate policy", err)
 	}
-
 	return schema.NewServiceResponse(policySchema.ToPolicyResponse(updated), http.StatusOK, "Policy terminated")
 }
 
@@ -175,13 +162,8 @@ func (s *policyServiceImpl) ReinstatePolicy(ctx context.Context, id uuid.UUID) *
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusNotFound, "Policy not found", err)
 	}
 
-	// State machine: only LAPSED → ACTIVE
 	if policy.Status != string(shared.PolicyStatusLapsed) {
-		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](
-			http.StatusConflict,
-			fmt.Sprintf("Cannot reinstate policy: current status is %s, expected LAPSED", policy.Status),
-			nil,
-		)
+		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, "Only lapsed policies can be reinstated", nil)
 	}
 
 	updated, err := s.policyRepo.UpdateStatus(ctx, id, string(shared.PolicyStatusActive))
@@ -192,10 +174,40 @@ func (s *policyServiceImpl) ReinstatePolicy(ctx context.Context, id uuid.UUID) *
 	return schema.NewServiceResponse(policySchema.ToPolicyResponse(updated), http.StatusOK, "Policy reinstated")
 }
 
+func (s *policyServiceImpl) CalculateProratedPremium(ctx context.Context, policyID uuid.UUID) *schema.ServiceResponse[int64] {
+	pol, err := s.policyRepo.GetByID(ctx, policyID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[int64](http.StatusNotFound, "Policy not found", err)
+	}
+
+	now := time.Now()
+	totalDays := pol.EndDate.Sub(pol.StartDate).Hours() / 24
+	if totalDays <= 0 {
+		return schema.NewServiceResponse(pol.PremiumAmount, http.StatusOK, "Prorated premium calculated")
+	}
+
+	remainingDays := pol.EndDate.Sub(now).Hours() / 24
+	if remainingDays < 0 {
+		remainingDays = 0
+	}
+
+	prorated := int64(float64(pol.PremiumAmount) * remainingDays / totalDays)
+	return schema.NewServiceResponse(prorated, http.StatusOK, "Prorated premium calculated")
+}
+
 func (s *policyServiceImpl) GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64] {
 	count, err := s.policyRepo.Count(ctx)
 	if err != nil {
-		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to count policies", err)
+		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to get count", err)
 	}
 	return schema.NewServiceResponse(count, http.StatusOK, "Count retrieved")
+}
+
+func (s *policyServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
+	if s.auditSvc != nil {
+		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")
+		if resp.Error != nil {
+			log.Printf("Failed to log audit: %v", resp.Error)
+		}
+	}
 }

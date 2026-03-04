@@ -20,14 +20,15 @@ func NewUserRepository(store db.Store) domainRepo.UserRepository {
 
 func (r *userRepository) Create(ctx context.Context, user *entity.User) (*entity.User, error) {
 	dbUser, err := r.store.CreateUser(ctx, db.CreateUserParams{
-		CognitoSub: stringToPgtypeText(user.CognitoSub),
-		Email:      user.Email,
-		Name:       user.Name,
-		Phone:      stringToPgtypeText(user.Phone),
-		NationalID: stringToPgtypeText(user.NationalID),
-		RoleID:     user.RoleID,
-		Status:     user.Status,
-		CreatedBy:  uuidToPgtype(user.CreatedBy),
+		CognitoSub:   stringToPgtypeText(user.CognitoSub),
+		Email:        user.Email,
+		Name:         user.Name,
+		Phone:        stringToPgtypeText(user.Phone),
+		NationalID:   stringToPgtypeText(user.NationalID),
+		RoleID:       user.RoleID,
+		Status:       user.Status,
+		CreatedBy:    uuidToPgtype(user.CreatedBy),
+		PasswordHash: user.PasswordHash,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -132,18 +133,30 @@ func (r *userRepository) UpdateCognitoSub(ctx context.Context, id uuid.UUID, sub
 	return sqlcUserToDomain(dbUser), nil
 }
 
+func (r *userRepository) UpdatePassword(ctx context.Context, id uuid.UUID, hash string) error {
+	err := r.store.UpdateUserPassword(ctx, db.UpdateUserPasswordParams{
+		ID:           id,
+		PasswordHash: hash,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update user password: %w", err)
+	}
+	return nil
+}
+
 func sqlcUserToDomain(u db.User) *entity.User {
 	return &entity.User{
-		ID:         u.ID,
-		CognitoSub: u.CognitoSub.String,
-		Email:      u.Email,
-		Name:       u.Name,
-		Phone:      u.Phone.String,
-		NationalID: u.NationalID.String,
-		RoleID:     u.RoleID,
-		Status:     u.Status,
-		CreatedBy:  pgtypeToUUID(u.CreatedBy),
-		CreatedAt:  u.CreatedAt,
-		UpdatedAt:  u.UpdatedAt,
+		ID:           u.ID,
+		CognitoSub:   u.CognitoSub.String,
+		Email:        u.Email,
+		Name:         u.Name,
+		Phone:        u.Phone.String,
+		NationalID:   u.NationalID.String,
+		PasswordHash: u.PasswordHash,
+		RoleID:       u.RoleID,
+		Status:       u.Status,
+		CreatedBy:    pgtypeToUUID(u.CreatedBy),
+		CreatedAt:    u.CreatedAt,
+		UpdatedAt:    u.UpdatedAt,
 	}
 }

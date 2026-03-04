@@ -24,19 +24,20 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (cognito_sub, email, name, phone, national_id, role_id, status, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at
+INSERT INTO users (cognito_sub, email, name, phone, national_id, role_id, status, created_by, password_hash)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash
 `
 
 type CreateUserParams struct {
-	CognitoSub pgtype.Text `json:"cognito_sub"`
-	Email      string      `json:"email"`
-	Name       string      `json:"name"`
-	Phone      pgtype.Text `json:"phone"`
-	NationalID pgtype.Text `json:"national_id"`
-	RoleID     uuid.UUID   `json:"role_id"`
-	Status     string      `json:"status"`
-	CreatedBy  pgtype.UUID `json:"created_by"`
+	CognitoSub   pgtype.Text `json:"cognito_sub"`
+	Email        string      `json:"email"`
+	Name         string      `json:"name"`
+	Phone        pgtype.Text `json:"phone"`
+	NationalID   pgtype.Text `json:"national_id"`
+	RoleID       uuid.UUID   `json:"role_id"`
+	Status       string      `json:"status"`
+	CreatedBy    pgtype.UUID `json:"created_by"`
+	PasswordHash string      `json:"password_hash"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -49,6 +50,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.RoleID,
 		arg.Status,
 		arg.CreatedBy,
+		arg.PasswordHash,
 	)
 	var i User
 	err := row.Scan(
@@ -63,12 +65,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
-SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at FROM users WHERE cognito_sub = $1
+SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash FROM users WHERE cognito_sub = $1
 `
 
 func (q *Queries) GetUserByCognitoSub(ctx context.Context, cognitoSub pgtype.Text) (User, error) {
@@ -86,12 +89,13 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, cognitoSub pgtype.Tex
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at FROM users WHERE email = $1
+SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -109,12 +113,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at FROM users WHERE id = $1
+SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -132,12 +137,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getUserByNationalID = `-- name: GetUserByNationalID :one
-SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at FROM users WHERE national_id = $1
+SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash FROM users WHERE national_id = $1
 `
 
 func (q *Queries) GetUserByNationalID(ctx context.Context, nationalID pgtype.Text) (User, error) {
@@ -155,12 +161,13 @@ func (q *Queries) GetUserByNationalID(ctx context.Context, nationalID pgtype.Tex
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListUsersParams struct {
@@ -189,6 +196,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PasswordHash,
 		); err != nil {
 			return nil, err
 		}
@@ -206,7 +214,7 @@ UPDATE users SET
     phone = COALESCE($2, phone),
     national_id = COALESCE($3, national_id),
     updated_at = NOW()
-WHERE id = $4 RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at
+WHERE id = $4 RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash
 `
 
 type UpdateUserParams struct {
@@ -236,12 +244,13 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const updateUserCognitoSub = `-- name: UpdateUserCognitoSub :one
-UPDATE users SET cognito_sub = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at
+UPDATE users SET cognito_sub = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash
 `
 
 type UpdateUserCognitoSubParams struct {
@@ -264,12 +273,27 @@ func (q *Queries) UpdateUserCognitoSub(ctx context.Context, arg UpdateUserCognit
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
+const updateUserPassword = `-- name: UpdateUserPassword :exec
+UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1
+`
+
+type UpdateUserPasswordParams struct {
+	ID           uuid.UUID `json:"id"`
+	PasswordHash string    `json:"password_hash"`
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
+	return err
+}
+
 const updateUserRole = `-- name: UpdateUserRole :one
-UPDATE users SET role_id = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at
+UPDATE users SET role_id = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash
 `
 
 type UpdateUserRoleParams struct {
@@ -292,12 +316,13 @@ func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const updateUserStatus = `-- name: UpdateUserStatus :one
-UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at
+UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, cognito_sub, email, name, phone, national_id, role_id, status, created_by, created_at, updated_at, password_hash
 `
 
 type UpdateUserStatusParams struct {
@@ -320,6 +345,7 @@ func (q *Queries) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusPara
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }

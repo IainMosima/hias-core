@@ -25,6 +25,10 @@ func (r *rateCardRepository) Create(ctx context.Context, rateCard *entity.RateCa
 		ProcedureName: rateCard.ProcedureName,
 		RateAmount:    rateCard.RateAmount,
 		EffectiveDate: rateCard.EffectiveDate,
+		AgeFrom:       int32(rateCard.AgeFrom),
+		AgeTo:         int32(rateCard.AgeTo),
+		Gender:        stringToPgtypeText(rateCard.Gender),
+		Relationship:  stringToPgtypeText(rateCard.Relationship),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rate card: %w", err)
@@ -47,6 +51,18 @@ func (r *rateCardRepository) GetByProviderAndProcedure(ctx context.Context, prov
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rate card by provider and procedure: %w", err)
+	}
+	return sqlcRateCardToDomain(dbRateCard), nil
+}
+
+func (r *rateCardRepository) GetByProviderProcedureAndAge(ctx context.Context, providerID uuid.UUID, procedureCode string, age int) (*entity.RateCard, error) {
+	dbRateCard, err := r.store.GetRateByProviderProcedureAndAge(ctx, db.GetRateByProviderProcedureAndAgeParams{
+		ProviderID:    providerID,
+		ProcedureCode: procedureCode,
+		AgeFrom:       int32(age),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rate card by provider, procedure and age: %w", err)
 	}
 	return sqlcRateCardToDomain(dbRateCard), nil
 }
@@ -91,6 +107,10 @@ func sqlcRateCardToDomain(rc db.RateCard) *entity.RateCard {
 		ProcedureName: rc.ProcedureName,
 		RateAmount:    rc.RateAmount,
 		EffectiveDate: rc.EffectiveDate,
+		AgeFrom:       int(rc.AgeFrom),
+		AgeTo:         int(rc.AgeTo),
+		Gender:        rc.Gender.String,
+		Relationship:  rc.Relationship.String,
 		CreatedAt:     rc.CreatedAt,
 		UpdatedAt:     rc.UpdatedAt,
 	}

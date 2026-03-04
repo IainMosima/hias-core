@@ -1,6 +1,6 @@
 -- name: CreateBenefit :one
-INSERT INTO benefits (plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+INSERT INTO benefits (plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
 -- name: GetBenefitByID :one
 SELECT * FROM benefits WHERE id = $1;
@@ -19,6 +19,11 @@ UPDATE benefits SET
     co_pay_type = COALESCE(sqlc.narg('co_pay_type'), co_pay_type),
     co_pay_value = COALESCE(sqlc.narg('co_pay_value'), co_pay_value),
     waiting_period_days = COALESCE(sqlc.narg('waiting_period_days'), waiting_period_days),
+    sub_limit_type = COALESCE(sqlc.narg('sub_limit_type'), sub_limit_type),
+    sub_limit_value = COALESCE(sqlc.narg('sub_limit_value'), sub_limit_value),
+    min_age = COALESCE(sqlc.narg('min_age'), min_age),
+    max_age = COALESCE(sqlc.narg('max_age'), max_age),
+    waiting_period_type = COALESCE(sqlc.narg('waiting_period_type'), waiting_period_type),
     updated_at = NOW()
 WHERE id = sqlc.arg('id') RETURNING *;
 

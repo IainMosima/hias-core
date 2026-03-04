@@ -1,9 +1,9 @@
 CREATE TABLE providers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
-    type VARCHAR(30) NOT NULL CHECK (type IN ('hospital', 'clinic', 'pharmacy', 'lab')),
+    type VARCHAR(30) NOT NULL,
     license_number VARCHAR(100) NOT NULL UNIQUE,
-    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'CREDENTIALING', 'ACTIVE', 'SUSPENDED', 'TERMINATED')),
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     county VARCHAR(100),
     address TEXT,
     phone VARCHAR(20),
@@ -27,7 +27,7 @@ CREATE TABLE contracts (
     start_date TIMESTAMPTZ NOT NULL,
     end_date TIMESTAMPTZ NOT NULL,
     terms TEXT NOT NULL DEFAULT '',
-    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'EXPIRED', 'TERMINATED')),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     created_by UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -43,6 +43,10 @@ CREATE TABLE rate_cards (
     procedure_name VARCHAR(255) NOT NULL,
     rate_amount BIGINT NOT NULL,
     effective_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    age_from INT NOT NULL DEFAULT 0,
+    age_to INT NOT NULL DEFAULT 150,
+    gender VARCHAR(10),
+    relationship VARCHAR(20),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

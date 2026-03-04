@@ -17,18 +17,3 @@ type RegisterRequest struct {
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
-
-type ForgotPasswordRequest struct {
-	Email string `json:"email" binding:"required,email"`
-}
-
-type ResetPasswordRequest struct {
-	Email       string `json:"email" binding:"required,email"`
-	Code        string `json:"code" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required,min=8"`
-}
-
-type ConfirmSignUpRequest struct {
-	Email string `json:"email" binding:"required,email"`
-	Code  string `json:"code" binding:"required"`
-}

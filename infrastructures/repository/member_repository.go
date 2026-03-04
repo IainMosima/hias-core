@@ -29,6 +29,9 @@ func (r *memberRepository) Create(ctx context.Context, member *entity.Member) (*
 		MemberNumber: member.MemberNumber,
 		Phone:        stringToPgtypeText(member.Phone),
 		Email:        stringToPgtypeText(member.Email),
+		KraPin:       stringToPgtypeText(member.KRAPin),
+		County:       stringToPgtypeText(member.County),
+		Address:      stringToPgtypeText(member.Address),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create member: %w", err)
@@ -90,10 +93,13 @@ func (r *memberRepository) Verify(ctx context.Context, id uuid.UUID) (*entity.Me
 
 func (r *memberRepository) Update(ctx context.Context, member *entity.Member) (*entity.Member, error) {
 	dbMember, err := r.store.UpdateMember(ctx, db.UpdateMemberParams{
-		ID:    member.ID,
-		Name:  stringToPgtypeText(member.Name),
-		Phone: stringToPgtypeText(member.Phone),
-		Email: stringToPgtypeText(member.Email),
+		ID:      member.ID,
+		Name:    stringToPgtypeText(member.Name),
+		Phone:   stringToPgtypeText(member.Phone),
+		Email:   stringToPgtypeText(member.Email),
+		KraPin:  stringToPgtypeText(member.KRAPin),
+		County:  stringToPgtypeText(member.County),
+		Address: stringToPgtypeText(member.Address),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update member: %w", err)
@@ -121,6 +127,9 @@ func sqlcMemberToDomain(m db.Member) *entity.Member {
 		MemberNumber: m.MemberNumber,
 		Phone:        m.Phone.String,
 		Email:        m.Email.String,
+		KRAPin:       m.KraPin.String,
+		County:       m.County.String,
+		Address:      m.Address.String,
 		Verified:     m.Verified,
 		VerifiedAt:   pgtypeTimestamptzToTimePtr(m.VerifiedAt),
 		CreatedAt:    m.CreatedAt,

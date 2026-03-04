@@ -22,6 +22,7 @@ func (r *planRepository) Create(ctx context.Context, plan *entity.Plan) (*entity
 	dbPlan, err := r.store.CreatePlan(ctx, db.CreatePlanParams{
 		Name:        plan.Name,
 		Type:        plan.Type,
+		Segment:     plan.Segment,
 		BasePremium: plan.BasePremium,
 		Currency:    plan.Currency,
 		Status:      plan.Status,
@@ -73,6 +74,22 @@ func (r *planRepository) ListByStatus(ctx context.Context, status string, limit,
 	return plans, nil
 }
 
+func (r *planRepository) ListBySegment(ctx context.Context, segment string, limit, offset int) ([]*entity.Plan, error) {
+	dbPlans, err := r.store.ListPlansBySegment(ctx, db.ListPlansBySegmentParams{
+		Segment: segment,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list plans by segment: %w", err)
+	}
+	plans := make([]*entity.Plan, len(dbPlans))
+	for i, p := range dbPlans {
+		plans[i] = sqlcPlanToDomain(p)
+	}
+	return plans, nil
+}
+
 func (r *planRepository) Count(ctx context.Context) (int64, error) {
 	count, err := r.store.CountPlans(ctx)
 	if err != nil {
@@ -86,6 +103,7 @@ func (r *planRepository) Update(ctx context.Context, plan *entity.Plan) (*entity
 		ID:          plan.ID,
 		Name:        stringToPgtypeText(plan.Name),
 		Type:        stringToPgtypeText(plan.Type),
+		Segment:     stringToPgtypeText(plan.Segment),
 		BasePremium: int64ToPgtypeInt8(plan.BasePremium),
 		Description: stringToPgtypeText(plan.Description),
 		Status:      stringToPgtypeText(plan.Status),
@@ -101,6 +119,7 @@ func sqlcPlanToDomain(p db.Plan) *entity.Plan {
 		ID:          p.ID,
 		Name:        p.Name,
 		Type:        p.Type,
+		Segment:     p.Segment,
 		BasePremium: p.BasePremium,
 		Currency:    p.Currency,
 		Status:      p.Status,

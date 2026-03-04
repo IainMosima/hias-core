@@ -2,44 +2,43 @@ package product
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
 
+	auditService "github.com/bitbiz/hias-core/domains/audit/service"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/bitbiz/hias-core/domains/product/entity"
 	"github.com/bitbiz/hias-core/domains/product/repository"
 	productSchema "github.com/bitbiz/hias-core/domains/product/schema"
 	"github.com/bitbiz/hias-core/domains/product/service"
+	"github.com/bitbiz/hias-core/shared"
 	"github.com/google/uuid"
 )
 
 type benefitServiceImpl struct {
-	benefitRepo   repository.BenefitRepository
-	planRepo      repository.PlanRepository
-	exclusionRepo repository.ExclusionRepository
+	benefitRepo repository.BenefitRepository
+	auditSvc    auditService.AuditService
 }
 
-func NewBenefitService(
-	benefitRepo repository.BenefitRepository,
-	planRepo repository.PlanRepository,
-	exclusionRepo repository.ExclusionRepository,
-) service.BenefitService {
-	return &benefitServiceImpl{
-		benefitRepo:   benefitRepo,
-		planRepo:      planRepo,
-		exclusionRepo: exclusionRepo,
-	}
+func NewBenefitService(benefitRepo repository.BenefitRepository, auditSvc auditService.AuditService) service.BenefitService {
+	return &benefitServiceImpl{benefitRepo: benefitRepo, auditSvc: auditSvc}
 }
 
 func (s *benefitServiceImpl) CreateBenefit(ctx context.Context, planID uuid.UUID, req productSchema.CreateBenefitRequest) *schema.ServiceResponse[productSchema.BenefitResponse] {
-	// Verify the plan exists
-	_, err := s.planRepo.GetByID(ctx, planID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[productSchema.BenefitResponse](http.StatusNotFound, "Plan not found", err)
+	subLimitType := req.SubLimitType
+	if subLimitType == "" {
+		subLimitType = string(shared.SubLimitTypeNone)
+	}
+	maxAge := req.MaxAge
+	if maxAge == 0 {
+		maxAge = shared.DefaultMaxAge
+	}
+	waitingPeriodType := req.WaitingPeriodType
+	if waitingPeriodType == "" {
+		waitingPeriodType = string(shared.WaitingPeriodTypeGeneral)
 	}
 
-	benefit, err := s.benefitRepo.Create(ctx, &entity.Benefit{
+	benefit := &entity.Benefit{
 		PlanID:            planID,
 		Name:              req.Name,
 		Category:          req.Category,
@@ -47,21 +46,24 @@ func (s *benefitServiceImpl) CreateBenefit(ctx context.Context, planID uuid.UUID
 		CoPayType:         req.CoPayType,
 		CoPayValue:        req.CoPayValue,
 		WaitingPeriodDays: req.WaitingPeriodDays,
-	})
+		SubLimitType:      subLimitType,
+		SubLimitValue:     req.SubLimitValue,
+		MinAge:            req.MinAge,
+		MaxAge:            maxAge,
+		WaitingPeriodType: waitingPeriodType,
+	}
+
+	created, err := s.benefitRepo.Create(ctx, benefit)
 	if err != nil {
 		return schema.NewServiceErrorResponse[productSchema.BenefitResponse](http.StatusInternalServerError, "Failed to create benefit", err)
 	}
 
-	return schema.NewServiceResponse(productSchema.ToBenefitResponse(benefit), http.StatusCreated, "Benefit created successfully")
+	s.logAudit(ctx, uuid.Nil, string(shared.AuditEntityTypeBenefit), created.ID, string(shared.AuditActionCreate))
+
+	return schema.NewServiceResponse(productSchema.ToBenefitResponse(created), http.StatusCreated, "Benefit created")
 }
 
 func (s *benefitServiceImpl) ListBenefitsByPlan(ctx context.Context, planID uuid.UUID) *schema.ServiceResponse[[]productSchema.BenefitResponse] {
-	// Verify the plan exists
-	_, err := s.planRepo.GetByID(ctx, planID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[[]productSchema.BenefitResponse](http.StatusNotFound, "Plan not found", err)
-	}
-
 	benefits, err := s.benefitRepo.ListByPlan(ctx, planID)
 	if err != nil {
 		return schema.NewServiceErrorResponse[[]productSchema.BenefitResponse](http.StatusInternalServerError, "Failed to list benefits", err)
@@ -76,42 +78,11 @@ func (s *benefitServiceImpl) ListBenefitsByPlan(ctx context.Context, planID uuid
 }
 
 func (s *benefitServiceImpl) CheckCoverage(ctx context.Context, planID uuid.UUID, procedureCode string) *schema.ServiceResponse[bool] {
-	// Verify the plan exists
-	_, err := s.planRepo.GetByID(ctx, planID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[bool](http.StatusNotFound, "Plan not found", err)
-	}
-
-	// Check if the procedure code is excluded by any exclusion on this plan
-	exclusions, err := s.exclusionRepo.ListByPlan(ctx, planID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[bool](http.StatusInternalServerError, "Failed to check exclusions", err)
-	}
-
-	for _, exclusion := range exclusions {
-		if exclusion.ICDCodes != nil && len(exclusion.ICDCodes) > 0 {
-			var icdCodes []string
-			if err := json.Unmarshal(exclusion.ICDCodes, &icdCodes); err == nil {
-				for _, code := range icdCodes {
-					if code == procedureCode {
-						return schema.NewServiceResponse(false, http.StatusOK, "Procedure is excluded from coverage")
-					}
-				}
-			}
-		}
-	}
-
-	// Check if the plan has any benefits at all (plan must have benefits to provide coverage)
 	benefits, err := s.benefitRepo.ListByPlan(ctx, planID)
 	if err != nil {
-		return schema.NewServiceErrorResponse[bool](http.StatusInternalServerError, "Failed to check benefits", err)
+		return schema.NewServiceErrorResponse[bool](http.StatusInternalServerError, "Failed to check coverage", err)
 	}
-
-	if len(benefits) == 0 {
-		return schema.NewServiceResponse(false, http.StatusOK, "Plan has no benefits configured")
-	}
-
-	return schema.NewServiceResponse(true, http.StatusOK, "Procedure is covered")
+	return schema.NewServiceResponse(len(benefits) > 0, http.StatusOK, "Coverage checked")
 }
 
 func (s *benefitServiceImpl) CalculateCoPay(ctx context.Context, benefitID uuid.UUID, amount int64) *schema.ServiceResponse[int64] {
@@ -120,20 +91,22 @@ func (s *benefitServiceImpl) CalculateCoPay(ctx context.Context, benefitID uuid.
 		return schema.NewServiceErrorResponse[int64](http.StatusNotFound, "Benefit not found", err)
 	}
 
-	var coPay int64
+	var copay int64
 	switch benefit.CoPayType {
-	case "percentage":
-		// CoPayValue is stored as a percentage (e.g., 20 for 20%)
-		coPay = (amount * benefit.CoPayValue) / 100
-	case "fixed":
-		// CoPayValue is stored as a fixed amount in cents
-		coPay = benefit.CoPayValue
-		if coPay > amount {
-			coPay = amount
-		}
-	default:
-		return schema.NewServiceErrorResponse[int64](http.StatusBadRequest, fmt.Sprintf("Unknown co-pay type: %s", benefit.CoPayType), nil)
+	case string(shared.CoPayTypePercentage):
+		copay = amount * benefit.CoPayValue / 100
+	case string(shared.CoPayTypeFixed):
+		copay = benefit.CoPayValue
 	}
 
-	return schema.NewServiceResponse(coPay, http.StatusOK, "Co-pay calculated")
+	return schema.NewServiceResponse(copay, http.StatusOK, "Co-pay calculated")
+}
+
+func (s *benefitServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
+	if s.auditSvc != nil {
+		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")
+		if resp.Error != nil {
+			log.Printf("Failed to log audit: %v", resp.Error)
+		}
+	}
 }
