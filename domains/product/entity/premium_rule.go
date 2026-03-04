@@ -15,6 +15,8 @@ type PremiumRule struct {
 	DiscountType    string    `json:"discount_type,omitempty"` // percentage, fixed
 	DiscountValue   int64     `json:"discount_value"`
 	MinMembers      int       `json:"min_members"`
+	MinAge          int       `json:"min_age"`
+	MaxAge          int       `json:"max_age"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

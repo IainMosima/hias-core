@@ -26,6 +26,19 @@ type AdjudicationDecision struct {
 	UpdatedAt            time.Time       `json:"updated_at"`
 }
 
+type ApprovalLimit struct {
+	ID                    uuid.UUID   `json:"id"`
+	RoleName              string      `json:"role_name"`
+	MaxDiscountPercentage int64       `json:"max_discount_percentage"`
+	MaxDiscountAmount     int64       `json:"max_discount_amount"`
+	MaxLoadingPercentage  int64       `json:"max_loading_percentage"`
+	MaxLoadingAmount      int64       `json:"max_loading_amount"`
+	EscalationRole        pgtype.Text `json:"escalation_role"`
+	IsActive              bool        `json:"is_active"`
+	CreatedAt             time.Time   `json:"created_at"`
+	UpdatedAt             time.Time   `json:"updated_at"`
+}
+
 type AuditEvent struct {
 	ID         uuid.UUID   `json:"id"`
 	UserID     pgtype.UUID `json:"user_id"`
@@ -172,6 +185,40 @@ type Invoice struct {
 	UpdatedAt          time.Time   `json:"updated_at"`
 }
 
+type Lead struct {
+	ID                 uuid.UUID          `json:"id"`
+	LeadNumber         string             `json:"lead_number"`
+	ContactName        string             `json:"contact_name"`
+	ContactEmail       pgtype.Text        `json:"contact_email"`
+	ContactPhone       pgtype.Text        `json:"contact_phone"`
+	CompanyName        pgtype.Text        `json:"company_name"`
+	Source             string             `json:"source"`
+	Segment            string             `json:"segment"`
+	PlanType           string             `json:"plan_type"`
+	EstimatedMembers   int32              `json:"estimated_members"`
+	ExpectedPremium    int64              `json:"expected_premium"`
+	ClosureProbability int32              `json:"closure_probability"`
+	Currency           string             `json:"currency"`
+	Status             string             `json:"status"`
+	AssignedTo         pgtype.UUID        `json:"assigned_to"`
+	NextFollowUpDate   pgtype.Timestamptz `json:"next_follow_up_date"`
+	Notes              pgtype.Text        `json:"notes"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+}
+
+type LeadActivity struct {
+	ID           uuid.UUID          `json:"id"`
+	LeadID       uuid.UUID          `json:"lead_id"`
+	ActivityType string             `json:"activity_type"`
+	Description  pgtype.Text        `json:"description"`
+	ScheduledAt  pgtype.Timestamptz `json:"scheduled_at"`
+	CompletedAt  pgtype.Timestamptz `json:"completed_at"`
+	CreatedBy    pgtype.UUID        `json:"created_by"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
 type Member struct {
 	ID           uuid.UUID          `json:"id"`
 	PolicyID     uuid.UUID          `json:"policy_id"`
@@ -302,6 +349,8 @@ type PremiumRule struct {
 	MinMembers      int32       `json:"min_members"`
 	CreatedAt       time.Time   `json:"created_at"`
 	UpdatedAt       time.Time   `json:"updated_at"`
+	MinAge          int32       `json:"min_age"`
+	MaxAge          int32       `json:"max_age"`
 }
 
 type Provider struct {
@@ -329,6 +378,68 @@ type ProviderNetwork struct {
 	Status          string      `json:"status"`
 	CreatedAt       time.Time   `json:"created_at"`
 	UpdatedAt       time.Time   `json:"updated_at"`
+}
+
+type Quotation struct {
+	ID              uuid.UUID          `json:"id"`
+	QuotationNumber string             `json:"quotation_number"`
+	LeadID          uuid.UUID          `json:"lead_id"`
+	PlanID          uuid.UUID          `json:"plan_id"`
+	QuotationType   string             `json:"quotation_type"`
+	Status          string             `json:"status"`
+	CurrentVersion  int32              `json:"current_version"`
+	PolicyID        pgtype.UUID        `json:"policy_id"`
+	ValidFrom       pgtype.Timestamptz `json:"valid_from"`
+	ValidUntil      pgtype.Timestamptz `json:"valid_until"`
+	ClientName      string             `json:"client_name"`
+	ClientEmail     pgtype.Text        `json:"client_email"`
+	ClientPhone     pgtype.Text        `json:"client_phone"`
+	Currency        string             `json:"currency"`
+	CreatedBy       pgtype.UUID        `json:"created_by"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type QuotationDocument struct {
+	ID             uuid.UUID       `json:"id"`
+	QuotationID    uuid.UUID       `json:"quotation_id"`
+	VersionNumber  pgtype.Int4     `json:"version_number"`
+	FileName       string          `json:"file_name"`
+	FileType       string          `json:"file_type"`
+	FileSize       int64           `json:"file_size"`
+	S3Key          string          `json:"s3_key"`
+	UploadedBy     pgtype.UUID     `json:"uploaded_by"`
+	CanEditRoles   json.RawMessage `json:"can_edit_roles"`
+	CanDeleteRoles json.RawMessage `json:"can_delete_roles"`
+	IsDeleted      bool            `json:"is_deleted"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+type QuotationVersion struct {
+	ID               uuid.UUID          `json:"id"`
+	QuotationID      uuid.UUID          `json:"quotation_id"`
+	VersionNumber    int32              `json:"version_number"`
+	BasePremium      int64              `json:"base_premium"`
+	DiscountType     string             `json:"discount_type"`
+	DiscountValue    int64              `json:"discount_value"`
+	DiscountReason   pgtype.Text        `json:"discount_reason"`
+	LoadingType      string             `json:"loading_type"`
+	LoadingValue     int64              `json:"loading_value"`
+	LoadingReason    pgtype.Text        `json:"loading_reason"`
+	FinalPremium     int64              `json:"final_premium"`
+	MemberCount      int32              `json:"member_count"`
+	ProposedMembers  json.RawMessage    `json:"proposed_members"`
+	BillingFrequency string             `json:"billing_frequency"`
+	RequiresApproval bool               `json:"requires_approval"`
+	ApprovalStatus   string             `json:"approval_status"`
+	ApprovedBy       pgtype.UUID        `json:"approved_by"`
+	ApprovedAt       pgtype.Timestamptz `json:"approved_at"`
+	RejectionReason  pgtype.Text        `json:"rejection_reason"`
+	PricingBreakdown json.RawMessage    `json:"pricing_breakdown"`
+	CreatedBy        pgtype.UUID        `json:"created_by"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
 type RateCard struct {

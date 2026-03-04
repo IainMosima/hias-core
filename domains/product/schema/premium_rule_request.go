@@ -7,6 +7,8 @@ type CreatePremiumRuleRequest struct {
 	DiscountType    string `json:"discount_type"`
 	DiscountValue   int64  `json:"discount_value"`
 	MinMembers      int    `json:"min_members"`
+	MinAge          int    `json:"min_age"`
+	MaxAge          int    `json:"max_age"`
 }
 
 type UpdatePremiumRuleRequest struct {
@@ -16,4 +18,6 @@ type UpdatePremiumRuleRequest struct {
 	DiscountType    *string `json:"discount_type"`
 	DiscountValue   *int64  `json:"discount_value"`
 	MinMembers      *int    `json:"min_members"`
+	MinAge          *int    `json:"min_age"`
+	MaxAge          *int    `json:"max_age"`
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/bitbiz/hias-core/services/preauth"
 	"github.com/bitbiz/hias-core/services/product"
 	"github.com/bitbiz/hias-core/services/provider"
+	"github.com/bitbiz/hias-core/services/sales"
 	"github.com/bitbiz/hias-core/shared/auth"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -117,6 +118,12 @@ func main() {
 	providerNetworkRepo := repository.NewProviderNetworkRepository(store)
 	installmentScheduleRepo := repository.NewInstallmentScheduleRepository(store)
 	installmentRepo := repository.NewInstallmentRepository(store)
+	leadRepo := repository.NewLeadRepository(store)
+	leadActivityRepo := repository.NewLeadActivityRepository(store)
+	quotationRepo := repository.NewQuotationRepository(store)
+	quotationVersionRepo := repository.NewQuotationVersionRepository(store)
+	quotationDocumentRepo := repository.NewQuotationDocumentRepository(store)
+	approvalLimitRepo := repository.NewApprovalLimitRepository(store)
 
 	// 6. Services (bottom-up dependency order)
 	auditSvc := audit.NewAuditService(auditRepo)
@@ -166,9 +173,13 @@ func main() {
 	// Analytics service
 	analyticsSvc := analytics.NewAnalyticsService(analyticsRepo)
 
+	// Sales services
+	leadSvc := sales.NewLeadService(leadRepo, leadActivityRepo, auditSvc)
+	quotationSvc := sales.NewQuotationService(quotationRepo, quotationVersionRepo, quotationDocumentRepo, approvalLimitRepo, leadRepo, auditSvc, premiumRuleSvc, notifSvc, policySvc, memberSvc, installmentSvc)
+	approvalLimitSvc := sales.NewApprovalLimitService(approvalLimitRepo, auditSvc)
+
 	// Suppress unused variable warnings for services used internally
 	_ = billingSvc
-	_ = notifSvc
 
 	// 7. Handlers
 	h := routes.Handlers{
@@ -194,6 +205,9 @@ func main() {
 		Notification:    handlers.NewNotificationHandler(notifSvc),
 		Audit:           handlers.NewAuditHandler(auditSvc),
 		Analytics:       handlers.NewAnalyticsHandler(analyticsSvc),
+		Lead:            handlers.NewLeadHandler(leadSvc),
+		Quotation:       handlers.NewQuotationHandler(quotationSvc),
+		ApprovalLimit:   handlers.NewApprovalLimitHandler(approvalLimitSvc),
 	}
 
 	// 8. Server

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+
+	"github.com/bitbiz/hias-core/shared"
 )
 
 // PaymentWebhookHandler processes M-Pesa/bank payment webhook confirmations.
@@ -30,10 +32,10 @@ func (h *PaymentWebhookHandler) HandleMessage(ctx context.Context, payload []byt
 		msg.PaymentID, msg.TransactionID, msg.Status)
 
 	switch msg.Status {
-	case "CONFIRMED":
+	case string(shared.PaymentStatusConfirmed):
 		// h.paymentService.ConfirmPayment(ctx, msg.PaymentID, msg.TransactionID)
 		log.Printf("Payment %s confirmed", msg.PaymentID)
-	case "FAILED":
+	case string(shared.PaymentStatusFailed):
 		// h.paymentService.FailPayment(ctx, msg.PaymentID, msg.GatewayResponse)
 		log.Printf("Payment %s failed", msg.PaymentID)
 	default:

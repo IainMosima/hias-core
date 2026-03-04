@@ -16,6 +16,8 @@ type PremiumRuleResponse struct {
 	DiscountType    string    `json:"discount_type,omitempty"`
 	DiscountValue   int64     `json:"discount_value"`
 	MinMembers      int       `json:"min_members"`
+	MinAge          int       `json:"min_age"`
+	MaxAge          int       `json:"max_age"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
@@ -25,6 +27,7 @@ func ToPremiumRuleResponse(r *entity.PremiumRule) PremiumRuleResponse {
 		ID: r.ID, PlanID: r.PlanID, CalculationType: r.CalculationType,
 		Relationship: r.Relationship, RateAmount: r.RateAmount,
 		DiscountType: r.DiscountType, DiscountValue: r.DiscountValue,
-		MinMembers: r.MinMembers, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		MinMembers: r.MinMembers, MinAge: r.MinAge, MaxAge: r.MaxAge,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }

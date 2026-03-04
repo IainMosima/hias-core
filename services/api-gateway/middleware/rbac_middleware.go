@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/auth"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/gin-gonic/gin"
@@ -25,7 +26,7 @@ func RequirePermission(resource, action string) gin.HandlerFunc {
 		}
 
 		// Admin has all permissions
-		if authPayload.Role == "Admin" {
+		if authPayload.Role == string(shared.UserRoleAdmin) {
 			ctx.Next()
 			return
 		}

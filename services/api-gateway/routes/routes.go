@@ -3,6 +3,7 @@ package routes
 import (
 	"github.com/bitbiz/hias-core/services/api-gateway/handlers"
 	"github.com/bitbiz/hias-core/services/api-gateway/middleware"
+	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/auth"
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +31,9 @@ type Handlers struct {
 	Notification    *handlers.NotificationHandler
 	Audit           *handlers.AuditHandler
 	Analytics       *handlers.AnalyticsHandler
+	Lead            *handlers.LeadHandler
+	Quotation       *handlers.QuotationHandler
+	ApprovalLimit   *handlers.ApprovalLimitHandler
 }
 
 func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) {
@@ -236,6 +240,63 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			analytics.GET("/dashboard", h.Analytics.GetDashboard)
 			analytics.GET("/kpis", h.Analytics.GetKPIs)
 			analytics.GET("/export", h.Analytics.ExportCSV)
+		}
+
+		// Leads
+		leads := authenticated.Group("/leads")
+		{
+			leads.GET("", h.Lead.ListLeads)
+			leads.POST("", h.Lead.CreateLead)
+			leads.GET("/due-follow-ups", h.Lead.GetDueFollowUps)
+			leads.GET("/:id", h.Lead.GetLead)
+			leads.PUT("/:id", h.Lead.UpdateLead)
+			leads.PUT("/:id/status", h.Lead.UpdateLeadStatus)
+			leads.GET("/:id/activities", h.Lead.ListActivities)
+			leads.POST("/:id/activities", h.Lead.AddActivity)
+			leads.GET("/:id/quotations", h.Quotation.ListQuotationsByLead)
+		}
+
+		// Quotations
+		quotations := authenticated.Group("/quotations")
+		{
+			quotations.GET("", h.Quotation.ListQuotations)
+			quotations.POST("", h.Quotation.CreateQuotation)
+			quotations.POST("/expire", middleware.RequireRole(string(shared.UserRoleAdmin)), h.Quotation.ExpireQuotations)
+			quotations.GET("/:id", h.Quotation.GetQuotation)
+			quotations.PUT("/:id/issue", h.Quotation.IssueQuotation)
+			quotations.PUT("/:id/accept", h.Quotation.AcceptQuotation)
+			quotations.PUT("/:id/decline", h.Quotation.DeclineQuotation)
+			quotations.PUT("/:id/send", h.Quotation.SendToClient)
+			quotations.POST("/:id/convert", h.Quotation.ConvertToPolicy)
+
+			// Versions (nested under quotations)
+			quotations.GET("/:id/versions", h.Quotation.ListVersions)
+			quotations.POST("/:id/versions", h.Quotation.CreateVersion)
+			quotations.GET("/:id/versions/compare", h.Quotation.CompareVersions)
+			quotations.GET("/:id/versions/:version", h.Quotation.GetVersion)
+			quotations.PUT("/:id/versions/:version/submit-approval", h.Quotation.SubmitForApproval)
+			quotations.PUT("/:id/versions/:version/approve", middleware.RequireRole(string(shared.UserRoleAdmin), string(shared.UserRoleUnderwriter), string(shared.UserRoleManager)), h.Quotation.ApproveVersion)
+			quotations.PUT("/:id/versions/:version/reject", middleware.RequireRole(string(shared.UserRoleAdmin), string(shared.UserRoleUnderwriter), string(shared.UserRoleManager)), h.Quotation.RejectVersion)
+
+			// Documents (nested under quotations)
+			quotations.GET("/:id/documents", h.Quotation.ListDocuments)
+			quotations.POST("/:id/documents", h.Quotation.UploadDocument)
+		}
+
+		// Quotation Documents (standalone for download/delete)
+		quotationDocs := authenticated.Group("/quotation-documents")
+		{
+			quotationDocs.PUT("/:id", h.Quotation.UpdateDocument)
+			quotationDocs.DELETE("/:id", h.Quotation.DeleteDocument)
+		}
+
+		// Approval Limits
+		approvalLimits := authenticated.Group("/approval-limits")
+		approvalLimits.Use(middleware.RequireRole(string(shared.UserRoleAdmin)))
+		{
+			approvalLimits.GET("", h.ApprovalLimit.ListLimits)
+			approvalLimits.POST("", h.ApprovalLimit.CreateLimit)
+			approvalLimits.PUT("/:id", h.ApprovalLimit.UpdateLimit)
 		}
 	}
 }

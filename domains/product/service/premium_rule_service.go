@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	productSchema "github.com/bitbiz/hias-core/domains/product/schema"
@@ -13,4 +14,5 @@ type PremiumRuleService interface {
 	ListPremiumRulesByPlan(ctx context.Context, planID uuid.UUID) *schema.ServiceResponse[[]productSchema.PremiumRuleResponse]
 	DeletePremiumRule(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[string]
 	CalculatePremium(ctx context.Context, planID uuid.UUID, memberCount int, relationships []string) *schema.ServiceResponse[int64]
+	CalculatePremiumWithMembers(ctx context.Context, planID uuid.UUID, memberCount int, proposedMembers json.RawMessage) *schema.ServiceResponse[int64]
 }

@@ -19,4 +19,8 @@ const (
 	InstallmentsPerQuarter    = 4
 	InstallmentsPerSemiAnnual = 2
 	InstallmentsPerAnnual     = 1
+
+	// Quotation defaults
+	QuotationValidityDays     = 30
+	DefaultMaxDiscountPercent = 10
 )

@@ -85,6 +85,16 @@ const (
 	NotificationChannelPush  NotificationChannel = "PUSH"
 )
 
+// NotificationType represents the type/category of a notification
+type NotificationType string
+
+const (
+	NotificationTypeQuotation NotificationType = "QUOTATION"
+	NotificationTypeApproval  NotificationType = "APPROVAL"
+	NotificationTypeClaim     NotificationType = "CLAIM"
+	NotificationTypePolicy    NotificationType = "POLICY"
+)
+
 // NotificationStatus represents the status of a notification
 type NotificationStatus string
 
@@ -134,6 +144,8 @@ const (
 	UserRoleFinance       UserRole = "Finance"
 	UserRoleProvider      UserRole = "Provider"
 	UserRoleMember        UserRole = "Member"
+	UserRoleSalesAgent    UserRole = "SalesAgent"
+	UserRoleManager       UserRole = "Manager"
 )
 
 // ProviderType represents the type of healthcare provider
@@ -178,16 +190,21 @@ const (
 type AuditEntityType string
 
 const (
-	AuditEntityTypeClaim           AuditEntityType = "CLAIM"
-	AuditEntityTypePolicy          AuditEntityType = "POLICY"
-	AuditEntityTypeMember          AuditEntityType = "MEMBER"
-	AuditEntityTypePlan            AuditEntityType = "PLAN"
-	AuditEntityTypeBenefit         AuditEntityType = "BENEFIT"
-	AuditEntityTypeExclusion       AuditEntityType = "EXCLUSION"
-	AuditEntityTypePremiumRule     AuditEntityType = "PREMIUM_RULE"
-	AuditEntityTypeProviderNetwork AuditEntityType = "PROVIDER_NETWORK"
-	AuditEntityTypeProvider        AuditEntityType = "PROVIDER"
-	AuditEntityTypeUser            AuditEntityType = "USER"
+	AuditEntityTypeClaim             AuditEntityType = "CLAIM"
+	AuditEntityTypePolicy            AuditEntityType = "POLICY"
+	AuditEntityTypeMember            AuditEntityType = "MEMBER"
+	AuditEntityTypePlan              AuditEntityType = "PLAN"
+	AuditEntityTypeBenefit           AuditEntityType = "BENEFIT"
+	AuditEntityTypeExclusion         AuditEntityType = "EXCLUSION"
+	AuditEntityTypePremiumRule       AuditEntityType = "PREMIUM_RULE"
+	AuditEntityTypeProviderNetwork   AuditEntityType = "PROVIDER_NETWORK"
+	AuditEntityTypeProvider          AuditEntityType = "PROVIDER"
+	AuditEntityTypeUser              AuditEntityType = "USER"
+	AuditEntityTypeLead              AuditEntityType = "LEAD"
+	AuditEntityTypeQuotation         AuditEntityType = "QUOTATION"
+	AuditEntityTypeQuotationVersion  AuditEntityType = "QUOTATION_VERSION"
+	AuditEntityTypeQuotationDocument AuditEntityType = "QUOTATION_DOCUMENT"
+	AuditEntityTypeApprovalLimit     AuditEntityType = "APPROVAL_LIMIT"
 )
 
 // AdjudicationDecision represents the adjudication engine decision
@@ -327,6 +344,7 @@ const (
 	PremiumCalculationTypeFlat      PremiumCalculationType = "flat"
 	PremiumCalculationTypePerMember PremiumCalculationType = "per_member"
 	PremiumCalculationTypeTiered    PremiumCalculationType = "tiered"
+	PremiumCalculationTypePerFamily PremiumCalculationType = "per_family"
 )
 
 // DiscountType represents the type of discount applied
@@ -378,4 +396,80 @@ type Currency string
 
 const (
 	CurrencyKES Currency = "KES"
+)
+
+// LeadStatus represents the status of a sales lead
+type LeadStatus string
+
+const (
+	LeadStatusNew          LeadStatus = "NEW"
+	LeadStatusContacted    LeadStatus = "CONTACTED"
+	LeadStatusQualified    LeadStatus = "QUALIFIED"
+	LeadStatusProposalSent LeadStatus = "PROPOSAL_SENT"
+	LeadStatusNegotiation  LeadStatus = "NEGOTIATION"
+	LeadStatusWon          LeadStatus = "WON"
+	LeadStatusLost         LeadStatus = "LOST"
+	LeadStatusDormant      LeadStatus = "DORMANT"
+)
+
+// LeadSource represents where a lead came from
+type LeadSource string
+
+const (
+	LeadSourceDirect   LeadSource = "direct"
+	LeadSourceReferral LeadSource = "referral"
+	LeadSourceWeb      LeadSource = "web"
+	LeadSourceAgent    LeadSource = "agent"
+	LeadSourceBroker   LeadSource = "broker"
+)
+
+// QuotationStatus represents the lifecycle status of a quotation
+type QuotationStatus string
+
+const (
+	QuotationStatusDraft           QuotationStatus = "DRAFT"
+	QuotationStatusIssued          QuotationStatus = "ISSUED"
+	QuotationStatusPendingDecision QuotationStatus = "PENDING_DECISION"
+	QuotationStatusAccepted        QuotationStatus = "ACCEPTED"
+	QuotationStatusDeclined        QuotationStatus = "DECLINED"
+	QuotationStatusExpired         QuotationStatus = "EXPIRED"
+	QuotationStatusConverted       QuotationStatus = "CONVERTED"
+)
+
+// QuotationType represents the type of quotation
+type QuotationType string
+
+const (
+	QuotationTypeStandard   QuotationType = "standard"
+	QuotationTypeTailorMade QuotationType = "tailor_made"
+)
+
+// ApprovalStatus represents the approval status of a quotation version
+type ApprovalStatus string
+
+const (
+	ApprovalStatusNone     ApprovalStatus = "NONE"
+	ApprovalStatusPending  ApprovalStatus = "PENDING"
+	ApprovalStatusApproved ApprovalStatus = "APPROVED"
+	ApprovalStatusRejected ApprovalStatus = "REJECTED"
+)
+
+// LeadActivityType represents the type of activity on a lead
+type LeadActivityType string
+
+const (
+	LeadActivityTypeCall         LeadActivityType = "call"
+	LeadActivityTypeEmail        LeadActivityType = "email"
+	LeadActivityTypeMeeting      LeadActivityType = "meeting"
+	LeadActivityTypeNote         LeadActivityType = "note"
+	LeadActivityTypeFollowUp     LeadActivityType = "follow_up"
+	LeadActivityTypeStatusChange LeadActivityType = "status_change"
+)
+
+// LoadingType represents the type of loading applied
+type LoadingType string
+
+const (
+	LoadingTypePercentage LoadingType = "percentage"
+	LoadingTypeFixed      LoadingType = "fixed"
 )

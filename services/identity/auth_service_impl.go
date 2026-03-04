@@ -100,7 +100,7 @@ func (s *authServiceImpl) Register(ctx context.Context, req schema.RegisterReque
 	// Find role
 	roleName := req.RoleName
 	if roleName == "" {
-		roleName = "Member"
+		roleName = string(shared.UserRoleMember)
 	}
 	role, err := s.roleRepo.GetByName(ctx, roleName)
 	if err != nil {

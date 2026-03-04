@@ -1,6 +1,6 @@
 -- name: CreatePremiumRule :one
-INSERT INTO premium_rules (plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+INSERT INTO premium_rules (plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, min_age, max_age)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
 -- name: GetPremiumRuleByID :one
 SELECT * FROM premium_rules WHERE id = $1;
@@ -16,6 +16,8 @@ UPDATE premium_rules SET
     discount_type = COALESCE(sqlc.narg('discount_type'), discount_type),
     discount_value = COALESCE(sqlc.narg('discount_value'), discount_value),
     min_members = COALESCE(sqlc.narg('min_members'), min_members),
+    min_age = COALESCE(sqlc.narg('min_age'), min_age),
+    max_age = COALESCE(sqlc.narg('max_age'), max_age),
     updated_at = NOW()
 WHERE id = sqlc.arg('id') RETURNING *;
 

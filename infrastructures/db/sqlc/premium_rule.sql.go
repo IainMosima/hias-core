@@ -13,8 +13,8 @@ import (
 )
 
 const createPremiumRule = `-- name: CreatePremiumRule :one
-INSERT INTO premium_rules (plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at
+INSERT INTO premium_rules (plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, min_age, max_age)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age
 `
 
 type CreatePremiumRuleParams struct {
@@ -25,6 +25,8 @@ type CreatePremiumRuleParams struct {
 	DiscountType    pgtype.Text `json:"discount_type"`
 	DiscountValue   int64       `json:"discount_value"`
 	MinMembers      int32       `json:"min_members"`
+	MinAge          int32       `json:"min_age"`
+	MaxAge          int32       `json:"max_age"`
 }
 
 func (q *Queries) CreatePremiumRule(ctx context.Context, arg CreatePremiumRuleParams) (PremiumRule, error) {
@@ -36,6 +38,8 @@ func (q *Queries) CreatePremiumRule(ctx context.Context, arg CreatePremiumRulePa
 		arg.DiscountType,
 		arg.DiscountValue,
 		arg.MinMembers,
+		arg.MinAge,
+		arg.MaxAge,
 	)
 	var i PremiumRule
 	err := row.Scan(
@@ -49,6 +53,8 @@ func (q *Queries) CreatePremiumRule(ctx context.Context, arg CreatePremiumRulePa
 		&i.MinMembers,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MinAge,
+		&i.MaxAge,
 	)
 	return i, err
 }
@@ -63,7 +69,7 @@ func (q *Queries) DeletePremiumRule(ctx context.Context, id uuid.UUID) error {
 }
 
 const getPremiumRuleByID = `-- name: GetPremiumRuleByID :one
-SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at FROM premium_rules WHERE id = $1
+SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age FROM premium_rules WHERE id = $1
 `
 
 func (q *Queries) GetPremiumRuleByID(ctx context.Context, id uuid.UUID) (PremiumRule, error) {
@@ -80,12 +86,14 @@ func (q *Queries) GetPremiumRuleByID(ctx context.Context, id uuid.UUID) (Premium
 		&i.MinMembers,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MinAge,
+		&i.MaxAge,
 	)
 	return i, err
 }
 
 const listPremiumRulesByPlan = `-- name: ListPremiumRulesByPlan :many
-SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at FROM premium_rules WHERE plan_id = $1 ORDER BY created_at
+SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age FROM premium_rules WHERE plan_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListPremiumRulesByPlan(ctx context.Context, planID uuid.UUID) ([]PremiumRule, error) {
@@ -108,6 +116,8 @@ func (q *Queries) ListPremiumRulesByPlan(ctx context.Context, planID uuid.UUID) 
 			&i.MinMembers,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MinAge,
+			&i.MaxAge,
 		); err != nil {
 			return nil, err
 		}
@@ -127,8 +137,10 @@ UPDATE premium_rules SET
     discount_type = COALESCE($4, discount_type),
     discount_value = COALESCE($5, discount_value),
     min_members = COALESCE($6, min_members),
+    min_age = COALESCE($7, min_age),
+    max_age = COALESCE($8, max_age),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at
+WHERE id = $9 RETURNING id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age
 `
 
 type UpdatePremiumRuleParams struct {
@@ -138,6 +150,8 @@ type UpdatePremiumRuleParams struct {
 	DiscountType    pgtype.Text `json:"discount_type"`
 	DiscountValue   pgtype.Int8 `json:"discount_value"`
 	MinMembers      pgtype.Int4 `json:"min_members"`
+	MinAge          pgtype.Int4 `json:"min_age"`
+	MaxAge          pgtype.Int4 `json:"max_age"`
 	ID              uuid.UUID   `json:"id"`
 }
 
@@ -149,6 +163,8 @@ func (q *Queries) UpdatePremiumRule(ctx context.Context, arg UpdatePremiumRulePa
 		arg.DiscountType,
 		arg.DiscountValue,
 		arg.MinMembers,
+		arg.MinAge,
+		arg.MaxAge,
 		arg.ID,
 	)
 	var i PremiumRule
@@ -163,6 +179,8 @@ func (q *Queries) UpdatePremiumRule(ctx context.Context, arg UpdatePremiumRulePa
 		&i.MinMembers,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MinAge,
+		&i.MaxAge,
 	)
 	return i, err
 }

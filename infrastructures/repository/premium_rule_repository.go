@@ -27,6 +27,8 @@ func (r *premiumRuleRepository) Create(ctx context.Context, rule *entity.Premium
 		DiscountType:    stringToPgtypeText(rule.DiscountType),
 		DiscountValue:   rule.DiscountValue,
 		MinMembers:      int32(rule.MinMembers),
+		MinAge:          int32(rule.MinAge),
+		MaxAge:          int32(rule.MaxAge),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create premium rule: %w", err)
@@ -63,6 +65,8 @@ func (r *premiumRuleRepository) Update(ctx context.Context, rule *entity.Premium
 		DiscountType:    stringToPgtypeText(rule.DiscountType),
 		DiscountValue:   int64ToPgtypeInt8(rule.DiscountValue),
 		MinMembers:      intToPgtypeInt4(rule.MinMembers),
+		MinAge:          intToPgtypeInt4(rule.MinAge),
+		MaxAge:          intToPgtypeInt4(rule.MaxAge),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update premium rule: %w", err)
@@ -88,6 +92,8 @@ func sqlcPremiumRuleToDomain(r db.PremiumRule) *entity.PremiumRule {
 		DiscountType:    r.DiscountType.String,
 		DiscountValue:   r.DiscountValue,
 		MinMembers:      int(r.MinMembers),
+		MinAge:          int(r.MinAge),
+		MaxAge:          int(r.MaxAge),
 		CreatedAt:       r.CreatedAt,
 		UpdatedAt:       r.UpdatedAt,
 	}
