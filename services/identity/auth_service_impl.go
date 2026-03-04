@@ -3,12 +3,14 @@ package identity
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/bitbiz/hias-core/domains/identity/entity"
 	"github.com/bitbiz/hias-core/domains/identity/repository"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/bitbiz/hias-core/domains/identity/service"
+	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/auth"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
@@ -19,8 +21,12 @@ type authServiceImpl struct {
 	roleRepo       repository.RoleRepository
 	permissionRepo repository.PermissionRepository
 	tokenMaker     auth.TokenMaker
-	cognitoService service.CognitoService
-	accessDuration interface{}
+	config         AuthServiceConfig
+}
+
+type AuthServiceConfig struct {
+	AccessTokenDuration  interface{}
+	RefreshTokenDuration interface{}
 }
 
 func NewAuthService(
@@ -28,102 +34,104 @@ func NewAuthService(
 	roleRepo repository.RoleRepository,
 	permissionRepo repository.PermissionRepository,
 	tokenMaker auth.TokenMaker,
-	cognitoService service.CognitoService,
-	accessDuration interface{},
+	config AuthServiceConfig,
 ) service.AuthService {
 	return &authServiceImpl{
 		userRepo:       userRepo,
 		roleRepo:       roleRepo,
 		permissionRepo: permissionRepo,
 		tokenMaker:     tokenMaker,
-		cognitoService: cognitoService,
-		accessDuration: accessDuration,
+		config:         config,
 	}
 }
 
 func (s *authServiceImpl) Login(ctx context.Context, req schema.LoginRequest) *schema.ServiceResponse[schema.LoginResponse] {
-	// Authenticate with Cognito
-	_, err := s.cognitoService.SignIn(ctx, req.Email, req.Password)
-	if err != nil {
-		utils.LogError("Cognito sign in failed: %v", err)
-		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "Invalid credentials", err)
-	}
-
 	// Get user from DB
 	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
-		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusNotFound, "User not found", err)
+		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "Invalid credentials", err)
 	}
 
-	// Get role
-	role, err := s.roleRepo.GetByID(ctx, user.RoleID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusInternalServerError, "Failed to get role", err)
+	// Verify password
+	if err := utils.CheckPassword(req.Password, user.PasswordHash); err != nil {
+		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "Invalid credentials", err)
 	}
 
-	// Get permissions
-	permissions, err := s.permissionRepo.ListByRole(ctx, user.RoleID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusInternalServerError, "Failed to get permissions", err)
+	if user.Status != string(shared.UserStatusActive) {
+		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusForbidden, "Account is not active", fmt.Errorf("user status: %s", user.Status))
 	}
 
-	permStrings := make([]string, len(permissions))
-	for i, p := range permissions {
-		permStrings[i] = fmt.Sprintf("%s:%s", p.Resource, p.Action)
-	}
+	// Get permissions for role
+	permissions := s.getPermissionStrings(ctx, user.RoleID)
 
-	// Create PASETO token
-	token, payload, err := s.tokenMaker.CreateToken(user.ID.String(), user.Email, role.Name, permStrings, s.accessDuration)
+	// Mint PASETO token
+	accessToken, payload, err := s.tokenMaker.CreateToken(
+		user.ID.String(), user.Email, user.RoleName, permissions, s.config.AccessTokenDuration,
+	)
 	if err != nil {
 		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusInternalServerError, "Failed to create token", err)
 	}
 
-	user.RoleName = role.Name
+	// Mint refresh token
+	refreshToken, _, err := s.tokenMaker.CreateToken(
+		user.ID.String(), user.Email, user.RoleName, permissions, s.config.RefreshTokenDuration,
+	)
+	if err != nil {
+		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusInternalServerError, "Failed to create refresh token", err)
+	}
 
-	return schema.NewServiceResponse(schema.LoginResponse{
-		AccessToken:          token,
+	response := schema.LoginResponse{
+		AccessToken:          accessToken,
 		AccessTokenExpiresAt: payload.ExpiredAt,
+		RefreshToken:         refreshToken,
 		User:                 schema.ToUserResponse(user),
-	}, http.StatusOK, "Login successful")
+	}
+
+	return schema.NewServiceResponse(response, http.StatusOK, "Login successful")
 }
 
 func (s *authServiceImpl) Register(ctx context.Context, req schema.RegisterRequest) *schema.ServiceResponse[schema.RegisterResponse] {
-	// Default role to Member
+	// Hash password
+	passwordHash, err := utils.HashPassword(req.Password)
+	if err != nil {
+		return schema.NewServiceErrorResponse[schema.RegisterResponse](http.StatusInternalServerError, "Registration failed", err)
+	}
+
+	// Find role
 	roleName := req.RoleName
 	if roleName == "" {
 		roleName = "Member"
 	}
-
 	role, err := s.roleRepo.GetByName(ctx, roleName)
 	if err != nil {
-		return schema.NewServiceErrorResponse[schema.RegisterResponse](http.StatusBadRequest, "Invalid role", err)
-	}
-
-	// Sign up with Cognito
-	cognitoSub, err := s.cognitoService.SignUp(ctx, req.Email, req.Password, req.Name, req.Phone)
-	if err != nil {
-		return schema.NewServiceErrorResponse[schema.RegisterResponse](http.StatusBadRequest, "Registration failed", err)
+		log.Printf("Role not found: %s, using default", roleName)
+		role = &entity.Role{ID: uuid.Nil}
 	}
 
 	// Create user in DB
-	user, err := s.userRepo.Create(ctx, &entity.User{
-		CognitoSub: cognitoSub,
-		Email:      req.Email,
-		Name:       req.Name,
-		Phone:      req.Phone,
-		NationalID: req.NationalID,
-		RoleID:     role.ID,
-		Status:     "ACTIVE",
-	})
+	user := &entity.User{
+		Email:        req.Email,
+		Name:         req.Name,
+		Phone:        req.Phone,
+		NationalID:   req.NationalID,
+		PasswordHash: passwordHash,
+		RoleID:       role.ID,
+		RoleName:     roleName,
+		Status:       string(shared.UserStatusActive),
+	}
+
+	created, err := s.userRepo.Create(ctx, user)
 	if err != nil {
 		return schema.NewServiceErrorResponse[schema.RegisterResponse](http.StatusInternalServerError, "Failed to create user", err)
 	}
 
-	return schema.NewServiceResponse(schema.RegisterResponse{
-		UserID:  user.ID.String(),
-		Email:   user.Email,
-		Message: "Registration successful. Please verify your email.",
-	}, http.StatusCreated, "Registration successful")
+	response := schema.RegisterResponse{
+		UserID:  created.ID.String(),
+		Email:   created.Email,
+		Message: "Registration successful.",
+	}
+
+	return schema.NewServiceResponse(response, http.StatusCreated, "User registered")
 }
 
 func (s *authServiceImpl) RefreshToken(ctx context.Context, req schema.RefreshTokenRequest) *schema.ServiceResponse[schema.LoginResponse] {
@@ -133,65 +141,49 @@ func (s *authServiceImpl) RefreshToken(ctx context.Context, req schema.RefreshTo
 		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "Invalid refresh token", err)
 	}
 
-	userID, _ := uuid.Parse(payload.UserID)
+	userID, err := uuid.Parse(payload.UserID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "Invalid user ID in token", err)
+	}
+
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusNotFound, "User not found", err)
+		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "User not found", err)
 	}
 
-	role, err := s.roleRepo.GetByID(ctx, user.RoleID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusInternalServerError, "Failed to get role", err)
-	}
+	permissions := s.getPermissionStrings(ctx, user.RoleID)
 
-	permissions, err := s.permissionRepo.ListByRole(ctx, user.RoleID)
-	if err != nil {
-		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusInternalServerError, "Failed to get permissions", err)
-	}
-
-	permStrings := make([]string, len(permissions))
-	for i, p := range permissions {
-		permStrings[i] = fmt.Sprintf("%s:%s", p.Resource, p.Action)
-	}
-
-	token, tokenPayload, err := s.tokenMaker.CreateToken(user.ID.String(), user.Email, role.Name, permStrings, s.accessDuration)
+	accessToken, newPayload, err := s.tokenMaker.CreateToken(
+		user.ID.String(), user.Email, user.RoleName, permissions, s.config.AccessTokenDuration,
+	)
 	if err != nil {
 		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusInternalServerError, "Failed to create token", err)
 	}
 
-	user.RoleName = role.Name
-
-	return schema.NewServiceResponse(schema.LoginResponse{
-		AccessToken:          token,
-		AccessTokenExpiresAt: tokenPayload.ExpiredAt,
+	response := schema.LoginResponse{
+		AccessToken:          accessToken,
+		AccessTokenExpiresAt: newPayload.ExpiredAt,
 		User:                 schema.ToUserResponse(user),
-	}, http.StatusOK, "Token refreshed")
-}
-
-func (s *authServiceImpl) Logout(_ context.Context, _ string) *schema.ServiceResponse[string] {
-	return schema.NewServiceResponse("Logged out successfully", http.StatusOK, "Logout successful")
-}
-
-func (s *authServiceImpl) ForgotPassword(ctx context.Context, req schema.ForgotPasswordRequest) *schema.ServiceResponse[string] {
-	err := s.cognitoService.ForgotPassword(ctx, req.Email)
-	if err != nil {
-		return schema.NewServiceErrorResponse[string](http.StatusBadRequest, "Failed to initiate password reset", err)
 	}
-	return schema.NewServiceResponse("Password reset code sent", http.StatusOK, "Check your email for the reset code")
+
+	return schema.NewServiceResponse(response, http.StatusOK, "Token refreshed")
 }
 
-func (s *authServiceImpl) ResetPassword(ctx context.Context, req schema.ResetPasswordRequest) *schema.ServiceResponse[string] {
-	err := s.cognitoService.ConfirmForgotPassword(ctx, req.Email, req.Code, req.NewPassword)
-	if err != nil {
-		return schema.NewServiceErrorResponse[string](http.StatusBadRequest, "Failed to reset password", err)
-	}
-	return schema.NewServiceResponse("Password reset successful", http.StatusOK, "Password has been reset")
+func (s *authServiceImpl) Logout(ctx context.Context, userID string) *schema.ServiceResponse[string] {
+	return schema.NewServiceResponse("Logged out", http.StatusOK, "Logout successful")
 }
 
-func (s *authServiceImpl) ConfirmSignUp(ctx context.Context, req schema.ConfirmSignUpRequest) *schema.ServiceResponse[string] {
-	err := s.cognitoService.ConfirmSignUp(ctx, req.Email, req.Code)
-	if err != nil {
-		return schema.NewServiceErrorResponse[string](http.StatusBadRequest, "Failed to confirm sign up", err)
+func (s *authServiceImpl) getPermissionStrings(ctx context.Context, roleID uuid.UUID) []string {
+	if roleID == uuid.Nil {
+		return []string{}
 	}
-	return schema.NewServiceResponse("Email confirmed", http.StatusOK, "Email verification successful")
+	perms, err := s.permissionRepo.ListByRole(ctx, roleID)
+	if err != nil {
+		return []string{}
+	}
+	strs := make([]string, len(perms))
+	for i, p := range perms {
+		strs[i] = p.Resource + ":" + p.Action
+	}
+	return strs
 }
