@@ -30,6 +30,7 @@ type CreateBenefitRequest struct {
 	MinAge            int    `json:"min_age"`
 	MaxAge            int    `json:"max_age"`
 	WaitingPeriodType string `json:"waiting_period_type"`
+	DeductibleAmount  int64  `json:"deductible_amount" binding:"min=0"`
 }
 
 type CreateExclusionRequest struct {

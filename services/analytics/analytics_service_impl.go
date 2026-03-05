@@ -29,6 +29,10 @@ func (s *analyticsServiceImpl) GetDashboard(ctx context.Context, period string) 
 	totalPremium, _ := s.analyticsRepo.GetTotalPremiumCollected(ctx, start, end)
 	totalClaimsPaid, _ := s.analyticsRepo.GetTotalClaimsPaid(ctx, start, end)
 	topProviders, _ := s.analyticsRepo.GetTopProviders(ctx, start, end, 10)
+	activePolicies, _ := s.analyticsRepo.GetActivePolicyCount(ctx, start, end)
+	lapsedPolicies, _ := s.analyticsRepo.GetLapsedPolicyCount(ctx, start, end)
+	totalMembers, _ := s.analyticsRepo.GetTotalMemberCount(ctx, start, end)
+	renewalRate, _ := s.analyticsRepo.GetRenewalRate(ctx, start, end)
 
 	dashboard := analyticsSvc.DashboardData{
 		ClaimsVolume:    claimsVolume,
@@ -39,6 +43,10 @@ func (s *analyticsServiceImpl) GetDashboard(ctx context.Context, period string) 
 		TotalPremium:    totalPremium,
 		TotalClaimsPaid: totalClaimsPaid,
 		TopProviders:    topProviders,
+		ActivePolicies:  activePolicies,
+		LapsedPolicies:  lapsedPolicies,
+		TotalMembers:    totalMembers,
+		RenewalRate:     renewalRate,
 	}
 
 	return schema.NewServiceResponse(dashboard, http.StatusOK, "Dashboard data retrieved")
@@ -52,6 +60,10 @@ func (s *analyticsServiceImpl) GetKPIs(ctx context.Context, period string) *sche
 	avgTAT, _ := s.analyticsRepo.GetAverageTAT(ctx, start, end)
 	totalPremium, _ := s.analyticsRepo.GetTotalPremiumCollected(ctx, start, end)
 	totalClaimsPaid, _ := s.analyticsRepo.GetTotalClaimsPaid(ctx, start, end)
+	activePolicies, _ := s.analyticsRepo.GetActivePolicyCount(ctx, start, end)
+	lapsedPolicies, _ := s.analyticsRepo.GetLapsedPolicyCount(ctx, start, end)
+	totalMembers, _ := s.analyticsRepo.GetTotalMemberCount(ctx, start, end)
+	renewalRate, _ := s.analyticsRepo.GetRenewalRate(ctx, start, end)
 
 	kpis := map[string]interface{}{
 		"approval_rate":     approvalRate,
@@ -59,6 +71,10 @@ func (s *analyticsServiceImpl) GetKPIs(ctx context.Context, period string) *sche
 		"average_tat_hours": avgTAT,
 		"total_premium":     totalPremium,
 		"total_claims_paid": totalClaimsPaid,
+		"active_policies":   activePolicies,
+		"lapsed_policies":   lapsedPolicies,
+		"total_members":     totalMembers,
+		"renewal_rate":      renewalRate,
 		"period":            period,
 	}
 

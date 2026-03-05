@@ -19,8 +19,8 @@ func NewAnalyticsRepository(store db.Store) domainRepo.AnalyticsRepository {
 
 func (r *analyticsRepository) GetClaimsVolume(ctx context.Context, start, end time.Time) (*domainRepo.ClaimsVolume, error) {
 	result, err := r.store.GetClaimsVolume(ctx, db.GetClaimsVolumeParams{
-		CreatedAt:   start,
-		CreatedAt_2: end,
+		StartDate: start,
+		EndDate:   end,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get claims volume: %w", err)
@@ -36,8 +36,8 @@ func (r *analyticsRepository) GetClaimsVolume(ctx context.Context, start, end ti
 
 func (r *analyticsRepository) GetApprovalRate(ctx context.Context, start, end time.Time) (float64, error) {
 	rate, err := r.store.GetApprovalRate(ctx, db.GetApprovalRateParams{
-		CreatedAt:   start,
-		CreatedAt_2: end,
+		StartDate: start,
+		EndDate:   end,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get approval rate: %w", err)
@@ -47,8 +47,8 @@ func (r *analyticsRepository) GetApprovalRate(ctx context.Context, start, end ti
 
 func (r *analyticsRepository) GetAverageTAT(ctx context.Context, start, end time.Time) (float64, error) {
 	tat, err := r.store.GetAverageTAT(ctx, db.GetAverageTATParams{
-		CreatedAt:   start,
-		CreatedAt_2: end,
+		StartDate: start,
+		EndDate:   end,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get average turnaround time: %w", err)
@@ -83,8 +83,8 @@ func (r *analyticsRepository) GetLossRatio(ctx context.Context, start, end time.
 
 func (r *analyticsRepository) GetFraudRate(ctx context.Context, start, end time.Time) (float64, error) {
 	rate, err := r.store.GetFraudRate(ctx, db.GetFraudRateParams{
-		CreatedAt:   start,
-		CreatedAt_2: end,
+		StartDate: start,
+		EndDate:   end,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get fraud rate: %w", err)
@@ -94,9 +94,9 @@ func (r *analyticsRepository) GetFraudRate(ctx context.Context, start, end time.
 
 func (r *analyticsRepository) GetTopProviders(ctx context.Context, start, end time.Time, limit int) ([]*domainRepo.TopProvider, error) {
 	dbProviders, err := r.store.GetTopProviders(ctx, db.GetTopProvidersParams{
-		CreatedAt:   start,
-		CreatedAt_2: end,
-		Limit:       int32(limit),
+		StartDate: start,
+		EndDate:   end,
+		Limit:     int32(limit),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get top providers: %w", err)
@@ -116,8 +116,8 @@ func (r *analyticsRepository) GetTopProviders(ctx context.Context, start, end ti
 
 func (r *analyticsRepository) GetTotalPremiumCollected(ctx context.Context, start, end time.Time) (int64, error) {
 	amount, err := r.store.GetTotalPremiumCollected(ctx, db.GetTotalPremiumCollectedParams{
-		CreatedAt:   start,
-		CreatedAt_2: end,
+		StartDate: start,
+		EndDate:   end,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get total premium collected: %w", err)
@@ -127,11 +127,64 @@ func (r *analyticsRepository) GetTotalPremiumCollected(ctx context.Context, star
 
 func (r *analyticsRepository) GetTotalClaimsPaid(ctx context.Context, start, end time.Time) (int64, error) {
 	amount, err := r.store.GetTotalClaimsPaid(ctx, db.GetTotalClaimsPaidParams{
-		CreatedAt:   start,
-		CreatedAt_2: end,
+		StartDate: start,
+		EndDate:   end,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get total claims paid: %w", err)
 	}
 	return amount, nil
+}
+
+func (r *analyticsRepository) GetActivePolicyCount(ctx context.Context, start, end time.Time) (int64, error) {
+	count, err := r.store.GetActivePolicyCount(ctx, db.GetActivePolicyCountParams{
+		StartDate: start,
+		EndDate:   end,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get active policy count: %w", err)
+	}
+	return count, nil
+}
+
+func (r *analyticsRepository) GetLapsedPolicyCount(ctx context.Context, start, end time.Time) (int64, error) {
+	count, err := r.store.GetLapsedPolicyCount(ctx, db.GetLapsedPolicyCountParams{
+		StartDate: start,
+		EndDate:   end,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get lapsed policy count: %w", err)
+	}
+	return count, nil
+}
+
+func (r *analyticsRepository) GetTotalMemberCount(ctx context.Context, start, end time.Time) (int64, error) {
+	count, err := r.store.GetTotalActiveMemberCount(ctx, db.GetTotalActiveMemberCountParams{
+		StartDate: start,
+		EndDate:   end,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total member count: %w", err)
+	}
+	return count, nil
+}
+
+func (r *analyticsRepository) GetRenewalRate(ctx context.Context, start, end time.Time) (float64, error) {
+	rate, err := r.store.GetRenewalRate(ctx, db.GetRenewalRateParams{
+		StartDate: start,
+		EndDate:   end,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get renewal rate: %w", err)
+	}
+	switch v := rate.(type) {
+	case float64:
+		return v, nil
+	case float32:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	default:
+		return 0, nil
+	}
 }

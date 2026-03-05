@@ -23,4 +23,7 @@ type ClaimRepository interface {
 	UpdateAmounts(ctx context.Context, id uuid.UUID, approved, copay, memberResp int64) (*entity.Claim, error)
 	Reject(ctx context.Context, id uuid.UUID, reason string) (*entity.Claim, error)
 	GetApprovedAmountForBenefitThisYear(ctx context.Context, memberID uuid.UUID, category string) (int64, error)
+	VetClaim(ctx context.Context, id uuid.UUID, vettedAmount int64, vettedBy uuid.UUID, status string) (*entity.Claim, error)
+	MarkReadyForPayment(ctx context.Context, id uuid.UUID) (*entity.Claim, error)
+	ListSLABreached(ctx context.Context, limit, offset int) ([]*entity.Claim, error)
 }

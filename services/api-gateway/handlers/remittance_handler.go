@@ -74,3 +74,18 @@ func (h *RemittanceHandler) SendAdvice(ctx *gin.Context) {
 	}
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
+
+func (h *RemittanceHandler) ExportPaymentFile(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid remittance ID")
+		return
+	}
+
+	resp := h.remittanceSvc.ExportPaymentFile(ctx.Request.Context(), id)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}

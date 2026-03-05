@@ -15,6 +15,7 @@ import (
 	claimsSchema "github.com/bitbiz/hias-core/domains/claims/schema"
 	"github.com/bitbiz/hias-core/domains/claims/service"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
+	preauthRepo "github.com/bitbiz/hias-core/domains/preauth/repository"
 	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
@@ -28,6 +29,8 @@ type claimServiceImpl struct {
 	fraudSvc       service.FraudService
 	adjRepo        claimRepo.AdjudicationRepository
 	fraudFlagRepo  claimRepo.FraudFlagRepository
+	claimDocRepo   claimRepo.ClaimDocumentRepository
+	preauthRepo    preauthRepo.PreAuthRepository
 	auditSvc       auditService.AuditService
 }
 
@@ -39,6 +42,8 @@ func NewClaimService(
 	fraudSvc service.FraudService,
 	adjRepo claimRepo.AdjudicationRepository,
 	fraudFlagRepo claimRepo.FraudFlagRepository,
+	claimDocRepo claimRepo.ClaimDocumentRepository,
+	preauthRepo preauthRepo.PreAuthRepository,
 	auditSvc auditService.AuditService,
 ) service.ClaimService {
 	return &claimServiceImpl{
@@ -49,6 +54,8 @@ func NewClaimService(
 		fraudSvc:       fraudSvc,
 		adjRepo:        adjRepo,
 		fraudFlagRepo:  fraudFlagRepo,
+		claimDocRepo:   claimDocRepo,
+		preauthRepo:    preauthRepo,
 		auditSvc:       auditSvc,
 	}
 }
@@ -66,6 +73,15 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 		totalAmount += li.UnitPrice * int64(li.Quantity)
 	}
 
+	// Set claim type (default DIRECT)
+	claimType := string(shared.ClaimTypeDirect)
+	if req.ClaimType != "" {
+		claimType = req.ClaimType
+	}
+
+	// Calculate SLA breach time
+	slaBreachAt := time.Now().Add(time.Duration(shared.ClaimSLAHours) * time.Hour)
+
 	claim := &entity.Claim{
 		ClaimNumber:    utils.GenerateClaimNumber(),
 		PolicyID:       policyID,
@@ -78,6 +94,8 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 		AdmissionDate:  req.AdmissionDate,
 		DischargeDate:  req.DischargeDate,
 		Notes:          req.Notes,
+		ClaimType:      claimType,
+		SLABreachAt:    &slaBreachAt,
 		CreatedBy:      createdBy,
 	}
 
@@ -231,6 +249,56 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 				log.Printf("Failed to flag claim for amount threshold: %v", flagErr)
 			}
 		}
+
+		// Enhanced fraud checks
+		isExpired, _ := s.fraudSvc.CheckExpiredContract(ctx, providerID, req.ServiceDate)
+		if isExpired {
+			flag := &entity.FraudFlag{
+				ClaimID:  created.ID,
+				FlagType: string(shared.FraudFlagExpiredContract),
+				Severity: string(shared.FraudSeverityHigh),
+				Details:  "Provider has no valid contract covering the service date",
+			}
+			s.fraudSvc.FlagClaim(ctx, flag)
+		}
+
+		isSuspended, _ := s.fraudSvc.CheckSuspendedProvider(ctx, providerID)
+		if isSuspended {
+			flag := &entity.FraudFlag{
+				ClaimID:  created.ID,
+				FlagType: string(shared.FraudFlagSuspendedProvider),
+				Severity: string(shared.FraudSeverityCritical),
+				Details:  "Provider is suspended",
+			}
+			s.fraudSvc.FlagClaim(ctx, flag)
+		}
+
+		isOvercharge, _ := s.fraudSvc.CheckRateCardOvercharge(ctx, providerID, firstItem.ProcedureCode, firstItem.UnitPrice)
+		if isOvercharge {
+			flag := &entity.FraudFlag{
+				ClaimID:  created.ID,
+				FlagType: string(shared.FraudFlagRateCardOvercharge),
+				Severity: string(shared.FraudSeverityMedium),
+				Details:  fmt.Sprintf("Unit price exceeds rate card for procedure %s", firstItem.ProcedureCode),
+			}
+			s.fraudSvc.FlagClaim(ctx, flag)
+		}
+
+		isRepeat, _ := s.fraudSvc.CheckRepeatVisit(ctx, memberID, providerID, firstItem.ProcedureCode, req.ServiceDate, created.ID)
+		if isRepeat {
+			flag := &entity.FraudFlag{
+				ClaimID:  created.ID,
+				FlagType: string(shared.FraudFlagRepeatVisit),
+				Severity: string(shared.FraudSeverityLow),
+				Details:  fmt.Sprintf("Repeat visit detected for procedure %s", firstItem.ProcedureCode),
+			}
+			s.fraudSvc.FlagClaim(ctx, flag)
+		}
+	}
+
+	// Step 9: Update PreAuth status to CLAIMED if preauth_id was provided
+	if claim.PreAuthID != uuid.Nil && s.preauthRepo != nil {
+		s.preauthRepo.UpdateStatus(ctx, claim.PreAuthID, string(shared.PreAuthStatusClaimed))
 	}
 
 	// Re-fetch claim to get updated amounts/status
@@ -419,6 +487,177 @@ func (s *claimServiceImpl) GetTotalCount(ctx context.Context) *schema.ServiceRes
 		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to get count", err)
 	}
 	return schema.NewServiceResponse(count, http.StatusOK, "Count retrieved")
+}
+
+func (s *claimServiceImpl) VetClaim(ctx context.Context, id uuid.UUID, req claimsSchema.VetClaimRequest, vettedBy uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse] {
+	claim, err := s.claimRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusNotFound, "Claim not found", err)
+	}
+
+	if claim.Status != string(shared.ClaimStatusAdjudicated) && claim.Status != string(shared.ClaimStatusApproved) {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+			http.StatusBadRequest,
+			fmt.Sprintf("Cannot vet claim in %s status; must be ADJUDICATED or APPROVED", claim.Status),
+			nil,
+		)
+	}
+
+	// Determine status based on vetted vs approved amount
+	vetStatus := string(shared.ClaimStatusVetted)
+	if claim.ApprovedAmount > 0 && req.VettedAmount < claim.ApprovedAmount {
+		vetStatus = string(shared.ClaimStatusPartiallyVetted)
+	}
+
+	updated, err := s.claimRepo.VetClaim(ctx, id, req.VettedAmount, vettedBy, vetStatus)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to vet claim", err)
+	}
+
+	s.logAudit(ctx, vettedBy, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
+	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim vetted")
+}
+
+func (s *claimServiceImpl) MarkReadyForPayment(ctx context.Context, id uuid.UUID, userID uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse] {
+	claim, err := s.claimRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusNotFound, "Claim not found", err)
+	}
+
+	if claim.Status != string(shared.ClaimStatusVetted) && claim.Status != string(shared.ClaimStatusPartiallyVetted) {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+			http.StatusBadRequest,
+			fmt.Sprintf("Cannot mark claim as ready for payment in %s status; must be VETTED or PARTIALLY_VETTED", claim.Status),
+			nil,
+		)
+	}
+
+	updated, err := s.claimRepo.MarkReadyForPayment(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to mark claim ready for payment", err)
+	}
+
+	s.logAudit(ctx, userID, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
+	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim marked ready for payment")
+}
+
+func (s *claimServiceImpl) MarkPaid(ctx context.Context, id uuid.UUID, userID uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse] {
+	claim, err := s.claimRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusNotFound, "Claim not found", err)
+	}
+
+	if claim.Status != string(shared.ClaimStatusReadyForPayment) {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+			http.StatusBadRequest,
+			fmt.Sprintf("Cannot mark claim as paid in %s status; must be READY_FOR_PAYMENT", claim.Status),
+			nil,
+		)
+	}
+
+	updated, err := s.claimRepo.UpdateStatus(ctx, id, string(shared.ClaimStatusPaid))
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to mark claim as paid", err)
+	}
+
+	s.logAudit(ctx, userID, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
+	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim marked as paid")
+}
+
+func (s *claimServiceImpl) MarkPartPaid(ctx context.Context, id uuid.UUID, userID uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse] {
+	claim, err := s.claimRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusNotFound, "Claim not found", err)
+	}
+
+	if claim.Status != string(shared.ClaimStatusReadyForPayment) {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+			http.StatusBadRequest,
+			fmt.Sprintf("Cannot mark claim as part paid in %s status; must be READY_FOR_PAYMENT", claim.Status),
+			nil,
+		)
+	}
+
+	updated, err := s.claimRepo.UpdateStatus(ctx, id, string(shared.ClaimStatusPartPaid))
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to mark claim as part paid", err)
+	}
+
+	s.logAudit(ctx, userID, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
+	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim marked as part paid")
+}
+
+func (s *claimServiceImpl) BulkSubmitClaims(ctx context.Context, req claimsSchema.BulkSubmitClaimsRequest, createdBy uuid.UUID) *schema.ServiceResponse[[]claimsSchema.ClaimResponse] {
+	var responses []claimsSchema.ClaimResponse
+	for _, claimReq := range req.Claims {
+		resp := s.SubmitClaim(ctx, claimReq, createdBy)
+		if resp.Error != nil {
+			log.Printf("Failed to submit claim in bulk: %v", resp.Error)
+			continue
+		}
+		responses = append(responses, resp.Data)
+	}
+	return schema.NewServiceResponse(responses, http.StatusCreated, fmt.Sprintf("%d claims submitted", len(responses)))
+}
+
+func (s *claimServiceImpl) ListSLABreached(ctx context.Context, page, pageSize int) *schema.ServiceResponse[[]claimsSchema.ClaimResponse] {
+	offset := (page - 1) * pageSize
+	claims, err := s.claimRepo.ListSLABreached(ctx, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to list SLA breached claims", err)
+	}
+
+	responses := make([]claimsSchema.ClaimResponse, len(claims))
+	for i, c := range claims {
+		responses[i] = claimsSchema.ToClaimResponse(c)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "SLA breached claims retrieved")
+}
+
+func (s *claimServiceImpl) UploadClaimDocument(ctx context.Context, claimID uuid.UUID, fileName, fileType string, fileSize int64, s3Key string, uploadedBy uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimDocumentResponse] {
+	// Verify claim exists
+	_, err := s.claimRepo.GetByID(ctx, claimID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimDocumentResponse](http.StatusNotFound, "Claim not found", err)
+	}
+
+	doc := &entity.ClaimDocument{
+		ClaimID:    claimID,
+		FileName:   fileName,
+		FileType:   fileType,
+		FileSize:   fileSize,
+		S3Key:      s3Key,
+		UploadedBy: uploadedBy,
+	}
+
+	created, err := s.claimDocRepo.Create(ctx, doc)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimDocumentResponse](http.StatusInternalServerError, "Failed to upload document", err)
+	}
+
+	s.logAudit(ctx, uploadedBy, string(shared.AuditEntityTypeClaimDocument), created.ID, string(shared.AuditActionCreate))
+	return schema.NewServiceResponse(claimsSchema.ToClaimDocumentResponse(created), http.StatusCreated, "Document uploaded")
+}
+
+func (s *claimServiceImpl) ListClaimDocuments(ctx context.Context, claimID uuid.UUID) *schema.ServiceResponse[[]claimsSchema.ClaimDocumentResponse] {
+	docs, err := s.claimDocRepo.ListByClaim(ctx, claimID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]claimsSchema.ClaimDocumentResponse](http.StatusInternalServerError, "Failed to list documents", err)
+	}
+
+	responses := make([]claimsSchema.ClaimDocumentResponse, len(docs))
+	for i, d := range docs {
+		responses[i] = claimsSchema.ToClaimDocumentResponse(d)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Documents retrieved")
+}
+
+func (s *claimServiceImpl) DeleteClaimDocument(ctx context.Context, docID uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimDocumentResponse] {
+	deleted, err := s.claimDocRepo.SoftDelete(ctx, docID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimDocumentResponse](http.StatusInternalServerError, "Failed to delete document", err)
+	}
+	return schema.NewServiceResponse(claimsSchema.ToClaimDocumentResponse(deleted), http.StatusOK, "Document deleted")
 }
 
 func (s *claimServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {

@@ -1,6 +1,6 @@
 -- name: CreateBenefit :one
-INSERT INTO benefits (plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+INSERT INTO benefits (plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, deductible_amount)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: GetBenefitByID :one
 SELECT * FROM benefits WHERE id = $1;

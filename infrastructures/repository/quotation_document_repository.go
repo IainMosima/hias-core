@@ -68,7 +68,7 @@ func (r *quotationDocumentRepository) SoftDelete(ctx context.Context, id uuid.UU
 func (r *quotationDocumentRepository) Update(ctx context.Context, doc *entity.QuotationDocument) (*entity.QuotationDocument, error) {
 	dbDoc, err := r.store.UpdateQuotationDocument(ctx, db.UpdateQuotationDocumentParams{
 		ID:             doc.ID,
-		Column2:        doc.FileName,
+		FileName:       doc.FileName,
 		CanEditRoles:   doc.CanEditRoles,
 		CanDeleteRoles: doc.CanDeleteRoles,
 	})

@@ -118,6 +118,7 @@ func sqlcBenefitToDomain(b db.Benefit) *entity.Benefit {
 		MinAge:            int(b.MinAge),
 		MaxAge:            int(b.MaxAge),
 		WaitingPeriodType: b.WaitingPeriodType,
+		DeductibleAmount:  b.DeductibleAmount,
 		CreatedAt:         b.CreatedAt,
 		UpdatedAt:         b.UpdatedAt,
 	}

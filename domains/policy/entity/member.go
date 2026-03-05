@@ -19,6 +19,7 @@ type Member struct {
 	KRAPin       string     `json:"kra_pin"`
 	County       string     `json:"county"`
 	Address      string     `json:"address"`
+	Status       string     `json:"status"` // ACTIVE, SUSPENDED, REMOVED
 	Verified     bool       `json:"verified"`
 	VerifiedAt   *time.Time `json:"verified_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`

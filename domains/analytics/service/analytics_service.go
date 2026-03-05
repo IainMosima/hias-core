@@ -14,6 +14,10 @@ type DashboardData struct {
 	TotalPremium    int64       `json:"total_premium_collected"`
 	TotalClaimsPaid int64       `json:"total_claims_paid"`
 	TopProviders    interface{} `json:"top_providers"`
+	ActivePolicies  int64       `json:"active_policies"`
+	LapsedPolicies  int64       `json:"lapsed_policies"`
+	TotalMembers    int64       `json:"total_members"`
+	RenewalRate     float64     `json:"renewal_rate"`
 }
 
 type AnalyticsService interface {

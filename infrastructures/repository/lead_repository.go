@@ -125,19 +125,19 @@ func (r *leadRepository) ListDueFollowUps(ctx context.Context, limit, offset int
 func (r *leadRepository) Update(ctx context.Context, lead *entity.Lead) (*entity.Lead, error) {
 	dbLead, err := r.store.UpdateLead(ctx, db.UpdateLeadParams{
 		ID:                 lead.ID,
-		Column2:            lead.ContactName,
-		Column3:            lead.ContactEmail,
-		Column4:            lead.ContactPhone,
-		Column5:            lead.CompanyName,
-		Column6:            lead.Source,
-		Column7:            lead.Segment,
-		Column8:            lead.PlanType,
-		EstimatedMembers:   int32(lead.EstimatedMembers),
-		ExpectedPremium:    lead.ExpectedPremium,
-		ClosureProbability: int32(lead.ClosureProbability),
+		ContactName:        lead.ContactName,
+		ContactEmail:       lead.ContactEmail,
+		ContactPhone:       lead.ContactPhone,
+		CompanyName:        lead.CompanyName,
+		Source:             lead.Source,
+		Segment:            lead.Segment,
+		PlanType:           lead.PlanType,
+		EstimatedMembers:   intToPgtypeInt4(lead.EstimatedMembers),
+		ExpectedPremium:    int64ToPgtypeInt8(lead.ExpectedPremium),
+		ClosureProbability: intToPgtypeInt4(lead.ClosureProbability),
 		AssignedTo:         uuidToPgtype(lead.AssignedTo),
 		NextFollowUpDate:   timePtrToPgtypeTimestamptz(lead.NextFollowUpDate),
-		Column14:           lead.Notes,
+		Notes:              lead.Notes,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update lead: %w", err)

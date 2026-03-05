@@ -12,6 +12,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countActiveMembersByPolicy = `-- name: CountActiveMembersByPolicy :one
+SELECT COUNT(*) FROM members WHERE policy_id = $1 AND status = 'ACTIVE'
+`
+
+func (q *Queries) CountActiveMembersByPolicy(ctx context.Context, policyID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveMembersByPolicy, policyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countMembersByPolicy = `-- name: CountMembersByPolicy :one
 SELECT COUNT(*) FROM members WHERE policy_id = $1
 `
@@ -25,7 +36,7 @@ func (q *Queries) CountMembersByPolicy(ctx context.Context, policyID uuid.UUID) 
 
 const createMember = `-- name: CreateMember :one
 INSERT INTO members (policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
 `
 
 type CreateMemberParams struct {
@@ -77,6 +88,7 @@ func (q *Queries) CreateMember(ctx context.Context, arg CreateMemberParams) (Mem
 		&i.VerifiedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }
@@ -91,7 +103,7 @@ func (q *Queries) DeleteMember(ctx context.Context, id uuid.UUID) error {
 }
 
 const getMemberByID = `-- name: GetMemberByID :one
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at FROM members WHERE id = $1
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE id = $1
 `
 
 func (q *Queries) GetMemberByID(ctx context.Context, id uuid.UUID) (Member, error) {
@@ -115,12 +127,13 @@ func (q *Queries) GetMemberByID(ctx context.Context, id uuid.UUID) (Member, erro
 		&i.VerifiedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }
 
 const getMemberByNationalID = `-- name: GetMemberByNationalID :one
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at FROM members WHERE national_id = $1
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE national_id = $1
 `
 
 func (q *Queries) GetMemberByNationalID(ctx context.Context, nationalID pgtype.Text) (Member, error) {
@@ -144,12 +157,13 @@ func (q *Queries) GetMemberByNationalID(ctx context.Context, nationalID pgtype.T
 		&i.VerifiedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }
 
 const getMemberByNumber = `-- name: GetMemberByNumber :one
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at FROM members WHERE member_number = $1
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE member_number = $1
 `
 
 func (q *Queries) GetMemberByNumber(ctx context.Context, memberNumber string) (Member, error) {
@@ -173,12 +187,56 @@ func (q *Queries) GetMemberByNumber(ctx context.Context, memberNumber string) (M
 		&i.VerifiedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }
 
+const listActiveMembersByPolicy = `-- name: ListActiveMembersByPolicy :many
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE policy_id = $1 AND status = 'ACTIVE' ORDER BY relationship, name
+`
+
+func (q *Queries) ListActiveMembersByPolicy(ctx context.Context, policyID uuid.UUID) ([]Member, error) {
+	rows, err := q.db.Query(ctx, listActiveMembersByPolicy, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Member{}
+	for rows.Next() {
+		var i Member
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.NationalID,
+			&i.Name,
+			&i.DateOfBirth,
+			&i.Gender,
+			&i.Relationship,
+			&i.MemberNumber,
+			&i.Phone,
+			&i.Email,
+			&i.KraPin,
+			&i.County,
+			&i.Address,
+			&i.Verified,
+			&i.VerifiedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMembersByPolicy = `-- name: ListMembersByPolicy :many
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at FROM members WHERE policy_id = $1 ORDER BY relationship, name
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE policy_id = $1 ORDER BY relationship, name
 `
 
 func (q *Queries) ListMembersByPolicy(ctx context.Context, policyID uuid.UUID) ([]Member, error) {
@@ -208,6 +266,7 @@ func (q *Queries) ListMembersByPolicy(ctx context.Context, policyID uuid.UUID) (
 			&i.VerifiedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -228,7 +287,7 @@ UPDATE members SET
     county = COALESCE($5, county),
     address = COALESCE($6, address),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at
+WHERE id = $7 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
 `
 
 type UpdateMemberParams struct {
@@ -270,12 +329,48 @@ func (q *Queries) UpdateMember(ctx context.Context, arg UpdateMemberParams) (Mem
 		&i.VerifiedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+	)
+	return i, err
+}
+
+const updateMemberStatus = `-- name: UpdateMemberStatus :one
+UPDATE members SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
+`
+
+type UpdateMemberStatusParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) UpdateMemberStatus(ctx context.Context, arg UpdateMemberStatusParams) (Member, error) {
+	row := q.db.QueryRow(ctx, updateMemberStatus, arg.ID, arg.Status)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.NationalID,
+		&i.Name,
+		&i.DateOfBirth,
+		&i.Gender,
+		&i.Relationship,
+		&i.MemberNumber,
+		&i.Phone,
+		&i.Email,
+		&i.KraPin,
+		&i.County,
+		&i.Address,
+		&i.Verified,
+		&i.VerifiedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }
 
 const verifyMember = `-- name: VerifyMember :one
-UPDATE members SET verified = TRUE, verified_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at
+UPDATE members SET verified = TRUE, verified_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
 `
 
 func (q *Queries) VerifyMember(ctx context.Context, id uuid.UUID) (Member, error) {
@@ -299,6 +394,7 @@ func (q *Queries) VerifyMember(ctx context.Context, id uuid.UUID) (Member, error
 		&i.VerifiedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }

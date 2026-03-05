@@ -119,32 +119,32 @@ func (q *Queries) ListApprovalLimits(ctx context.Context) ([]ApprovalLimit, erro
 
 const updateApprovalLimit = `-- name: UpdateApprovalLimit :one
 UPDATE approval_limits SET
-    max_discount_percentage = COALESCE($2, max_discount_percentage),
-    max_discount_amount = COALESCE($3, max_discount_amount),
-    max_loading_percentage = COALESCE($4, max_loading_percentage),
-    max_loading_amount = COALESCE($5, max_loading_amount),
-    escalation_role = COALESCE(NULLIF($6, ''), escalation_role),
+    max_discount_percentage = COALESCE($1, max_discount_percentage),
+    max_discount_amount = COALESCE($2, max_discount_amount),
+    max_loading_percentage = COALESCE($3, max_loading_percentage),
+    max_loading_amount = COALESCE($4, max_loading_amount),
+    escalation_role = COALESCE(NULLIF($5::text, ''), escalation_role),
     updated_at = NOW()
-WHERE id = $1 RETURNING id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at
+WHERE id = $6 RETURNING id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at
 `
 
 type UpdateApprovalLimitParams struct {
+	MaxDiscountPercentage pgtype.Int8 `json:"max_discount_percentage"`
+	MaxDiscountAmount     pgtype.Int8 `json:"max_discount_amount"`
+	MaxLoadingPercentage  pgtype.Int8 `json:"max_loading_percentage"`
+	MaxLoadingAmount      pgtype.Int8 `json:"max_loading_amount"`
+	EscalationRole        string      `json:"escalation_role"`
 	ID                    uuid.UUID   `json:"id"`
-	MaxDiscountPercentage int64       `json:"max_discount_percentage"`
-	MaxDiscountAmount     int64       `json:"max_discount_amount"`
-	MaxLoadingPercentage  int64       `json:"max_loading_percentage"`
-	MaxLoadingAmount      int64       `json:"max_loading_amount"`
-	Column6               interface{} `json:"column_6"`
 }
 
 func (q *Queries) UpdateApprovalLimit(ctx context.Context, arg UpdateApprovalLimitParams) (ApprovalLimit, error) {
 	row := q.db.QueryRow(ctx, updateApprovalLimit,
-		arg.ID,
 		arg.MaxDiscountPercentage,
 		arg.MaxDiscountAmount,
 		arg.MaxLoadingPercentage,
 		arg.MaxLoadingAmount,
-		arg.Column6,
+		arg.EscalationRole,
+		arg.ID,
 	)
 	var i ApprovalLimit
 	err := row.Scan(

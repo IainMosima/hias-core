@@ -23,4 +23,15 @@ const (
 	// Quotation defaults
 	QuotationValidityDays     = 30
 	DefaultMaxDiscountPercent = 10
+
+	// Underwriting thresholds
+	UnderwritingAutoApproveThreshold = 30 // risk score < 30 → auto-approve
+	UnderwritingReferThreshold       = 60 // 30-60 → refer, > 60 → decline
+
+	// Claims SLA
+	ClaimSLAHours = 48 // SLA breach threshold in hours
+
+	// Number format prefixes
+	CaseNumberPrefix      = "CASE"
+	StatementNumberPrefix = "STMT"
 )

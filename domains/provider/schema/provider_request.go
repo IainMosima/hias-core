@@ -38,3 +38,7 @@ type CreateRateCardRequest struct {
 	Gender        string    `json:"gender"`
 	Relationship  string    `json:"relationship"`
 }
+
+type BulkCreateRateCardRequest struct {
+	RateCards []CreateRateCardRequest `json:"rate_cards" binding:"required,min=1"`
+}

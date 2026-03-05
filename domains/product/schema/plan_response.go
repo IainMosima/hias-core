@@ -34,6 +34,7 @@ type BenefitResponse struct {
 	MinAge            int       `json:"min_age"`
 	MaxAge            int       `json:"max_age"`
 	WaitingPeriodType string    `json:"waiting_period_type"`
+	DeductibleAmount  int64     `json:"deductible_amount"`
 	CreatedAt         time.Time `json:"created_at"`
 }
 
@@ -60,7 +61,7 @@ func ToBenefitResponse(b *entity.Benefit) BenefitResponse {
 		AnnualLimit: b.AnnualLimit, CoPayType: b.CoPayType, CoPayValue: b.CoPayValue,
 		WaitingPeriodDays: b.WaitingPeriodDays, SubLimitType: b.SubLimitType,
 		SubLimitValue: b.SubLimitValue, MinAge: b.MinAge, MaxAge: b.MaxAge,
-		WaitingPeriodType: b.WaitingPeriodType, CreatedAt: b.CreatedAt,
+		WaitingPeriodType: b.WaitingPeriodType, DeductibleAmount: b.DeductibleAmount, CreatedAt: b.CreatedAt,
 	}
 }
 

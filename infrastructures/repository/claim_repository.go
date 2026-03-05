@@ -32,6 +32,8 @@ func (r *claimRepository) Create(ctx context.Context, claim *entity.Claim) (*ent
 		AdmissionDate:  timePtrToPgtypeTimestamptz(claim.AdmissionDate),
 		DischargeDate:  timePtrToPgtypeTimestamptz(claim.DischargeDate),
 		Notes:          claim.Notes,
+		ClaimType:      claim.ClaimType,
+		SlaBreachAt:    timePtrToPgtypeTimestamptz(claim.SLABreachAt),
 		CreatedBy:      uuidToPgtype(claim.CreatedBy),
 	})
 	if err != nil {
@@ -221,6 +223,42 @@ func (r *claimRepository) GetApprovedAmountForBenefitThisYear(ctx context.Contex
 	return amount, nil
 }
 
+func (r *claimRepository) VetClaim(ctx context.Context, id uuid.UUID, vettedAmount int64, vettedBy uuid.UUID, status string) (*entity.Claim, error) {
+	dbClaim, err := r.store.VetClaim(ctx, db.VetClaimParams{
+		ID:           id,
+		VettedAmount: int64ToPgtypeInt8(vettedAmount),
+		VettedBy:     uuidToPgtype(vettedBy),
+		Status:       status,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to vet claim: %w", err)
+	}
+	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) MarkReadyForPayment(ctx context.Context, id uuid.UUID) (*entity.Claim, error) {
+	dbClaim, err := r.store.MarkClaimReadyForPayment(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mark claim ready for payment: %w", err)
+	}
+	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) ListSLABreached(ctx context.Context, limit, offset int) ([]*entity.Claim, error) {
+	dbClaims, err := r.store.ListSLABreachedClaims(ctx, db.ListSLABreachedClaimsParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list SLA breached claims: %w", err)
+	}
+	claims := make([]*entity.Claim, len(dbClaims))
+	for i, c := range dbClaims {
+		claims[i] = sqlcClaimToDomain(c)
+	}
+	return claims, nil
+}
+
 func sqlcClaimToDomain(c db.Claim) *entity.Claim {
 	return &entity.Claim{
 		ID:                   c.ID,
@@ -239,6 +277,11 @@ func sqlcClaimToDomain(c db.Claim) *entity.Claim {
 		AdmissionDate:        pgtypeTimestamptzToTimePtr(c.AdmissionDate),
 		DischargeDate:        pgtypeTimestamptzToTimePtr(c.DischargeDate),
 		Notes:                c.Notes,
+		ClaimType:            c.ClaimType,
+		VettedAmount:         pgtypeInt8ToInt64Ptr(c.VettedAmount),
+		VettedBy:             pgtypeToUUID(c.VettedBy),
+		VettedAt:             pgtypeTimestamptzToTimePtr(c.VettedAt),
+		SLABreachAt:          pgtypeTimestamptzToTimePtr(c.SlaBreachAt),
 		RejectionReason:      c.RejectionReason.String,
 		CreatedBy:            pgtypeToUUID(c.CreatedBy),
 		CreatedAt:            c.CreatedAt,

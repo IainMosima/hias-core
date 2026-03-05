@@ -123,3 +123,53 @@ func (s *remittanceServiceImpl) ListRemittances(ctx context.Context, page, pageS
 
 	return schema.NewServiceResponse(responses, http.StatusOK, "Remittances retrieved")
 }
+
+func (s *remittanceServiceImpl) ExportPaymentFile(ctx context.Context, remittanceID uuid.UUID) *schema.ServiceResponse[billingSchema.PaymentExportResponse] {
+	remittance, err := s.remittanceRepo.GetByID(ctx, remittanceID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[billingSchema.PaymentExportResponse](http.StatusNotFound, "Remittance not found", err)
+	}
+
+	// Parse claim IDs from remittance
+	var claimIDStrs []string
+	if err := json.Unmarshal(remittance.ClaimIDs, &claimIDStrs); err != nil {
+		return schema.NewServiceErrorResponse[billingSchema.PaymentExportResponse](http.StatusInternalServerError, "Failed to parse claim IDs", err)
+	}
+
+	// Fetch provider
+	provider, err := s.providerRepo.GetByID(ctx, remittance.ProviderID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[billingSchema.PaymentExportResponse](http.StatusInternalServerError, "Failed to get provider", err)
+	}
+
+	// Build claim details
+	exportClaims := make([]billingSchema.PaymentExportClaim, 0, len(claimIDStrs))
+	for _, idStr := range claimIDStrs {
+		claimID, parseErr := uuid.Parse(idStr)
+		if parseErr != nil {
+			continue
+		}
+		claim, claimErr := s.claimRepo.GetByID(ctx, claimID)
+		if claimErr != nil {
+			continue
+		}
+		exportClaims = append(exportClaims, billingSchema.PaymentExportClaim{
+			ClaimNumber: claim.ClaimNumber,
+			Amount:      claim.ApprovedAmount,
+			ServiceDate: claim.ServiceDate,
+		})
+	}
+
+	export := billingSchema.PaymentExportResponse{
+		RemittanceID: remittance.ID,
+		ProviderID:   remittance.ProviderID,
+		ProviderName: provider.Name,
+		TotalAmount:  remittance.TotalAmount,
+		Currency:     remittance.Currency,
+		PeriodStart:  remittance.PeriodStart,
+		PeriodEnd:    remittance.PeriodEnd,
+		Claims:       exportClaims,
+	}
+
+	return schema.NewServiceResponse(export, http.StatusOK, "Payment file exported")
+}

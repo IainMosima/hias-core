@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"time"
 	"github.com/google/uuid"
+	"time"
 )
 
 type AnalyticsRepository interface {
@@ -15,6 +15,10 @@ type AnalyticsRepository interface {
 	GetTopProviders(ctx context.Context, start, end time.Time, limit int) ([]*TopProvider, error)
 	GetTotalPremiumCollected(ctx context.Context, start, end time.Time) (int64, error)
 	GetTotalClaimsPaid(ctx context.Context, start, end time.Time) (int64, error)
+	GetActivePolicyCount(ctx context.Context, start, end time.Time) (int64, error)
+	GetLapsedPolicyCount(ctx context.Context, start, end time.Time) (int64, error)
+	GetTotalMemberCount(ctx context.Context, start, end time.Time) (int64, error)
+	GetRenewalRate(ctx context.Context, start, end time.Time) (float64, error)
 }
 
 type ClaimsVolume struct {

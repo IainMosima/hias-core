@@ -56,11 +56,11 @@ func (r *approvalLimitRepository) Create(ctx context.Context, limit *entity.Appr
 func (r *approvalLimitRepository) Update(ctx context.Context, limit *entity.ApprovalLimit) (*entity.ApprovalLimit, error) {
 	dbLimit, err := r.store.UpdateApprovalLimit(ctx, db.UpdateApprovalLimitParams{
 		ID:                    limit.ID,
-		MaxDiscountPercentage: limit.MaxDiscountPercentage,
-		MaxDiscountAmount:     limit.MaxDiscountAmount,
-		MaxLoadingPercentage:  limit.MaxLoadingPercentage,
-		MaxLoadingAmount:      limit.MaxLoadingAmount,
-		Column6:               limit.EscalationRole,
+		MaxDiscountPercentage: int64ToPgtypeInt8(limit.MaxDiscountPercentage),
+		MaxDiscountAmount:     int64ToPgtypeInt8(limit.MaxDiscountAmount),
+		MaxLoadingPercentage:  int64ToPgtypeInt8(limit.MaxLoadingPercentage),
+		MaxLoadingAmount:      int64ToPgtypeInt8(limit.MaxLoadingAmount),
+		EscalationRole:        limit.EscalationRole,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update approval limit: %w", err)

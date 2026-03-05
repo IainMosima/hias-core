@@ -51,6 +51,7 @@ func (s *benefitServiceImpl) CreateBenefit(ctx context.Context, planID uuid.UUID
 		MinAge:            req.MinAge,
 		MaxAge:            maxAge,
 		WaitingPeriodType: waitingPeriodType,
+		DeductibleAmount:  req.DeductibleAmount,
 	}
 
 	created, err := s.benefitRepo.Create(ctx, benefit)

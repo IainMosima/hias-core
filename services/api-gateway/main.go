@@ -7,12 +7,17 @@ import (
 
 	"github.com/bitbiz/hias-core/configs"
 	db "github.com/bitbiz/hias-core/infrastructures/db/sqlc"
+	"github.com/bitbiz/hias-core/infrastructures/documents"
 	"github.com/bitbiz/hias-core/infrastructures/queue"
 	"github.com/bitbiz/hias-core/infrastructures/repository"
 	"github.com/bitbiz/hias-core/services/analytics"
 	"github.com/bitbiz/hias-core/services/api-gateway/handlers"
 	"github.com/bitbiz/hias-core/services/api-gateway/routes"
 	"github.com/bitbiz/hias-core/services/audit"
+	awsSvc "github.com/bitbiz/hias-core/shared/aws"
+
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bitbiz/hias-core/services/billing"
 	"github.com/bitbiz/hias-core/services/claims"
 	"github.com/bitbiz/hias-core/services/identity"
@@ -124,6 +129,16 @@ func main() {
 	quotationVersionRepo := repository.NewQuotationVersionRepository(store)
 	quotationDocumentRepo := repository.NewQuotationDocumentRepository(store)
 	approvalLimitRepo := repository.NewApprovalLimitRepository(store)
+	endorsementRepo := repository.NewEndorsementRepository(store)
+	renewalRepo := repository.NewPolicyRenewalRepository(store)
+	underwritingRepo := repository.NewUnderwritingRepository(store)
+	policyDocumentRepo := repository.NewPolicyDocumentRepository(store)
+	underwritingFlagRepo := repository.NewUnderwritingFlagRepository(store)
+	underwritingRuleRepo := repository.NewUnderwritingRuleRepository(store)
+	creditNoteRepo := repository.NewCreditNoteRepository(store)
+	caseRecordRepo := repository.NewCaseRecordRepository(store)
+	claimDocRepo := repository.NewClaimDocumentRepository(store)
+	statementRepo := repository.NewProviderStatementRepository(store)
 
 	// 6. Services (bottom-up dependency order)
 	auditSvc := audit.NewAuditService(auditRepo)
@@ -143,19 +158,49 @@ func main() {
 	planSvc := product.NewPlanService(planRepo, auditSvc)
 	benefitSvc := product.NewBenefitService(benefitRepo, auditSvc)
 	exclusionSvc := product.NewExclusionService(exclusionRepo, planRepo, auditSvc)
+	premiumRuleSvc := product.NewPremiumRuleService(premiumRuleRepo, planRepo, auditSvc)
+	providerNetworkSvc := product.NewProviderNetworkService(providerNetworkRepo, planRepo, auditSvc)
+
+	// S3 service (optional — graceful degradation if unconfigured)
+	var s3Svc awsSvc.S3Service
+	if cfg.AWSS3Bucket != "" {
+		awsCfg, awsErr := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion(cfg.AWSS3Region))
+		if awsErr != nil {
+			log.Printf("Warning: Cannot load AWS config for S3: %v", awsErr)
+		} else {
+			s3Svc = awsSvc.NewS3Service(s3.NewFromConfig(awsCfg), cfg.AWSS3Bucket, cfg.AWSS3CDNDomain)
+		}
+	}
+
+	// PDF generator and policy document service (created before policySvc to avoid circular deps)
+	pdfGenerator := documents.NewPDFGenerator()
+	policyDocSvc := policy.NewPolicyDocumentService(policyDocumentRepo, policyRepo, memberRepo, planRepo, benefitRepo, renewalRepo, preauthRepo, providerRepo, pdfGenerator, s3Svc, auditSvc)
+
+	// Credit note service (created before policy services since they depend on it)
+	creditNoteSvc := billing.NewCreditNoteService(creditNoteRepo, invoiceRepo, auditSvc)
+
+	// Underwriting flag and rule services
+	underwritingFlagSvc := policy.NewUnderwritingFlagService(underwritingFlagRepo, auditSvc)
+	underwritingRuleSvc := policy.NewUnderwritingRuleService(underwritingRuleRepo, planRepo, auditSvc)
 
 	// Policy services
-	policySvc := policy.NewPolicyService(policyRepo, planRepo, auditSvc)
-	memberSvc := policy.NewMemberService(memberRepo, policyRepo, auditSvc)
+	memberSvc := policy.NewMemberService(memberRepo, policyRepo, planRepo, premiumRuleRepo, premiumRuleSvc, underwritingFlagRepo, creditNoteSvc, auditSvc)
+	policySvc := policy.NewPolicyService(policyRepo, planRepo, memberRepo, premiumRuleSvc, policyDocSvc, creditNoteSvc, auditSvc)
+	endorsementSvc := policy.NewEndorsementService(endorsementRepo, policyRepo, memberSvc, policySvc, auditSvc)
+	renewalSvc := policy.NewRenewalService(renewalRepo, policyRepo, memberRepo, claimRepo, premiumRuleSvc, premiumRuleRepo, planRepo, underwritingFlagRepo, auditSvc)
+	underwritingSvc := policy.NewUnderwritingService(underwritingRepo, policyRepo, memberRepo, underwritingRuleRepo, underwritingFlagRepo, auditSvc)
 
 	// Provider services
 	providerSvc := provider.NewProviderService(providerRepo, contractRepo, rateCardRepo, auditSvc)
 
 	// Claims services
-	fraudSvc := claims.NewFraudService(fraudFlagRepo)
+	fraudSvc := claims.NewFraudService(fraudFlagRepo, contractRepo, rateCardRepo, providerRepo)
 	validatorSvc := claims.NewValidatorService(policyRepo, memberRepo, providerRepo)
-	adjudicatorSvc := claims.NewAdjudicatorService(claimRepo, benefitRepo, exclusionRepo, policyRepo, memberRepo, providerRepo, providerNetworkRepo, fraudSvc)
-	claimSvc := claims.NewClaimService(claimRepo, lineItemRepo, adjudicatorSvc, validatorSvc, fraudSvc, adjRepo, fraudFlagRepo, auditSvc)
+	adjudicatorSvc := claims.NewAdjudicatorService(claimRepo, benefitRepo, exclusionRepo, policyRepo, memberRepo, providerRepo, providerNetworkRepo, fraudSvc, contractRepo, preauthRepo)
+	claimSvc := claims.NewClaimService(claimRepo, lineItemRepo, adjudicatorSvc, validatorSvc, fraudSvc, adjRepo, fraudFlagRepo, claimDocRepo, preauthRepo, auditSvc)
+
+	// Case management service
+	caseSvc := claims.NewCaseService(caseRecordRepo, preauthRepo, auditSvc)
 
 	// Pre-auth service
 	preauthSvc := preauth.NewPreAuthService(preauthRepo)
@@ -165,10 +210,7 @@ func main() {
 	paymentSvc := billing.NewPaymentService(paymentRepo, invoiceRepo)
 	remittanceSvc := billing.NewRemittanceService(remittanceRepo, claimRepo, providerRepo)
 	installmentSvc := billing.NewInstallmentService(installmentScheduleRepo, installmentRepo, policyRepo)
-
-	// Product services (new)
-	premiumRuleSvc := product.NewPremiumRuleService(premiumRuleRepo, planRepo, auditSvc)
-	providerNetworkSvc := product.NewProviderNetworkService(providerNetworkRepo, planRepo, auditSvc)
+	statementSvc := billing.NewStatementService(statementRepo, claimRepo, auditSvc)
 
 	// Analytics service
 	analyticsSvc := analytics.NewAnalyticsService(analyticsRepo)
@@ -183,31 +225,40 @@ func main() {
 
 	// 7. Handlers
 	h := routes.Handlers{
-		Health:          handlers.NewHealthHandler(),
-		Auth:            handlers.NewAuthHandler(authSvc),
-		User:            handlers.NewUserHandler(userSvc),
-		Plan:            handlers.NewPlanHandler(planSvc),
-		Benefit:         handlers.NewBenefitHandler(benefitSvc),
-		Exclusion:       handlers.NewExclusionHandler(exclusionSvc),
-		PremiumRule:     handlers.NewPremiumRuleHandler(premiumRuleSvc),
-		ProviderNetwork: handlers.NewProviderNetworkHandler(providerNetworkSvc),
-		Policy:          handlers.NewPolicyHandler(policySvc),
-		Member:          handlers.NewMemberHandler(memberSvc),
-		Provider:        handlers.NewProviderHandler(providerSvc),
-		Contract:        handlers.NewContractHandler(contractRepo),
-		RateCard:        handlers.NewRateCardHandler(rateCardRepo),
-		Claim:           handlers.NewClaimHandler(claimSvc),
-		PreAuth:         handlers.NewPreAuthHandler(preauthSvc),
-		Invoice:         handlers.NewInvoiceHandler(invoiceRepo),
-		Payment:         handlers.NewPaymentHandler(paymentSvc),
-		Remittance:      handlers.NewRemittanceHandler(remittanceSvc),
-		Installment:     handlers.NewInstallmentHandler(installmentSvc),
-		Notification:    handlers.NewNotificationHandler(notifSvc),
-		Audit:           handlers.NewAuditHandler(auditSvc),
-		Analytics:       handlers.NewAnalyticsHandler(analyticsSvc),
-		Lead:            handlers.NewLeadHandler(leadSvc),
-		Quotation:       handlers.NewQuotationHandler(quotationSvc),
-		ApprovalLimit:   handlers.NewApprovalLimitHandler(approvalLimitSvc),
+		Health:           handlers.NewHealthHandler(),
+		Auth:             handlers.NewAuthHandler(authSvc),
+		User:             handlers.NewUserHandler(userSvc),
+		Plan:             handlers.NewPlanHandler(planSvc),
+		Benefit:          handlers.NewBenefitHandler(benefitSvc),
+		Exclusion:        handlers.NewExclusionHandler(exclusionSvc),
+		PremiumRule:      handlers.NewPremiumRuleHandler(premiumRuleSvc),
+		ProviderNetwork:  handlers.NewProviderNetworkHandler(providerNetworkSvc),
+		Policy:           handlers.NewPolicyHandler(policySvc),
+		Member:           handlers.NewMemberHandler(memberSvc),
+		Provider:         handlers.NewProviderHandler(providerSvc),
+		Contract:         handlers.NewContractHandler(contractRepo),
+		RateCard:         handlers.NewRateCardHandler(rateCardRepo),
+		Claim:            handlers.NewClaimHandler(claimSvc),
+		PreAuth:          handlers.NewPreAuthHandler(preauthSvc),
+		Invoice:          handlers.NewInvoiceHandler(invoiceRepo),
+		Payment:          handlers.NewPaymentHandler(paymentSvc),
+		Remittance:       handlers.NewRemittanceHandler(remittanceSvc),
+		Installment:      handlers.NewInstallmentHandler(installmentSvc),
+		Notification:     handlers.NewNotificationHandler(notifSvc),
+		Audit:            handlers.NewAuditHandler(auditSvc),
+		Analytics:        handlers.NewAnalyticsHandler(analyticsSvc),
+		Lead:             handlers.NewLeadHandler(leadSvc),
+		Quotation:        handlers.NewQuotationHandler(quotationSvc),
+		ApprovalLimit:    handlers.NewApprovalLimitHandler(approvalLimitSvc),
+		Endorsement:      handlers.NewEndorsementHandler(endorsementSvc),
+		Renewal:          handlers.NewRenewalHandler(renewalSvc),
+		Underwriting:     handlers.NewUnderwritingHandler(underwritingSvc),
+		PolicyDocument:   handlers.NewPolicyDocumentHandler(policyDocSvc, claimSvc),
+		UnderwritingFlag: handlers.NewUnderwritingFlagHandler(underwritingFlagSvc),
+		UnderwritingRule: handlers.NewUnderwritingRuleHandler(underwritingRuleSvc),
+		CreditNote:       handlers.NewCreditNoteHandler(creditNoteSvc),
+		Case:             handlers.NewCaseHandler(caseSvc),
+		Statement:        handlers.NewStatementHandler(statementSvc),
 	}
 
 	// 8. Server

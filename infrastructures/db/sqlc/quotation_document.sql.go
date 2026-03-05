@@ -135,26 +135,26 @@ func (q *Queries) SoftDeleteQuotationDocument(ctx context.Context, id uuid.UUID)
 
 const updateQuotationDocument = `-- name: UpdateQuotationDocument :one
 UPDATE quotation_documents SET
-    file_name = COALESCE(NULLIF($2, ''), file_name),
-    can_edit_roles = COALESCE($3, can_edit_roles),
-    can_delete_roles = COALESCE($4, can_delete_roles),
+    file_name = COALESCE(NULLIF($1::text, ''), file_name),
+    can_edit_roles = COALESCE($2, can_edit_roles),
+    can_delete_roles = COALESCE($3, can_delete_roles),
     updated_at = NOW()
-WHERE id = $1 RETURNING id, quotation_id, version_number, file_name, file_type, file_size, s3_key, uploaded_by, can_edit_roles, can_delete_roles, is_deleted, created_at, updated_at
+WHERE id = $4 RETURNING id, quotation_id, version_number, file_name, file_type, file_size, s3_key, uploaded_by, can_edit_roles, can_delete_roles, is_deleted, created_at, updated_at
 `
 
 type UpdateQuotationDocumentParams struct {
-	ID             uuid.UUID       `json:"id"`
-	Column2        interface{}     `json:"column_2"`
-	CanEditRoles   json.RawMessage `json:"can_edit_roles"`
-	CanDeleteRoles json.RawMessage `json:"can_delete_roles"`
+	FileName       string    `json:"file_name"`
+	CanEditRoles   []byte    `json:"can_edit_roles"`
+	CanDeleteRoles []byte    `json:"can_delete_roles"`
+	ID             uuid.UUID `json:"id"`
 }
 
 func (q *Queries) UpdateQuotationDocument(ctx context.Context, arg UpdateQuotationDocumentParams) (QuotationDocument, error) {
 	row := q.db.QueryRow(ctx, updateQuotationDocument,
-		arg.ID,
-		arg.Column2,
+		arg.FileName,
 		arg.CanEditRoles,
 		arg.CanDeleteRoles,
+		arg.ID,
 	)
 	var i QuotationDocument
 	err := row.Scan(

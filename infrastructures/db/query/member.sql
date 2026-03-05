@@ -33,3 +33,12 @@ WHERE id = sqlc.arg('id') RETURNING *;
 
 -- name: DeleteMember :exec
 DELETE FROM members WHERE id = $1;
+
+-- name: UpdateMemberStatus :one
+UPDATE members SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: ListActiveMembersByPolicy :many
+SELECT * FROM members WHERE policy_id = $1 AND status = 'ACTIVE' ORDER BY relationship, name;
+
+-- name: CountActiveMembersByPolicy :one
+SELECT COUNT(*) FROM members WHERE policy_id = $1 AND status = 'ACTIVE';

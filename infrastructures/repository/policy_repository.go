@@ -164,7 +164,36 @@ func (r *policyRepository) GetOverdueForLapse(ctx context.Context) ([]*entity.Po
 	return policies, nil
 }
 
+func (r *policyRepository) ListExpiringSoon(ctx context.Context, days int) ([]*entity.Policy, error) {
+	dbPolicies, err := r.store.ListPoliciesExpiringSoon(ctx, int32(days))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list expiring policies: %w", err)
+	}
+	policies := make([]*entity.Policy, len(dbPolicies))
+	for i, p := range dbPolicies {
+		policies[i] = sqlcPolicyToDomain(p)
+	}
+	return policies, nil
+}
+
+func (r *policyRepository) UpdatePlanAndPremium(ctx context.Context, id uuid.UUID, planID uuid.UUID, premiumAmount int64) (*entity.Policy, error) {
+	dbPolicy, err := r.store.UpdatePolicyPlanAndPremium(ctx, db.UpdatePolicyPlanAndPremiumParams{
+		ID:            id,
+		PlanID:        planID,
+		PremiumAmount: premiumAmount,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update policy plan and premium: %w", err)
+	}
+	return sqlcPolicyToDomain(dbPolicy), nil
+}
+
 func sqlcPolicyToDomain(p db.Policy) *entity.Policy {
+	var renewedFromID *uuid.UUID
+	if p.RenewedFromID.Valid {
+		id := uuid.UUID(p.RenewedFromID.Bytes)
+		renewedFromID = &id
+	}
 	return &entity.Policy{
 		ID:                p.ID,
 		PlanID:            p.PlanID,
@@ -177,6 +206,7 @@ func sqlcPolicyToDomain(p db.Policy) *entity.Policy {
 		EndDate:           pgtypeTimestamptzToTime(p.EndDate),
 		PremiumAmount:     p.PremiumAmount,
 		Currency:          p.Currency,
+		RenewedFromID:     renewedFromID,
 		CreatedBy:         pgtypeToUUID(p.CreatedBy),
 		CreatedAt:         p.CreatedAt,
 		UpdatedAt:         p.UpdatedAt,

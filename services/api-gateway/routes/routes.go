@@ -9,31 +9,40 @@ import (
 )
 
 type Handlers struct {
-	Health          *handlers.HealthHandler
-	Auth            *handlers.AuthHandler
-	User            *handlers.UserHandler
-	Plan            *handlers.PlanHandler
-	Benefit         *handlers.BenefitHandler
-	Exclusion       *handlers.ExclusionHandler
-	PremiumRule     *handlers.PremiumRuleHandler
-	ProviderNetwork *handlers.ProviderNetworkHandler
-	Policy          *handlers.PolicyHandler
-	Member          *handlers.MemberHandler
-	Provider        *handlers.ProviderHandler
-	Contract        *handlers.ContractHandler
-	RateCard        *handlers.RateCardHandler
-	Claim           *handlers.ClaimHandler
-	PreAuth         *handlers.PreAuthHandler
-	Invoice         *handlers.InvoiceHandler
-	Payment         *handlers.PaymentHandler
-	Remittance      *handlers.RemittanceHandler
-	Installment     *handlers.InstallmentHandler
-	Notification    *handlers.NotificationHandler
-	Audit           *handlers.AuditHandler
-	Analytics       *handlers.AnalyticsHandler
-	Lead            *handlers.LeadHandler
-	Quotation       *handlers.QuotationHandler
-	ApprovalLimit   *handlers.ApprovalLimitHandler
+	Health           *handlers.HealthHandler
+	Auth             *handlers.AuthHandler
+	User             *handlers.UserHandler
+	Plan             *handlers.PlanHandler
+	Benefit          *handlers.BenefitHandler
+	Exclusion        *handlers.ExclusionHandler
+	PremiumRule      *handlers.PremiumRuleHandler
+	ProviderNetwork  *handlers.ProviderNetworkHandler
+	Policy           *handlers.PolicyHandler
+	Member           *handlers.MemberHandler
+	Provider         *handlers.ProviderHandler
+	Contract         *handlers.ContractHandler
+	RateCard         *handlers.RateCardHandler
+	Claim            *handlers.ClaimHandler
+	PreAuth          *handlers.PreAuthHandler
+	Invoice          *handlers.InvoiceHandler
+	Payment          *handlers.PaymentHandler
+	Remittance       *handlers.RemittanceHandler
+	Installment      *handlers.InstallmentHandler
+	Notification     *handlers.NotificationHandler
+	Audit            *handlers.AuditHandler
+	Analytics        *handlers.AnalyticsHandler
+	Lead             *handlers.LeadHandler
+	Quotation        *handlers.QuotationHandler
+	ApprovalLimit    *handlers.ApprovalLimitHandler
+	Endorsement      *handlers.EndorsementHandler
+	Renewal          *handlers.RenewalHandler
+	Underwriting     *handlers.UnderwritingHandler
+	PolicyDocument   *handlers.PolicyDocumentHandler
+	UnderwritingFlag *handlers.UnderwritingFlagHandler
+	UnderwritingRule *handlers.UnderwritingRuleHandler
+	CreditNote       *handlers.CreditNoteHandler
+	Case             *handlers.CaseHandler
+	Statement        *handlers.StatementHandler
 }
 
 func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) {
@@ -94,6 +103,10 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			// Provider Networks (nested under plans)
 			plans.GET("/:id/provider-networks", h.ProviderNetwork.ListProviderNetworks)
 			plans.POST("/:id/provider-networks", h.ProviderNetwork.CreateProviderNetwork)
+
+			// Underwriting Rules (nested under plans)
+			plans.GET("/:id/underwriting-rules", h.UnderwritingRule.ListRules)
+			plans.POST("/:id/underwriting-rules", h.UnderwritingRule.CreateRule)
 		}
 
 		// Exclusions (standalone for update/delete)
@@ -120,34 +133,148 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 		policies := authenticated.Group("/policies")
 		{
 			policies.GET("", h.Policy.ListPolicies)
+			policies.GET("/by-status", h.Policy.ListPoliciesByStatus)
 			policies.GET("/:id", h.Policy.GetPolicy)
 			policies.POST("", h.Policy.CreatePolicy)
+			policies.PUT("/:id", h.Policy.UpdatePolicy)
 			policies.PUT("/:id/activate", h.Policy.ActivatePolicy)
 			policies.PUT("/:id/lapse", h.Policy.LapsePolicy)
 			policies.PUT("/:id/terminate", h.Policy.TerminatePolicy)
 			policies.PUT("/:id/reinstate", h.Policy.ReinstatePolicy)
+			policies.PUT("/:id/suspend", h.Policy.SuspendPolicy)
+			policies.PUT("/:id/change-plan", h.Policy.ChangePlan)
 			policies.GET("/:id/prorate", h.Policy.CalculateProrate)
+
+			// Bulk policy operations
+			policies.POST("/bulk/activate", h.Policy.BulkActivate)
+			policies.POST("/bulk/lapse", h.Policy.BulkLapse)
 
 			// Members (nested under policies)
 			policies.GET("/:id/members", h.Member.ListMembers)
 			policies.POST("/:id/members", h.Member.EnrollMember)
+			policies.POST("/:id/members/bulk", h.Member.BulkEnrollMembers)
+			policies.POST("/:id/members/import", h.Member.ImportMembersCSV)
+			policies.POST("/:id/members/bulk-remove", h.Member.BulkRemoveMembers)
+
+			// Endorsements (nested under policies)
+			policies.GET("/:id/endorsements", h.Endorsement.ListEndorsements)
+			policies.POST("/:id/endorsements", h.Endorsement.CreateEndorsement)
+
+			// Renewals (nested under policies)
+			policies.GET("/:id/renewals", h.Renewal.ListRenewals)
+			policies.POST("/:id/renewals", h.Renewal.InitiateRenewal)
+
+			// Underwriting (nested under policies)
+			policies.GET("/:id/underwriting", h.Underwriting.ListAssessments)
+			policies.POST("/:id/underwriting", h.Underwriting.SubmitAssessment)
+
+			// Policy Documents (nested under policies)
+			policies.GET("/:id/documents", h.PolicyDocument.ListDocuments)
+			policies.POST("/:id/documents/welcome-letter", h.PolicyDocument.GenerateWelcomeLetter)
+			policies.POST("/:id/documents/policy-schedule", h.PolicyDocument.GeneratePolicySchedule)
+			policies.POST("/:id/documents/member-cards", h.PolicyDocument.BulkGenerateMemberCards)
+
+			// Underwriting Flags (nested under policies)
+			policies.GET("/:id/underwriting-flags", h.UnderwritingFlag.ListByPolicy)
+
+			// Credit Notes (nested under policies)
+			policies.GET("/:id/credit-notes", h.CreditNote.ListByPolicy)
 
 			// Installments (nested under policies)
 			policies.GET("/:id/installments", h.Installment.GetSchedulesByPolicy)
 			policies.POST("/:id/installments", h.Installment.CreateSchedule)
+
+			// Cases (nested under policies)
+			policies.GET("/:id/cases", h.Case.ListByPolicy)
 		}
 
 		// Members
 		members := authenticated.Group("/members")
 		{
+			members.GET("/:id", h.Member.GetMember)
+			members.PUT("/:id", h.Member.UpdateMember)
 			members.PUT("/:id/verify", h.Member.VerifyMember)
+			members.PUT("/:id/suspend", h.Member.SuspendMember)
+			members.PUT("/:id/reactivate", h.Member.ReactivateMember)
+			members.DELETE("/:id", h.Member.RemoveMember)
 			members.GET("/:id/eligibility", h.Member.GetMemberEligibility)
+			members.POST("/:id/card", h.PolicyDocument.GenerateMemberCard)
+			members.GET("/:id/underwriting-flags", h.UnderwritingFlag.ListByMember)
+			members.GET("/:id/cases", h.Case.ListByMember)
+		}
+
+		// Endorsements (standalone)
+		endorsements := authenticated.Group("/endorsements")
+		{
+			endorsements.GET("/:id", h.Endorsement.GetEndorsement)
+			endorsements.PUT("/:id/approve", h.Endorsement.ApproveEndorsement)
+			endorsements.PUT("/:id/reject", h.Endorsement.RejectEndorsement)
+			endorsements.PUT("/:id/apply", h.Endorsement.ApplyEndorsement)
+		}
+
+		// Renewals (standalone)
+		renewals := authenticated.Group("/renewals")
+		{
+			renewals.GET("/:id", h.Renewal.GetRenewal)
+			renewals.PUT("/:id/approve", h.Renewal.ApproveRenewal)
+			renewals.PUT("/:id/reject", h.Renewal.RejectRenewal)
+			renewals.POST("/:id/complete", h.Renewal.CompleteRenewal)
+			renewals.POST("/expire", middleware.RequireRole(string(shared.UserRoleAdmin)), h.Renewal.ExpireRenewals)
+			renewals.POST("/bulk", h.Renewal.BulkInitiateRenewals)
+		}
+
+		// Underwriting (standalone)
+		underwriting := authenticated.Group("/underwriting")
+		{
+			underwriting.GET("/:id", h.Underwriting.GetAssessment)
+			underwriting.PUT("/:id/review", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleUnderwriter)),
+				h.Underwriting.ReviewAssessment)
+		}
+
+		// Underwriting Flags (standalone)
+		uwFlags := authenticated.Group("/underwriting-flags")
+		{
+			uwFlags.GET("", h.UnderwritingFlag.ListOpen)
+			uwFlags.GET("/count", h.UnderwritingFlag.CountOpen)
+			uwFlags.GET("/:id", h.UnderwritingFlag.GetFlag)
+			uwFlags.PUT("/:id/resolve", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleUnderwriter)),
+				h.UnderwritingFlag.ResolveFlag)
+			uwFlags.PUT("/:id/override", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleUnderwriter)),
+				h.UnderwritingFlag.OverrideFlag)
+		}
+
+		// Underwriting Rules (standalone for update/delete)
+		uwRules := authenticated.Group("/underwriting-rules")
+		{
+			uwRules.PUT("/:id", h.UnderwritingRule.UpdateRule)
+			uwRules.DELETE("/:id", h.UnderwritingRule.DeleteRule)
+		}
+
+		// Credit Notes (standalone)
+		creditNotes := authenticated.Group("/credit-notes")
+		{
+			creditNotes.GET("/:id", h.CreditNote.GetCreditNote)
+			creditNotes.PUT("/:id/approve", middleware.RequireRole(
+				string(shared.UserRoleAdmin)), h.CreditNote.ApproveCreditNote)
+			creditNotes.PUT("/:id/apply", middleware.RequireRole(
+				string(shared.UserRoleAdmin)), h.CreditNote.ApplyCreditNote)
+		}
+
+		// Policy Documents (standalone)
+		policyDocs := authenticated.Group("/policy-documents")
+		{
+			policyDocs.GET("/:id", h.PolicyDocument.GetDocument)
+			policyDocs.DELETE("/:id", h.PolicyDocument.DeleteDocument)
 		}
 
 		// Providers
 		providers := authenticated.Group("/providers")
 		{
 			providers.GET("", h.Provider.ListProviders)
+			providers.GET("/by-tier", h.Provider.ListByTier)
 			providers.GET("/:id", h.Provider.GetProvider)
 			providers.POST("", h.Provider.RegisterProvider)
 			providers.PUT("/:id", h.Provider.UpdateProvider)
@@ -155,6 +282,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			providers.PUT("/:id/activate", h.Provider.ActivateProvider)
 			providers.PUT("/:id/suspend", h.Provider.SuspendProvider)
 			providers.PUT("/:id/terminate", h.Provider.TerminateProvider)
+			providers.PUT("/:id/tier", h.Provider.UpdateTier)
 
 			// Contracts (nested under providers)
 			providers.GET("/:id/contracts", h.Contract.ListContracts)
@@ -163,6 +291,14 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			// Rate Cards (nested under providers)
 			providers.GET("/:id/rate-cards", h.RateCard.ListRateCards)
 			providers.POST("/:id/rate-cards", h.RateCard.CreateRateCard)
+			providers.POST("/:id/rate-cards/bulk", h.RateCard.BulkCreateRateCards)
+
+			// Provider Statements (nested under providers)
+			providers.GET("/:id/statements", h.Statement.ListByProvider)
+			providers.POST("/:id/statements", h.Statement.UploadStatement)
+
+			// Cases (nested under providers)
+			providers.GET("/:id/cases", h.Case.ListByProvider)
 		}
 
 		// Pre-Authorizations
@@ -174,16 +310,58 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			preauths.PUT("/:id/review", h.PreAuth.ReviewPreAuth)
 			preauths.PUT("/:id/approve", h.PreAuth.ApprovePreAuth)
 			preauths.PUT("/:id/deny", h.PreAuth.DenyPreAuth)
+			preauths.POST("/:id/lou", h.PolicyDocument.GenerateLOU)
 		}
 
 		// Claims
 		claims := authenticated.Group("/claims")
 		{
 			claims.GET("", h.Claim.ListClaims)
+			claims.GET("/sla-breached", h.Claim.ListSLABreached)
 			claims.GET("/:id", h.Claim.GetClaim)
 			claims.POST("", h.Claim.SubmitClaim)
+			claims.POST("/bulk", h.Claim.BulkSubmitClaims)
 			claims.PUT("/:id/approve", h.Claim.ApproveClaim)
 			claims.PUT("/:id/reject", h.Claim.RejectClaim)
+			claims.PUT("/:id/vet", h.Claim.VetClaim)
+			claims.PUT("/:id/ready-for-payment", h.Claim.MarkReadyForPayment)
+			claims.PUT("/:id/mark-paid", h.Claim.MarkPaid)
+			claims.PUT("/:id/mark-part-paid", h.Claim.MarkPartPaid)
+
+			// Claim Documents (nested under claims)
+			claims.GET("/:id/documents", h.Claim.ListClaimDocuments)
+			claims.POST("/:id/documents", h.Claim.UploadClaimDocument)
+
+			// Decline Letter
+			claims.POST("/:id/decline-letter", h.PolicyDocument.GenerateDeclineLetter)
+		}
+
+		// Claim Documents (standalone for delete)
+		claimDocs := authenticated.Group("/claim-documents")
+		{
+			claimDocs.DELETE("/:id", h.Claim.DeleteClaimDocument)
+		}
+
+		// Cases (standalone)
+		cases := authenticated.Group("/cases")
+		{
+			cases.GET("", h.Case.ListCases)
+			cases.GET("/count", h.Case.CountByStatus)
+			cases.GET("/:id", h.Case.GetCase)
+			cases.POST("", h.Case.CreateCase)
+			cases.PUT("/:id", h.Case.UpdateCase)
+			cases.PUT("/:id/admit", h.Case.AdmitCase)
+			cases.PUT("/:id/start-treatment", h.Case.StartTreatment)
+			cases.PUT("/:id/discharge", h.Case.DischargeCase)
+			cases.PUT("/:id/close", h.Case.CloseCase)
+		}
+
+		// Provider Statements (standalone)
+		providerStatements := authenticated.Group("/provider-statements")
+		{
+			providerStatements.GET("/:id", h.Statement.GetStatement)
+			providerStatements.GET("/:id/line-items", h.Statement.ListLineItems)
+			providerStatements.POST("/:id/reconcile", h.Statement.ReconcileStatement)
 		}
 
 		// Installment Schedules (standalone)
@@ -216,6 +394,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			remittances.GET("", h.Remittance.ListRemittances)
 			remittances.GET("/:id", h.Remittance.GetRemittance)
 			remittances.POST("", h.Remittance.CreateRemittance)
+			remittances.GET("/:id/export", h.Remittance.ExportPaymentFile)
 		}
 
 		// Notifications

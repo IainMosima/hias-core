@@ -2,8 +2,8 @@ package entity
 
 import (
 	"encoding/json"
-	"time"
 	"github.com/google/uuid"
+	"time"
 )
 
 type Claim struct {
@@ -23,6 +23,11 @@ type Claim struct {
 	AdmissionDate        *time.Time      `json:"admission_date,omitempty"`
 	DischargeDate        *time.Time      `json:"discharge_date,omitempty"`
 	Notes                string          `json:"notes"`
+	ClaimType            string          `json:"claim_type"`
+	VettedAmount         *int64          `json:"vetted_amount,omitempty"`
+	VettedBy             uuid.UUID       `json:"vetted_by,omitempty"`
+	VettedAt             *time.Time      `json:"vetted_at,omitempty"`
+	SLABreachAt          *time.Time      `json:"sla_breach_at,omitempty"`
 	RejectionReason      string          `json:"rejection_reason,omitempty"`
 	CreatedBy            uuid.UUID       `json:"created_by"`
 	CreatedAt            time.Time       `json:"created_at"`

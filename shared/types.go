@@ -8,6 +8,70 @@ const (
 	PolicyStatusActive     PolicyStatus = "ACTIVE"
 	PolicyStatusLapsed     PolicyStatus = "LAPSED"
 	PolicyStatusTerminated PolicyStatus = "TERMINATED"
+	PolicyStatusSuspended  PolicyStatus = "SUSPENDED"
+)
+
+// MemberStatus represents the status of a policy member
+type MemberStatus string
+
+const (
+	MemberStatusActive    MemberStatus = "ACTIVE"
+	MemberStatusSuspended MemberStatus = "SUSPENDED"
+	MemberStatusRemoved   MemberStatus = "REMOVED"
+)
+
+// EndorsementType represents the type of policy endorsement
+type EndorsementType string
+
+const (
+	EndorsementTypeAddMember    EndorsementType = "ADD_MEMBER"
+	EndorsementTypeRemoveMember EndorsementType = "REMOVE_MEMBER"
+	EndorsementTypeUpdateMember EndorsementType = "UPDATE_MEMBER"
+	EndorsementTypePlanChange   EndorsementType = "PLAN_CHANGE"
+)
+
+// EndorsementStatus represents the status of an endorsement
+type EndorsementStatus string
+
+const (
+	EndorsementStatusPending  EndorsementStatus = "PENDING"
+	EndorsementStatusApproved EndorsementStatus = "APPROVED"
+	EndorsementStatusRejected EndorsementStatus = "REJECTED"
+	EndorsementStatusApplied  EndorsementStatus = "APPLIED"
+)
+
+// RenewalStatus represents the status of a policy renewal
+type RenewalStatus string
+
+const (
+	RenewalStatusPending   RenewalStatus = "PENDING"
+	RenewalStatusApproved  RenewalStatus = "APPROVED"
+	RenewalStatusRejected  RenewalStatus = "REJECTED"
+	RenewalStatusCompleted RenewalStatus = "COMPLETED"
+	RenewalStatusExpired   RenewalStatus = "EXPIRED"
+)
+
+// UnderwritingStatus represents the status of an underwriting assessment
+type UnderwritingStatus string
+
+const (
+	UnderwritingStatusPending  UnderwritingStatus = "PENDING"
+	UnderwritingStatusApproved UnderwritingStatus = "APPROVED"
+	UnderwritingStatusDeclined UnderwritingStatus = "DECLINED"
+	UnderwritingStatusRefer    UnderwritingStatus = "REFER"
+)
+
+// PolicyDocumentType represents the type of generated policy document
+type PolicyDocumentType string
+
+const (
+	PolicyDocumentTypeWelcomeLetter  PolicyDocumentType = "WELCOME_LETTER"
+	PolicyDocumentTypeMemberCard     PolicyDocumentType = "MEMBER_CARD"
+	PolicyDocumentTypePolicySchedule PolicyDocumentType = "POLICY_SCHEDULE"
+	PolicyDocumentTypeRenewalNotice  PolicyDocumentType = "RENEWAL_NOTICE"
+	PolicyDocumentTypeEndorsement    PolicyDocumentType = "ENDORSEMENT"
+	PolicyDocumentTypeLOU            PolicyDocumentType = "LOU"
+	PolicyDocumentTypeDeclineLetter  PolicyDocumentType = "DECLINE_LETTER"
 )
 
 // ProviderStatus represents the status of a provider
@@ -25,13 +89,64 @@ const (
 type ClaimStatus string
 
 const (
-	ClaimStatusReceived     ClaimStatus = "RECEIVED"
-	ClaimStatusValidated    ClaimStatus = "VALIDATED"
-	ClaimStatusAdjudicated  ClaimStatus = "ADJUDICATED"
-	ClaimStatusApproved     ClaimStatus = "APPROVED"
-	ClaimStatusRejected     ClaimStatus = "REJECTED"
-	ClaimStatusManualReview ClaimStatus = "MANUAL_REVIEW"
-	ClaimStatusPaid         ClaimStatus = "PAID"
+	ClaimStatusReceived        ClaimStatus = "RECEIVED"
+	ClaimStatusValidated       ClaimStatus = "VALIDATED"
+	ClaimStatusAdjudicated     ClaimStatus = "ADJUDICATED"
+	ClaimStatusApproved        ClaimStatus = "APPROVED"
+	ClaimStatusRejected        ClaimStatus = "REJECTED"
+	ClaimStatusManualReview    ClaimStatus = "MANUAL_REVIEW"
+	ClaimStatusPaid            ClaimStatus = "PAID"
+	ClaimStatusVetted          ClaimStatus = "VETTED"
+	ClaimStatusPartiallyVetted ClaimStatus = "PARTIALLY_VETTED"
+	ClaimStatusReadyForPayment ClaimStatus = "READY_FOR_PAYMENT"
+	ClaimStatusPartPaid        ClaimStatus = "PART_PAID"
+)
+
+// ClaimType represents the type of claim
+type ClaimType string
+
+const (
+	ClaimTypeDirect        ClaimType = "DIRECT"
+	ClaimTypeReimbursement ClaimType = "REIMBURSEMENT"
+	ClaimTypeCredit        ClaimType = "CREDIT"
+	ClaimTypeException     ClaimType = "EXCEPTION"
+)
+
+// CaseStatus represents the status of an inpatient case
+type CaseStatus string
+
+const (
+	CaseStatusScheduled   CaseStatus = "SCHEDULED"
+	CaseStatusAdmitted    CaseStatus = "ADMITTED"
+	CaseStatusInTreatment CaseStatus = "IN_TREATMENT"
+	CaseStatusDischarged  CaseStatus = "DISCHARGED"
+	CaseStatusClosed      CaseStatus = "CLOSED"
+)
+
+// ProviderTier represents provider tiers
+type ProviderTier string
+
+const (
+	ProviderTierOne   ProviderTier = "TIER_1"
+	ProviderTierTwo   ProviderTier = "TIER_2"
+	ProviderTierThree ProviderTier = "TIER_3"
+)
+
+// StatementStatus represents the status of a provider statement
+type StatementStatus string
+
+const (
+	StatementStatusUploaded   StatementStatus = "UPLOADED"
+	StatementStatusReconciled StatementStatus = "RECONCILED"
+)
+
+// MatchStatus represents statement line item match status
+type MatchStatus string
+
+const (
+	MatchStatusUnmatched MatchStatus = "UNMATCHED"
+	MatchStatusMatched   MatchStatus = "MATCHED"
+	MatchStatusDisputed  MatchStatus = "DISPUTED"
 )
 
 // PreAuthStatus represents the status of a pre-authorization
@@ -205,6 +320,16 @@ const (
 	AuditEntityTypeQuotationVersion  AuditEntityType = "QUOTATION_VERSION"
 	AuditEntityTypeQuotationDocument AuditEntityType = "QUOTATION_DOCUMENT"
 	AuditEntityTypeApprovalLimit     AuditEntityType = "APPROVAL_LIMIT"
+	AuditEntityTypeEndorsement       AuditEntityType = "ENDORSEMENT"
+	AuditEntityTypeRenewal           AuditEntityType = "RENEWAL"
+	AuditEntityTypeUnderwriting      AuditEntityType = "UNDERWRITING"
+	AuditEntityTypePolicyDocument    AuditEntityType = "POLICY_DOCUMENT"
+	AuditEntityTypeUnderwritingFlag  AuditEntityType = "UNDERWRITING_FLAG"
+	AuditEntityTypeUnderwritingRule  AuditEntityType = "UNDERWRITING_RULE"
+	AuditEntityTypeCreditNote        AuditEntityType = "CREDIT_NOTE"
+	AuditEntityTypeCaseRecord        AuditEntityType = "CASE_RECORD"
+	AuditEntityTypeClaimDocument     AuditEntityType = "CLAIM_DOCUMENT"
+	AuditEntityTypeProviderStatement AuditEntityType = "PROVIDER_STATEMENT"
 )
 
 // AdjudicationDecision represents the adjudication engine decision
@@ -239,9 +364,13 @@ const (
 type FraudFlagType string
 
 const (
-	FraudFlagDuplicate       FraudFlagType = "DUPLICATE"
-	FraudFlagFrequency       FraudFlagType = "FREQUENCY"
-	FraudFlagAmountThreshold FraudFlagType = "AMOUNT_THRESHOLD"
+	FraudFlagDuplicate          FraudFlagType = "DUPLICATE"
+	FraudFlagFrequency          FraudFlagType = "FREQUENCY"
+	FraudFlagAmountThreshold    FraudFlagType = "AMOUNT_THRESHOLD"
+	FraudFlagExpiredContract    FraudFlagType = "EXPIRED_CONTRACT"
+	FraudFlagSuspendedProvider  FraudFlagType = "SUSPENDED_PROVIDER"
+	FraudFlagRepeatVisit        FraudFlagType = "REPEAT_VISIT"
+	FraudFlagRateCardOvercharge FraudFlagType = "RATE_CARD_OVERCHARGE"
 )
 
 // FraudSeverity represents severity levels
@@ -326,6 +455,8 @@ const (
 	WaitingPeriodTypeGeneral     WaitingPeriodType = "general"
 	WaitingPeriodTypeMaternity   WaitingPeriodType = "maternity"
 	WaitingPeriodTypePreExisting WaitingPeriodType = "pre_existing"
+	WaitingPeriodTypeChronic     WaitingPeriodType = "chronic"
+	WaitingPeriodTypeSurgical    WaitingPeriodType = "surgical"
 )
 
 // ExclusionType represents the type of plan exclusion
@@ -472,4 +603,49 @@ type LoadingType string
 const (
 	LoadingTypePercentage LoadingType = "percentage"
 	LoadingTypeFixed      LoadingType = "fixed"
+)
+
+// UnderwritingFlagType represents types of underwriting flags
+type UnderwritingFlagType string
+
+const (
+	UnderwritingFlagMaxAge          UnderwritingFlagType = "MAX_AGE"
+	UnderwritingFlagMinAge          UnderwritingFlagType = "MIN_AGE"
+	UnderwritingFlagDoubleInsurance UnderwritingFlagType = "DOUBLE_INSURANCE"
+	UnderwritingFlagPreExisting     UnderwritingFlagType = "PRE_EXISTING_CONDITION"
+	UnderwritingFlagBMIThreshold    UnderwritingFlagType = "BMI_THRESHOLD"
+	UnderwritingFlagWaitingPeriod   UnderwritingFlagType = "WAITING_PERIOD"
+	UnderwritingFlagRenewalSkip     UnderwritingFlagType = "RENEWAL_SKIP"
+)
+
+// UnderwritingFlagStatus represents the status of an underwriting flag
+type UnderwritingFlagStatus string
+
+const (
+	UnderwritingFlagStatusOpen         UnderwritingFlagStatus = "OPEN"
+	UnderwritingFlagStatusAcknowledged UnderwritingFlagStatus = "ACKNOWLEDGED"
+	UnderwritingFlagStatusResolved     UnderwritingFlagStatus = "RESOLVED"
+	UnderwritingFlagStatusOverridden   UnderwritingFlagStatus = "OVERRIDDEN"
+)
+
+// UnderwritingRuleType represents types of underwriting rules
+type UnderwritingRuleType string
+
+const (
+	UnderwritingRuleMaxAge          UnderwritingRuleType = "MAX_AGE"
+	UnderwritingRuleMinAge          UnderwritingRuleType = "MIN_AGE"
+	UnderwritingRuleDoubleInsurance UnderwritingRuleType = "DOUBLE_INSURANCE"
+	UnderwritingRulePreExisting     UnderwritingRuleType = "PRE_EXISTING_CONDITION"
+	UnderwritingRuleBMIThreshold    UnderwritingRuleType = "BMI_THRESHOLD"
+	UnderwritingRuleWaitingPeriod   UnderwritingRuleType = "WAITING_PERIOD"
+)
+
+// CreditNoteStatus represents the status of a credit note
+type CreditNoteStatus string
+
+const (
+	CreditNoteStatusDraft     CreditNoteStatus = "DRAFT"
+	CreditNoteStatusApproved  CreditNoteStatus = "APPROVED"
+	CreditNoteStatusApplied   CreditNoteStatus = "APPLIED"
+	CreditNoteStatusCancelled CreditNoteStatus = "CANCELLED"
 )

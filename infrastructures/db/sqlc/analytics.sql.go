@@ -24,12 +24,12 @@ WHERE status NOT IN ('RECEIVED', 'VALIDATED')
 `
 
 type GetApprovalRateParams struct {
-	CreatedAt   time.Time `json:"created_at"`
-	CreatedAt_2 time.Time `json:"created_at_2"`
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }
 
 func (q *Queries) GetApprovalRate(ctx context.Context, arg GetApprovalRateParams) (int32, error) {
-	row := q.db.QueryRow(ctx, getApprovalRate, arg.CreatedAt, arg.CreatedAt_2)
+	row := q.db.QueryRow(ctx, getApprovalRate, arg.StartDate, arg.EndDate)
 	var approval_rate int32
 	err := row.Scan(&approval_rate)
 	return approval_rate, err
@@ -44,12 +44,12 @@ WHERE status IN ('APPROVED', 'REJECTED', 'PAID')
 `
 
 type GetAverageTATParams struct {
-	CreatedAt   time.Time `json:"created_at"`
-	CreatedAt_2 time.Time `json:"created_at_2"`
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }
 
 func (q *Queries) GetAverageTAT(ctx context.Context, arg GetAverageTATParams) (interface{}, error) {
-	row := q.db.QueryRow(ctx, getAverageTAT, arg.CreatedAt, arg.CreatedAt_2)
+	row := q.db.QueryRow(ctx, getAverageTAT, arg.StartDate, arg.EndDate)
 	var avg_tat_hours interface{}
 	err := row.Scan(&avg_tat_hours)
 	return avg_tat_hours, err
@@ -67,8 +67,8 @@ WHERE created_at >= $1 AND created_at <= $2
 `
 
 type GetClaimsVolumeParams struct {
-	CreatedAt   time.Time `json:"created_at"`
-	CreatedAt_2 time.Time `json:"created_at_2"`
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }
 
 type GetClaimsVolumeRow struct {
@@ -80,7 +80,7 @@ type GetClaimsVolumeRow struct {
 }
 
 func (q *Queries) GetClaimsVolume(ctx context.Context, arg GetClaimsVolumeParams) (GetClaimsVolumeRow, error) {
-	row := q.db.QueryRow(ctx, getClaimsVolume, arg.CreatedAt, arg.CreatedAt_2)
+	row := q.db.QueryRow(ctx, getClaimsVolume, arg.StartDate, arg.EndDate)
 	var i GetClaimsVolumeRow
 	err := row.Scan(
 		&i.TotalClaims,
@@ -104,12 +104,12 @@ WHERE c.created_at >= $1 AND c.created_at <= $2
 `
 
 type GetFraudRateParams struct {
-	CreatedAt   time.Time `json:"created_at"`
-	CreatedAt_2 time.Time `json:"created_at_2"`
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }
 
 func (q *Queries) GetFraudRate(ctx context.Context, arg GetFraudRateParams) (int32, error) {
-	row := q.db.QueryRow(ctx, getFraudRate, arg.CreatedAt, arg.CreatedAt_2)
+	row := q.db.QueryRow(ctx, getFraudRate, arg.StartDate, arg.EndDate)
 	var fraud_rate int32
 	err := row.Scan(&fraud_rate)
 	return fraud_rate, err
@@ -153,16 +153,16 @@ SELECT
     COALESCE(SUM(c.total_amount), 0)::bigint as total_amount,
     COALESCE(SUM(c.approved_amount), 0)::bigint as total_approved
 FROM providers p
-LEFT JOIN claims c ON c.provider_id = p.id AND c.created_at >= $1 AND c.created_at <= $2
+LEFT JOIN claims c ON c.provider_id = p.id AND c.created_at >= $2 AND c.created_at <= $3
 GROUP BY p.id, p.name
 ORDER BY claim_count DESC
-LIMIT $3
+LIMIT $1
 `
 
 type GetTopProvidersParams struct {
-	CreatedAt   time.Time `json:"created_at"`
-	CreatedAt_2 time.Time `json:"created_at_2"`
-	Limit       int32     `json:"limit"`
+	Limit     int32     `json:"limit"`
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }
 
 type GetTopProvidersRow struct {
@@ -174,7 +174,7 @@ type GetTopProvidersRow struct {
 }
 
 func (q *Queries) GetTopProviders(ctx context.Context, arg GetTopProvidersParams) ([]GetTopProvidersRow, error) {
-	rows, err := q.db.Query(ctx, getTopProviders, arg.CreatedAt, arg.CreatedAt_2, arg.Limit)
+	rows, err := q.db.Query(ctx, getTopProviders, arg.Limit, arg.StartDate, arg.EndDate)
 	if err != nil {
 		return nil, err
 	}
@@ -207,12 +207,12 @@ WHERE status = 'PAID'
 `
 
 type GetTotalClaimsPaidParams struct {
-	CreatedAt   time.Time `json:"created_at"`
-	CreatedAt_2 time.Time `json:"created_at_2"`
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }
 
 func (q *Queries) GetTotalClaimsPaid(ctx context.Context, arg GetTotalClaimsPaidParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getTotalClaimsPaid, arg.CreatedAt, arg.CreatedAt_2)
+	row := q.db.QueryRow(ctx, getTotalClaimsPaid, arg.StartDate, arg.EndDate)
 	var total_paid int64
 	err := row.Scan(&total_paid)
 	return total_paid, err
@@ -226,12 +226,12 @@ WHERE type = 'PREMIUM' AND status = 'CONFIRMED'
 `
 
 type GetTotalPremiumCollectedParams struct {
-	CreatedAt   time.Time `json:"created_at"`
-	CreatedAt_2 time.Time `json:"created_at_2"`
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }
 
 func (q *Queries) GetTotalPremiumCollected(ctx context.Context, arg GetTotalPremiumCollectedParams) (int64, error) {
-	row := q.db.QueryRow(ctx, getTotalPremiumCollected, arg.CreatedAt, arg.CreatedAt_2)
+	row := q.db.QueryRow(ctx, getTotalPremiumCollected, arg.StartDate, arg.EndDate)
 	var total_premium int64
 	err := row.Scan(&total_premium)
 	return total_premium, err

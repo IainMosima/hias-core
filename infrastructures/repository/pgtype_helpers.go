@@ -98,3 +98,32 @@ func int64ToPgtypeInt8(v int64) pgtype.Int8 {
 func intToPgtypeInt4(v int) pgtype.Int4 {
 	return pgtype.Int4{Int32: int32(v), Valid: true}
 }
+
+// pgtypeDateToTimePtr converts a pgtype.Date to *time.Time.
+// An invalid date returns nil.
+func pgtypeDateToTimePtr(d pgtype.Date) *time.Time {
+	if !d.Valid {
+		return nil
+	}
+	result := d.Time
+	return &result
+}
+
+// timePtrToPgtypeDate converts a *time.Time to pgtype.Date.
+// A nil pointer is treated as invalid (NULL).
+func timePtrToPgtypeDate(t *time.Time) pgtype.Date {
+	if t == nil {
+		return pgtype.Date{Valid: false}
+	}
+	return pgtype.Date{Time: *t, Valid: true}
+}
+
+// pgtypeInt8ToInt64Ptr converts a pgtype.Int8 to *int64.
+// An invalid Int8 returns nil.
+func pgtypeInt8ToInt64Ptr(v pgtype.Int8) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	result := v.Int64
+	return &result
+}

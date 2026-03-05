@@ -377,56 +377,56 @@ func (q *Queries) ListLeadsByStatus(ctx context.Context, arg ListLeadsByStatusPa
 
 const updateLead = `-- name: UpdateLead :one
 UPDATE leads SET
-    contact_name = COALESCE(NULLIF($2, ''), contact_name),
-    contact_email = COALESCE(NULLIF($3, ''), contact_email),
-    contact_phone = COALESCE(NULLIF($4, ''), contact_phone),
-    company_name = COALESCE(NULLIF($5, ''), company_name),
-    source = COALESCE(NULLIF($6, ''), source),
-    segment = COALESCE(NULLIF($7, ''), segment),
-    plan_type = COALESCE(NULLIF($8, ''), plan_type),
-    estimated_members = COALESCE($9, estimated_members),
-    expected_premium = COALESCE($10, expected_premium),
-    closure_probability = COALESCE($11, closure_probability),
-    assigned_to = COALESCE($12, assigned_to),
-    next_follow_up_date = COALESCE($13, next_follow_up_date),
-    notes = COALESCE(NULLIF($14, ''), notes),
+    contact_name = COALESCE(NULLIF($1::text, ''), contact_name),
+    contact_email = COALESCE(NULLIF($2::text, ''), contact_email),
+    contact_phone = COALESCE(NULLIF($3::text, ''), contact_phone),
+    company_name = COALESCE(NULLIF($4::text, ''), company_name),
+    source = COALESCE(NULLIF($5::text, ''), source),
+    segment = COALESCE(NULLIF($6::text, ''), segment),
+    plan_type = COALESCE(NULLIF($7::text, ''), plan_type),
+    estimated_members = COALESCE($8, estimated_members),
+    expected_premium = COALESCE($9, expected_premium),
+    closure_probability = COALESCE($10, closure_probability),
+    assigned_to = COALESCE($11, assigned_to),
+    next_follow_up_date = COALESCE($12, next_follow_up_date),
+    notes = COALESCE(NULLIF($13::text, ''), notes),
     updated_at = NOW()
-WHERE id = $1 RETURNING id, lead_number, contact_name, contact_email, contact_phone, company_name, source, segment, plan_type, estimated_members, expected_premium, closure_probability, currency, status, assigned_to, next_follow_up_date, notes, created_by, created_at, updated_at
+WHERE id = $14 RETURNING id, lead_number, contact_name, contact_email, contact_phone, company_name, source, segment, plan_type, estimated_members, expected_premium, closure_probability, currency, status, assigned_to, next_follow_up_date, notes, created_by, created_at, updated_at
 `
 
 type UpdateLeadParams struct {
-	ID                 uuid.UUID          `json:"id"`
-	Column2            interface{}        `json:"column_2"`
-	Column3            interface{}        `json:"column_3"`
-	Column4            interface{}        `json:"column_4"`
-	Column5            interface{}        `json:"column_5"`
-	Column6            interface{}        `json:"column_6"`
-	Column7            interface{}        `json:"column_7"`
-	Column8            interface{}        `json:"column_8"`
-	EstimatedMembers   int32              `json:"estimated_members"`
-	ExpectedPremium    int64              `json:"expected_premium"`
-	ClosureProbability int32              `json:"closure_probability"`
+	ContactName        string             `json:"contact_name"`
+	ContactEmail       string             `json:"contact_email"`
+	ContactPhone       string             `json:"contact_phone"`
+	CompanyName        string             `json:"company_name"`
+	Source             string             `json:"source"`
+	Segment            string             `json:"segment"`
+	PlanType           string             `json:"plan_type"`
+	EstimatedMembers   pgtype.Int4        `json:"estimated_members"`
+	ExpectedPremium    pgtype.Int8        `json:"expected_premium"`
+	ClosureProbability pgtype.Int4        `json:"closure_probability"`
 	AssignedTo         pgtype.UUID        `json:"assigned_to"`
 	NextFollowUpDate   pgtype.Timestamptz `json:"next_follow_up_date"`
-	Column14           interface{}        `json:"column_14"`
+	Notes              string             `json:"notes"`
+	ID                 uuid.UUID          `json:"id"`
 }
 
 func (q *Queries) UpdateLead(ctx context.Context, arg UpdateLeadParams) (Lead, error) {
 	row := q.db.QueryRow(ctx, updateLead,
-		arg.ID,
-		arg.Column2,
-		arg.Column3,
-		arg.Column4,
-		arg.Column5,
-		arg.Column6,
-		arg.Column7,
-		arg.Column8,
+		arg.ContactName,
+		arg.ContactEmail,
+		arg.ContactPhone,
+		arg.CompanyName,
+		arg.Source,
+		arg.Segment,
+		arg.PlanType,
 		arg.EstimatedMembers,
 		arg.ExpectedPremium,
 		arg.ClosureProbability,
 		arg.AssignedTo,
 		arg.NextFollowUpDate,
-		arg.Column14,
+		arg.Notes,
+		arg.ID,
 	)
 	var i Lead
 	err := row.Scan(

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/bitbiz/hias-core/domains/provider/entity"
@@ -68,4 +69,41 @@ func (h *RateCardHandler) ListRateCards(ctx *gin.Context) {
 	}
 
 	utils.RespondSuccess(ctx, http.StatusOK, "Rate cards retrieved", responses)
+}
+
+func (h *RateCardHandler) BulkCreateRateCards(ctx *gin.Context) {
+	providerID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid provider ID")
+		return
+	}
+
+	var req providerSchema.BulkCreateRateCardRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var responses []providerSchema.RateCardResponse
+	for _, rc := range req.RateCards {
+		rateCard := &entity.RateCard{
+			ProviderID:    providerID,
+			ProcedureCode: rc.ProcedureCode,
+			ProcedureName: rc.ProcedureName,
+			RateAmount:    rc.RateAmount,
+			EffectiveDate: rc.EffectiveDate,
+			AgeFrom:       rc.AgeFrom,
+			AgeTo:         rc.AgeTo,
+			Gender:        rc.Gender,
+			Relationship:  rc.Relationship,
+		}
+		created, createErr := h.rateCardRepo.Create(ctx.Request.Context(), rateCard)
+		if createErr != nil {
+			utils.RespondError(ctx, http.StatusInternalServerError, fmt.Sprintf("Failed to create rate card for %s: %v", rc.ProcedureCode, createErr))
+			return
+		}
+		responses = append(responses, providerSchema.ToRateCardResponse(created))
+	}
+
+	utils.RespondSuccess(ctx, http.StatusCreated, fmt.Sprintf("%d rate cards created", len(responses)), responses)
 }

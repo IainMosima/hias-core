@@ -44,3 +44,23 @@ SELECT * FROM policies WHERE status = 'LAPSED' AND updated_at < NOW() - INTERVAL
 SELECT p.* FROM policies p
 JOIN invoices i ON i.policy_id = p.id
 WHERE p.status = 'ACTIVE' AND i.status = 'OVERDUE' AND i.due_date < NOW() - INTERVAL '30 days';
+
+-- name: ListPoliciesExpiringSoon :many
+SELECT * FROM policies WHERE status = 'ACTIVE' AND end_date BETWEEN NOW() AND NOW() + make_interval(days => sqlc.arg('days')::int) ORDER BY end_date ASC;
+
+-- name: UpdatePolicyPlanAndPremium :one
+UPDATE policies SET plan_id = $2, premium_amount = $3, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: GetActivePolicyCount :one
+SELECT COUNT(*) FROM policies WHERE status = 'ACTIVE' AND created_at BETWEEN sqlc.arg('start_date') AND sqlc.arg('end_date');
+
+-- name: GetLapsedPolicyCount :one
+SELECT COUNT(*) FROM policies WHERE status = 'LAPSED' AND created_at BETWEEN sqlc.arg('start_date') AND sqlc.arg('end_date');
+
+-- name: GetTotalActiveMemberCount :one
+SELECT COUNT(*) FROM members WHERE status = 'ACTIVE' AND created_at BETWEEN sqlc.arg('start_date') AND sqlc.arg('end_date');
+
+-- name: GetRenewalRate :one
+SELECT CASE WHEN COUNT(*) = 0 THEN 0 ELSE
+    ROUND(COUNT(CASE WHEN pr.status = 'COMPLETED' THEN 1 END)::numeric / COUNT(*)::numeric * 100, 2)
+END FROM policy_renewals pr WHERE pr.created_at BETWEEN sqlc.arg('start_date') AND sqlc.arg('end_date');

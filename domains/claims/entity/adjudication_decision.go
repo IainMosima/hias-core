@@ -2,8 +2,8 @@ package entity
 
 import (
 	"encoding/json"
-	"time"
 	"github.com/google/uuid"
+	"time"
 )
 
 type AdjudicationDecision struct {
@@ -24,6 +24,10 @@ type AdjudicationResult struct {
 	Decision             string       `json:"decision"`
 	PayableAmount        int64        `json:"payable_amount"`
 	MemberResponsibility int64        `json:"member_responsibility"`
+	DeductibleApplied    int64        `json:"deductible_applied"`
+	CoPayApplied         int64        `json:"co_pay_applied"`
+	SubLimitApplied      int64        `json:"sub_limit_applied,omitempty"`
+	BenefitCategory      string       `json:"benefit_category,omitempty"`
 	Reasons              []RuleResult `json:"reasons"`
 }
 

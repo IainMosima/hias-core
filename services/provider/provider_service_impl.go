@@ -163,6 +163,30 @@ func (s *providerServiceImpl) updateProviderStatus(ctx context.Context, id uuid.
 	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, message)
 }
 
+func (s *providerServiceImpl) UpdateTier(ctx context.Context, id uuid.UUID, tier string, userID uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
+	updated, err := s.providerRepo.UpdateTier(ctx, id, tier)
+	if err != nil {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to update provider tier", err)
+	}
+
+	s.logAudit(ctx, userID, string(shared.AuditEntityTypeProvider), id, string(shared.AuditActionUpdate))
+	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, "Provider tier updated")
+}
+
+func (s *providerServiceImpl) ListByTier(ctx context.Context, tier string, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse] {
+	offset := (page - 1) * pageSize
+	providers, err := s.providerRepo.ListByTier(ctx, tier, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to list providers by tier", err)
+	}
+
+	responses := make([]providerSchema.ProviderResponse, len(providers))
+	for i, p := range providers {
+		responses[i] = providerSchema.ToProviderResponse(p)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Providers retrieved")
+}
+
 func (s *providerServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
 	if s.auditSvc != nil {
 		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")

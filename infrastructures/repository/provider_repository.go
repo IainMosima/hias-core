@@ -128,6 +128,33 @@ func (r *providerRepository) Update(ctx context.Context, provider *entity.Provid
 	return sqlcProviderToDomain(dbProvider), nil
 }
 
+func (r *providerRepository) UpdateTier(ctx context.Context, id uuid.UUID, tier string) (*entity.Provider, error) {
+	dbProvider, err := r.store.UpdateProviderTier(ctx, db.UpdateProviderTierParams{
+		ID:   id,
+		Tier: tier,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update provider tier: %w", err)
+	}
+	return sqlcProviderToDomain(dbProvider), nil
+}
+
+func (r *providerRepository) ListByTier(ctx context.Context, tier string, limit, offset int) ([]*entity.Provider, error) {
+	dbProviders, err := r.store.ListProvidersByTier(ctx, db.ListProvidersByTierParams{
+		Tier:   tier,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list providers by tier: %w", err)
+	}
+	providers := make([]*entity.Provider, len(dbProviders))
+	for i, p := range dbProviders {
+		providers[i] = sqlcProviderToDomain(p)
+	}
+	return providers, nil
+}
+
 func sqlcProviderToDomain(p db.Provider) *entity.Provider {
 	return &entity.Provider{
 		ID:            p.ID,
@@ -135,6 +162,7 @@ func sqlcProviderToDomain(p db.Provider) *entity.Provider {
 		Type:          p.Type,
 		LicenseNumber: p.LicenseNumber,
 		Status:        p.Status,
+		Tier:          p.Tier,
 		County:        p.County.String,
 		Address:       p.Address.String,
 		Phone:         p.Phone.String,

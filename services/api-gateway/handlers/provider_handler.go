@@ -139,3 +139,42 @@ func (h *ProviderHandler) TerminateProvider(ctx *gin.Context) {
 	}
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
+
+func (h *ProviderHandler) UpdateTier(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid provider ID")
+		return
+	}
+
+	var req struct {
+		Tier string `json:"tier" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp := h.providerSvc.UpdateTier(ctx.Request.Context(), id, req.Tier, getUserID(ctx))
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *ProviderHandler) ListByTier(ctx *gin.Context) {
+	tier := ctx.Query("tier")
+	if tier == "" {
+		utils.RespondError(ctx, http.StatusBadRequest, "tier query parameter required")
+		return
+	}
+
+	pagination := utils.GetPaginationParams(ctx)
+	resp := h.providerSvc.ListByTier(ctx.Request.Context(), tier, pagination.Page, pagination.PageSize)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}

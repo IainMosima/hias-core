@@ -11,9 +11,12 @@ import (
 	"github.com/bitbiz/hias-core/domains/claims/service"
 	memberRepo "github.com/bitbiz/hias-core/domains/policy/repository"
 	policyRepo "github.com/bitbiz/hias-core/domains/policy/repository"
+	preauthRepo "github.com/bitbiz/hias-core/domains/preauth/repository"
+	productEntity "github.com/bitbiz/hias-core/domains/product/entity"
 	productRepo "github.com/bitbiz/hias-core/domains/product/repository"
 	providerRepo "github.com/bitbiz/hias-core/domains/provider/repository"
 	"github.com/bitbiz/hias-core/shared"
+	"github.com/google/uuid"
 )
 
 type adjudicatorServiceImpl struct {
@@ -25,6 +28,8 @@ type adjudicatorServiceImpl struct {
 	providerRepo  providerRepo.ProviderRepository
 	networkRepo   productRepo.ProviderNetworkRepository
 	fraudSvc      service.FraudService
+	contractRepo  providerRepo.ContractRepository
+	preauthRepo   preauthRepo.PreAuthRepository
 }
 
 func NewAdjudicatorService(
@@ -36,6 +41,8 @@ func NewAdjudicatorService(
 	providerRepo providerRepo.ProviderRepository,
 	networkRepo productRepo.ProviderNetworkRepository,
 	fraudSvc service.FraudService,
+	contractRepo providerRepo.ContractRepository,
+	preauthRepo preauthRepo.PreAuthRepository,
 ) service.AdjudicatorService {
 	return &adjudicatorServiceImpl{
 		claimRepo:     claimRepo,
@@ -46,6 +53,8 @@ func NewAdjudicatorService(
 		providerRepo:  providerRepo,
 		networkRepo:   networkRepo,
 		fraudSvc:      fraudSvc,
+		contractRepo:  contractRepo,
+		preauthRepo:   preauthRepo,
 	}
 }
 
@@ -116,7 +125,7 @@ func (s *adjudicatorServiceImpl) Adjudicate(ctx context.Context, claim *entity.C
 
 	// 3b. Provider network eligibility check
 	if s.networkRepo != nil {
-		inNetwork, err := s.networkRepo.CheckEligibility(ctx, policy.PlanID, claim.ProviderID, "")
+		inNetwork, err := s.networkRepo.CheckEligibility(ctx, policy.PlanID, claim.ProviderID, determineBenefitCategory(claim))
 		if err == nil && !inNetwork {
 			ruleResults = append(ruleResults, entity.RuleResult{
 				Category: string(shared.RuleCategoryEligibility), Rule: "provider_network", Result: string(shared.RuleResultFail),
@@ -131,6 +140,109 @@ func (s *adjudicatorServiceImpl) Adjudicate(ctx context.Context, claim *entity.C
 			ruleResults = append(ruleResults, entity.RuleResult{
 				Category: string(shared.RuleCategoryEligibility), Rule: "provider_network", Result: string(shared.RuleResultPass),
 				Details: "Provider is in network",
+			})
+		}
+	}
+
+	// 3c. Contract validity check
+	if s.contractRepo != nil {
+		contracts, cErr := s.contractRepo.ListByProvider(ctx, claim.ProviderID)
+		if cErr == nil {
+			hasValidContract := false
+			for _, c := range contracts {
+				if c.Status == string(shared.ContractStatusActive) &&
+					claim.ServiceDate.After(c.StartDate) && claim.ServiceDate.Before(c.EndDate) {
+					hasValidContract = true
+					break
+				}
+			}
+			if !hasValidContract && len(contracts) > 0 {
+				ruleResults = append(ruleResults, entity.RuleResult{
+					Category: string(shared.RuleCategoryEligibility), Rule: "contract_valid", Result: string(shared.RuleResultFail),
+					Details: "Provider has no valid contract for the service date",
+				})
+				return &entity.AdjudicationResult{
+					Decision: string(shared.AdjudicationDecisionReject), PayableAmount: 0,
+					MemberResponsibility: claim.TotalAmount, Reasons: ruleResults,
+				}, nil
+			}
+			if hasValidContract {
+				ruleResults = append(ruleResults, entity.RuleResult{
+					Category: string(shared.RuleCategoryEligibility), Rule: "contract_valid", Result: string(shared.RuleResultPass),
+					Details: "Provider has valid contract",
+				})
+			}
+		}
+	}
+
+	// 3d. PreAuth validation (if preauth_id provided)
+	if claim.PreAuthID != uuid.Nil && s.preauthRepo != nil {
+		preauth, paErr := s.preauthRepo.GetByID(ctx, claim.PreAuthID)
+		if paErr != nil {
+			ruleResults = append(ruleResults, entity.RuleResult{
+				Category: string(shared.RuleCategoryEligibility), Rule: "preauth_valid", Result: string(shared.RuleResultFail),
+				Details: "Pre-authorization not found",
+			})
+			return &entity.AdjudicationResult{
+				Decision: string(shared.AdjudicationDecisionReject), PayableAmount: 0,
+				MemberResponsibility: claim.TotalAmount, Reasons: ruleResults,
+			}, nil
+		}
+		if preauth.Status != string(shared.PreAuthStatusApproved) {
+			ruleResults = append(ruleResults, entity.RuleResult{
+				Category: string(shared.RuleCategoryEligibility), Rule: "preauth_valid", Result: string(shared.RuleResultFail),
+				Details: fmt.Sprintf("Pre-authorization is %s, not APPROVED", preauth.Status),
+			})
+			return &entity.AdjudicationResult{
+				Decision: string(shared.AdjudicationDecisionReject), PayableAmount: 0,
+				MemberResponsibility: claim.TotalAmount, Reasons: ruleResults,
+			}, nil
+		}
+		if preauth.ValidityEnd != nil && time.Now().After(*preauth.ValidityEnd) {
+			ruleResults = append(ruleResults, entity.RuleResult{
+				Category: string(shared.RuleCategoryEligibility), Rule: "preauth_valid", Result: string(shared.RuleResultFail),
+				Details: "Pre-authorization has expired",
+			})
+			return &entity.AdjudicationResult{
+				Decision: string(shared.AdjudicationDecisionReject), PayableAmount: 0,
+				MemberResponsibility: claim.TotalAmount, Reasons: ruleResults,
+			}, nil
+		}
+		if preauth.ProviderID != claim.ProviderID {
+			ruleResults = append(ruleResults, entity.RuleResult{
+				Category: string(shared.RuleCategoryEligibility), Rule: "preauth_valid", Result: string(shared.RuleResultFail),
+				Details: "Pre-authorization provider does not match claim provider",
+			})
+			return &entity.AdjudicationResult{
+				Decision: string(shared.AdjudicationDecisionReject), PayableAmount: 0,
+				MemberResponsibility: claim.TotalAmount, Reasons: ruleResults,
+			}, nil
+		}
+		ruleResults = append(ruleResults, entity.RuleResult{
+			Category: string(shared.RuleCategoryEligibility), Rule: "preauth_valid", Result: string(shared.RuleResultPass),
+			Details: "Pre-authorization is valid",
+		})
+
+		// Validate claim procedures match preauth procedures
+		preauthProcedures := parseJSONStringArray(preauth.ProcedureCodes)
+		if len(preauthProcedures) > 0 && len(lineItems) > 0 {
+			for _, li := range lineItems {
+				if !contains(preauthProcedures, li.ProcedureCode) {
+					ruleResults = append(ruleResults, entity.RuleResult{
+						Category: string(shared.RuleCategoryEligibility), Rule: "preauth_procedure",
+						Result:  string(shared.RuleResultFlag),
+						Details: fmt.Sprintf("Procedure %s not in pre-authorization (authorized: %v)", li.ProcedureCode, preauthProcedures),
+					})
+				}
+			}
+		}
+
+		// Warn if claim amount exceeds preauth approved amount
+		if preauth.ApprovedAmount > 0 && claim.TotalAmount > preauth.ApprovedAmount {
+			ruleResults = append(ruleResults, entity.RuleResult{
+				Category: string(shared.RuleCategoryLimits), Rule: "preauth_amount_warning",
+				Result:  string(shared.RuleResultFlag),
+				Details: fmt.Sprintf("Claim amount %d exceeds PreAuth approved amount %d", claim.TotalAmount, preauth.ApprovedAmount),
 			})
 		}
 	}
@@ -221,46 +333,115 @@ func (s *adjudicatorServiceImpl) Adjudicate(ctx context.Context, claim *entity.C
 		Details: "No exclusions matched",
 	})
 
-	// 7. Calculate payable amount based on benefits
+	// 7. Calculate payable amount based on matching benefit
 	payableAmount := claim.TotalAmount
 	var coPayAmount int64
+	var deductibleAmount int64
 	var memberResponsibility int64
 
-	for _, b := range benefits {
-		// Check annual limit
-		used, _ := s.claimRepo.GetApprovedAmountForBenefitThisYear(ctx, claim.MemberID, b.Category)
-		remaining := b.AnnualLimit - used
+	claimCategory := determineBenefitCategory(claim)
+	matchedBenefit := findMatchingBenefit(benefits, claimCategory)
 
-		if remaining <= 0 {
+	if matchedBenefit == nil {
+		// Fallback: try first benefit
+		matchedBenefit = benefits[0]
+		ruleResults = append(ruleResults, entity.RuleResult{
+			Category: string(shared.RuleCategoryCoverage), Rule: "benefit_match",
+			Result:  string(shared.RuleResultPass),
+			Details: fmt.Sprintf("No exact category match for %s, using default benefit %s", claimCategory, matchedBenefit.Category),
+		})
+	} else {
+		ruleResults = append(ruleResults, entity.RuleResult{
+			Category: string(shared.RuleCategoryCoverage), Rule: "benefit_match",
+			Result:  string(shared.RuleResultPass),
+			Details: fmt.Sprintf("Matched benefit category: %s", matchedBenefit.Category),
+		})
+	}
+
+	// Check annual limit
+	used, _ := s.claimRepo.GetApprovedAmountForBenefitThisYear(ctx, claim.MemberID, matchedBenefit.Category)
+	remaining := matchedBenefit.AnnualLimit - used
+
+	if remaining <= 0 {
+		ruleResults = append(ruleResults, entity.RuleResult{
+			Category: string(shared.RuleCategoryLimits), Rule: "annual_limit",
+			Result:  string(shared.RuleResultFail),
+			Details: fmt.Sprintf("Annual limit exhausted for %s (used %d of %d)", matchedBenefit.Category, used, matchedBenefit.AnnualLimit),
+		})
+		return &entity.AdjudicationResult{
+			Decision: string(shared.AdjudicationDecisionReject), PayableAmount: 0,
+			MemberResponsibility: claim.TotalAmount, Reasons: ruleResults,
+		}, nil
+	}
+
+	if payableAmount > remaining {
+		payableAmount = remaining
+		ruleResults = append(ruleResults, entity.RuleResult{
+			Category: string(shared.RuleCategoryLimits), Rule: "annual_limit",
+			Result:  string(shared.RuleResultPass),
+			Details: fmt.Sprintf("Partial approval: limited to remaining %d of %d", remaining, matchedBenefit.AnnualLimit),
+		})
+	} else {
+		ruleResults = append(ruleResults, entity.RuleResult{
+			Category: string(shared.RuleCategoryLimits), Rule: "annual_limit",
+			Result:  string(shared.RuleResultPass),
+			Details: "Within annual limit",
+		})
+	}
+
+	// Sub-limit enforcement
+	if matchedBenefit.SubLimitType == string(shared.SubLimitTypePerVisit) && matchedBenefit.SubLimitValue > 0 {
+		if payableAmount > matchedBenefit.SubLimitValue {
+			payableAmount = matchedBenefit.SubLimitValue
 			ruleResults = append(ruleResults, entity.RuleResult{
-				Category: string(shared.RuleCategoryLimits), Rule: "annual_limit", Result: string(shared.RuleResultFail),
-				Details: "Annual limit exhausted for " + b.Category,
+				Category: string(shared.RuleCategoryLimits), Rule: "sub_limit",
+				Result:  string(shared.RuleResultPass),
+				Details: fmt.Sprintf("Per-visit sub-limit applied: capped at %d", matchedBenefit.SubLimitValue),
 			})
-			continue
 		}
-
-		if payableAmount > remaining {
-			payableAmount = remaining
+	} else if matchedBenefit.SubLimitType == string(shared.SubLimitTypePerItem) && matchedBenefit.SubLimitValue > 0 {
+		if payableAmount > matchedBenefit.SubLimitValue {
+			payableAmount = matchedBenefit.SubLimitValue
 			ruleResults = append(ruleResults, entity.RuleResult{
-				Category: string(shared.RuleCategoryLimits), Rule: "annual_limit", Result: string(shared.RuleResultPass),
-				Details: "Partial approval: limited to remaining balance",
+				Category: string(shared.RuleCategoryLimits), Rule: "sub_limit",
+				Result:  string(shared.RuleResultPass),
+				Details: fmt.Sprintf("Per-item sub-limit applied: capped at %d", matchedBenefit.SubLimitValue),
 			})
-		} else {
+		}
+	}
+
+	// Apply deductible
+	deductibleAmount = matchedBenefit.DeductibleAmount
+	if deductibleAmount > 0 {
+		payableAmount -= deductibleAmount
+		if payableAmount < 0 {
+			payableAmount = 0
+		}
+		ruleResults = append(ruleResults, entity.RuleResult{
+			Category: string(shared.RuleCategoryLimits), Rule: "deductible",
+			Result:  string(shared.RuleResultPass),
+			Details: fmt.Sprintf("Deductible of %d applied", deductibleAmount),
+		})
+	}
+
+	// Apply co-pay
+	if matchedBenefit.CoPayType == string(shared.CoPayTypePercentage) {
+		coPayAmount = payableAmount * matchedBenefit.CoPayValue / 100
+	} else if matchedBenefit.CoPayType == string(shared.CoPayTypeFixed) {
+		coPayAmount = matchedBenefit.CoPayValue
+	}
+	payableAmount -= coPayAmount
+
+	// 7b. Cap payable at PreAuth approved amount
+	if claim.PreAuthID != uuid.Nil && s.preauthRepo != nil {
+		preauth, paErr := s.preauthRepo.GetByID(ctx, claim.PreAuthID)
+		if paErr == nil && preauth.ApprovedAmount > 0 && payableAmount > preauth.ApprovedAmount {
+			payableAmount = preauth.ApprovedAmount
 			ruleResults = append(ruleResults, entity.RuleResult{
-				Category: string(shared.RuleCategoryLimits), Rule: "annual_limit", Result: string(shared.RuleResultPass),
-				Details: "Within annual limit",
+				Category: string(shared.RuleCategoryLimits), Rule: "preauth_cap", Result: string(shared.RuleResultPass),
+				Details: fmt.Sprintf("Payable capped at PreAuth approved amount %d", preauth.ApprovedAmount),
 			})
 		}
-
-		// Apply co-pay
-		if b.CoPayType == string(shared.CoPayTypePercentage) {
-			coPayAmount = payableAmount * b.CoPayValue / 100
-		} else if b.CoPayType == string(shared.CoPayTypeFixed) {
-			coPayAmount = b.CoPayValue
-		}
-
-		payableAmount -= coPayAmount
-		break
 	}
 
 	// 8. Fraud checks
@@ -273,6 +454,9 @@ func (s *adjudicatorServiceImpl) Adjudicate(ctx context.Context, claim *entity.C
 		return &entity.AdjudicationResult{
 			Decision: string(shared.AdjudicationDecisionManualReview), PayableAmount: payableAmount,
 			MemberResponsibility: coPayAmount + (claim.TotalAmount - payableAmount - coPayAmount),
+			DeductibleApplied:    deductibleAmount,
+			CoPayApplied:         coPayAmount,
+			BenefitCategory:      claimCategory,
 			Reasons:              ruleResults,
 		}, nil
 	}
@@ -288,8 +472,27 @@ func (s *adjudicatorServiceImpl) Adjudicate(ctx context.Context, claim *entity.C
 		Decision:             string(shared.AdjudicationDecisionApprove),
 		PayableAmount:        payableAmount,
 		MemberResponsibility: memberResponsibility,
+		DeductibleApplied:    deductibleAmount,
+		CoPayApplied:         coPayAmount,
+		BenefitCategory:      claimCategory,
 		Reasons:              ruleResults,
 	}, nil
+}
+
+func determineBenefitCategory(claim *entity.Claim) string {
+	if claim.AdmissionDate != nil {
+		return string(shared.BenefitCategoryInpatient)
+	}
+	return string(shared.BenefitCategoryOutpatient)
+}
+
+func findMatchingBenefit(benefits []*productEntity.Benefit, category string) *productEntity.Benefit {
+	for _, b := range benefits {
+		if b.Category == category {
+			return b
+		}
+	}
+	return nil
 }
 
 func parseJSONStringArray(data json.RawMessage) []string {

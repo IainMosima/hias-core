@@ -6,7 +6,7 @@ SELECT
     COUNT(CASE WHEN status = 'MANUAL_REVIEW' THEN 1 END) as manual_review_claims,
     COUNT(CASE WHEN status = 'PAID' THEN 1 END) as paid_claims
 FROM claims
-WHERE created_at >= $1 AND created_at <= $2;
+WHERE created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
 
 -- name: GetApprovalRate :one
 SELECT
@@ -16,14 +16,14 @@ SELECT
     END as approval_rate
 FROM claims
 WHERE status NOT IN ('RECEIVED', 'VALIDATED')
-  AND created_at >= $1 AND created_at <= $2;
+  AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
 
 -- name: GetAverageTAT :one
 SELECT
     COALESCE(AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600), 0) as avg_tat_hours
 FROM claims
 WHERE status IN ('APPROVED', 'REJECTED', 'PAID')
-  AND created_at >= $1 AND created_at <= $2;
+  AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
 
 -- name: GetLossRatio :one
 SELECT
@@ -36,10 +36,10 @@ CROSS JOIN (
     SELECT COALESCE(SUM(pay.amount), 0) as total
     FROM payments pay
     WHERE pay.type = 'PREMIUM' AND pay.status = 'CONFIRMED'
-      AND pay.created_at >= @start_date AND pay.created_at <= @end_date
+      AND pay.created_at >= sqlc.arg('start_date') AND pay.created_at <= sqlc.arg('end_date')
 ) premium
 WHERE c.status IN ('APPROVED', 'PAID')
-  AND c.created_at >= @start_date AND c.created_at <= @end_date
+  AND c.created_at >= sqlc.arg('start_date') AND c.created_at <= sqlc.arg('end_date')
 GROUP BY premium.total;
 
 -- name: GetFraudRate :one
@@ -50,7 +50,7 @@ SELECT
     END as fraud_rate
 FROM claims c
 LEFT JOIN fraud_flags ff ON ff.claim_id = c.id
-WHERE c.created_at >= $1 AND c.created_at <= $2;
+WHERE c.created_at >= sqlc.arg('start_date') AND c.created_at <= sqlc.arg('end_date');
 
 -- name: GetTopProviders :many
 SELECT
@@ -60,19 +60,19 @@ SELECT
     COALESCE(SUM(c.total_amount), 0)::bigint as total_amount,
     COALESCE(SUM(c.approved_amount), 0)::bigint as total_approved
 FROM providers p
-LEFT JOIN claims c ON c.provider_id = p.id AND c.created_at >= $1 AND c.created_at <= $2
+LEFT JOIN claims c ON c.provider_id = p.id AND c.created_at >= sqlc.arg('start_date') AND c.created_at <= sqlc.arg('end_date')
 GROUP BY p.id, p.name
 ORDER BY claim_count DESC
-LIMIT $3;
+LIMIT $1;
 
 -- name: GetTotalPremiumCollected :one
 SELECT COALESCE(SUM(amount), 0)::bigint as total_premium
 FROM payments
 WHERE type = 'PREMIUM' AND status = 'CONFIRMED'
-  AND created_at >= $1 AND created_at <= $2;
+  AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
 
 -- name: GetTotalClaimsPaid :one
 SELECT COALESCE(SUM(approved_amount), 0)::bigint as total_paid
 FROM claims
 WHERE status = 'PAID'
-  AND created_at >= $1 AND created_at <= $2;
+  AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');

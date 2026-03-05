@@ -16,5 +16,7 @@ type ProviderService interface {
 	SuspendProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse]
 	TerminateProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse]
 	UpdateProvider(ctx context.Context, id uuid.UUID, req providerSchema.UpdateProviderRequest) *schema.ServiceResponse[providerSchema.ProviderResponse]
+	UpdateTier(ctx context.Context, id uuid.UUID, tier string, userID uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse]
+	ListByTier(ctx context.Context, tier string, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse]
 	GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64]
 }

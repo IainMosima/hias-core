@@ -25,7 +25,7 @@ func (q *Queries) CountProviders(ctx context.Context) (int64, error) {
 
 const createProvider = `-- name: CreateProvider :one
 INSERT INTO providers (name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier
 `
 
 type CreateProviderParams struct {
@@ -72,12 +72,13 @@ func (q *Queries) CreateProvider(ctx context.Context, arg CreateProviderParams) 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tier,
 	)
 	return i, err
 }
 
 const getProviderByID = `-- name: GetProviderByID :one
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at FROM providers WHERE id = $1
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE id = $1
 `
 
 func (q *Queries) GetProviderByID(ctx context.Context, id uuid.UUID) (Provider, error) {
@@ -98,12 +99,13 @@ func (q *Queries) GetProviderByID(ctx context.Context, id uuid.UUID) (Provider, 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tier,
 	)
 	return i, err
 }
 
 const getProviderByLicense = `-- name: GetProviderByLicense :one
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at FROM providers WHERE license_number = $1
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE license_number = $1
 `
 
 func (q *Queries) GetProviderByLicense(ctx context.Context, licenseNumber string) (Provider, error) {
@@ -124,12 +126,13 @@ func (q *Queries) GetProviderByLicense(ctx context.Context, licenseNumber string
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tier,
 	)
 	return i, err
 }
 
 const getProviderByUserID = `-- name: GetProviderByUserID :one
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at FROM providers WHERE user_id = $1
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE user_id = $1
 `
 
 func (q *Queries) GetProviderByUserID(ctx context.Context, userID pgtype.UUID) (Provider, error) {
@@ -150,12 +153,13 @@ func (q *Queries) GetProviderByUserID(ctx context.Context, userID pgtype.UUID) (
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tier,
 	)
 	return i, err
 }
 
 const listProviders = `-- name: ListProviders :many
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at FROM providers ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListProvidersParams struct {
@@ -187,6 +191,7 @@ func (q *Queries) ListProviders(ctx context.Context, arg ListProvidersParams) ([
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tier,
 		); err != nil {
 			return nil, err
 		}
@@ -199,7 +204,7 @@ func (q *Queries) ListProviders(ctx context.Context, arg ListProvidersParams) ([
 }
 
 const listProvidersByStatus = `-- name: ListProvidersByStatus :many
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at FROM providers WHERE status = $1 ORDER BY name LIMIT $2 OFFSET $3
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE status = $1 ORDER BY name LIMIT $2 OFFSET $3
 `
 
 type ListProvidersByStatusParams struct {
@@ -232,6 +237,53 @@ func (q *Queries) ListProvidersByStatus(ctx context.Context, arg ListProvidersBy
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tier,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProvidersByTier = `-- name: ListProvidersByTier :many
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE tier = $1 ORDER BY name LIMIT $2 OFFSET $3
+`
+
+type ListProvidersByTierParams struct {
+	Tier   string `json:"tier"`
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+}
+
+func (q *Queries) ListProvidersByTier(ctx context.Context, arg ListProvidersByTierParams) ([]Provider, error) {
+	rows, err := q.db.Query(ctx, listProvidersByTier, arg.Tier, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Provider{}
+	for rows.Next() {
+		var i Provider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.LicenseNumber,
+			&i.Status,
+			&i.County,
+			&i.Address,
+			&i.Phone,
+			&i.Email,
+			&i.ContactPerson,
+			&i.UserID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Tier,
 		); err != nil {
 			return nil, err
 		}
@@ -252,7 +304,7 @@ UPDATE providers SET
     email = COALESCE($5, email),
     contact_person = COALESCE($6, contact_person),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at
+WHERE id = $7 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier
 `
 
 type UpdateProviderParams struct {
@@ -291,12 +343,13 @@ func (q *Queries) UpdateProvider(ctx context.Context, arg UpdateProviderParams) 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tier,
 	)
 	return i, err
 }
 
 const updateProviderStatus = `-- name: UpdateProviderStatus :one
-UPDATE providers SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at
+UPDATE providers SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier
 `
 
 type UpdateProviderStatusParams struct {
@@ -322,6 +375,39 @@ func (q *Queries) UpdateProviderStatus(ctx context.Context, arg UpdateProviderSt
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tier,
+	)
+	return i, err
+}
+
+const updateProviderTier = `-- name: UpdateProviderTier :one
+UPDATE providers SET tier = $2, updated_at = NOW() WHERE id = $1 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier
+`
+
+type UpdateProviderTierParams struct {
+	ID   uuid.UUID `json:"id"`
+	Tier string    `json:"tier"`
+}
+
+func (q *Queries) UpdateProviderTier(ctx context.Context, arg UpdateProviderTierParams) (Provider, error) {
+	row := q.db.QueryRow(ctx, updateProviderTier, arg.ID, arg.Tier)
+	var i Provider
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.LicenseNumber,
+		&i.Status,
+		&i.County,
+		&i.Address,
+		&i.Phone,
+		&i.Email,
+		&i.ContactPerson,
+		&i.UserID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Tier,
 	)
 	return i, err
 }

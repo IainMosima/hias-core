@@ -19,6 +19,7 @@ type Benefit struct {
 	MinAge            int       `json:"min_age"`
 	MaxAge            int       `json:"max_age"`
 	WaitingPeriodType string    `json:"waiting_period_type"` // general, maternity, pre_existing
+	DeductibleAmount  int64     `json:"deductible_amount"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }

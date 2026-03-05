@@ -107,6 +107,37 @@ func (r *memberRepository) Update(ctx context.Context, member *entity.Member) (*
 	return sqlcMemberToDomain(dbMember), nil
 }
 
+func (r *memberRepository) ListActiveByPolicy(ctx context.Context, policyID uuid.UUID) ([]*entity.Member, error) {
+	dbMembers, err := r.store.ListActiveMembersByPolicy(ctx, policyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active members by policy: %w", err)
+	}
+	members := make([]*entity.Member, len(dbMembers))
+	for i, m := range dbMembers {
+		members[i] = sqlcMemberToDomain(m)
+	}
+	return members, nil
+}
+
+func (r *memberRepository) CountActiveByPolicy(ctx context.Context, policyID uuid.UUID) (int64, error) {
+	count, err := r.store.CountActiveMembersByPolicy(ctx, policyID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count active members: %w", err)
+	}
+	return count, nil
+}
+
+func (r *memberRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*entity.Member, error) {
+	dbMember, err := r.store.UpdateMemberStatus(ctx, db.UpdateMemberStatusParams{
+		ID:     id,
+		Status: status,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update member status: %w", err)
+	}
+	return sqlcMemberToDomain(dbMember), nil
+}
+
 func (r *memberRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	err := r.store.DeleteMember(ctx, id)
 	if err != nil {
@@ -130,6 +161,7 @@ func sqlcMemberToDomain(m db.Member) *entity.Member {
 		KRAPin:       m.KraPin.String,
 		County:       m.County.String,
 		Address:      m.Address.String,
+		Status:       m.Status,
 		Verified:     m.Verified,
 		VerifiedAt:   pgtypeTimestamptzToTimePtr(m.VerifiedAt),
 		CreatedAt:    m.CreatedAt,

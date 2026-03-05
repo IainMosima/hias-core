@@ -68,6 +68,30 @@ type Benefit struct {
 	WaitingPeriodType string    `json:"waiting_period_type"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+	DeductibleAmount  int64     `json:"deductible_amount"`
+}
+
+type CaseRecord struct {
+	ID                 uuid.UUID          `json:"id"`
+	CaseNumber         string             `json:"case_number"`
+	PreauthID          uuid.UUID          `json:"preauth_id"`
+	PolicyID           uuid.UUID          `json:"policy_id"`
+	MemberID           uuid.UUID          `json:"member_id"`
+	ProviderID         uuid.UUID          `json:"provider_id"`
+	Status             string             `json:"status"`
+	AdmissionDate      pgtype.Timestamptz `json:"admission_date"`
+	ExpectedDischarge  pgtype.Timestamptz `json:"expected_discharge"`
+	ActualDischarge    pgtype.Timestamptz `json:"actual_discharge"`
+	Diagnosis          pgtype.Text        `json:"diagnosis"`
+	TreatingDoctor     pgtype.Text        `json:"treating_doctor"`
+	RoomType           pgtype.Text        `json:"room_type"`
+	TotalEstimatedCost int64              `json:"total_estimated_cost"`
+	TotalActualCost    int64              `json:"total_actual_cost"`
+	Notes              pgtype.Text        `json:"notes"`
+	ClosedAt           pgtype.Timestamptz `json:"closed_at"`
+	CreatedBy          uuid.UUID          `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
 }
 
 type Claim struct {
@@ -91,6 +115,24 @@ type Claim struct {
 	CreatedBy            pgtype.UUID        `json:"created_by"`
 	CreatedAt            time.Time          `json:"created_at"`
 	UpdatedAt            time.Time          `json:"updated_at"`
+	ClaimType            string             `json:"claim_type"`
+	VettedAmount         pgtype.Int8        `json:"vetted_amount"`
+	VettedBy             pgtype.UUID        `json:"vetted_by"`
+	VettedAt             pgtype.Timestamptz `json:"vetted_at"`
+	SlaBreachAt          pgtype.Timestamptz `json:"sla_breach_at"`
+}
+
+type ClaimDocument struct {
+	ID         uuid.UUID `json:"id"`
+	ClaimID    uuid.UUID `json:"claim_id"`
+	FileName   string    `json:"file_name"`
+	FileType   string    `json:"file_type"`
+	FileSize   int64     `json:"file_size"`
+	S3Key      string    `json:"s3_key"`
+	UploadedBy uuid.UUID `json:"uploaded_by"`
+	IsDeleted  bool      `json:"is_deleted"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type ClaimLineItem struct {
@@ -117,6 +159,41 @@ type Contract struct {
 	CreatedBy  pgtype.UUID `json:"created_by"`
 	CreatedAt  time.Time   `json:"created_at"`
 	UpdatedAt  time.Time   `json:"updated_at"`
+}
+
+type CreditNote struct {
+	ID                 uuid.UUID          `json:"id"`
+	PolicyID           uuid.UUID          `json:"policy_id"`
+	MemberID           pgtype.UUID        `json:"member_id"`
+	CreditNoteNumber   string             `json:"credit_note_number"`
+	Amount             int64              `json:"amount"`
+	Currency           string             `json:"currency"`
+	Reason             string             `json:"reason"`
+	Status             string             `json:"status"`
+	AppliedToInvoiceID pgtype.UUID        `json:"applied_to_invoice_id"`
+	ApprovedBy         pgtype.UUID        `json:"approved_by"`
+	ApprovedAt         pgtype.Timestamptz `json:"approved_at"`
+	AppliedAt          pgtype.Timestamptz `json:"applied_at"`
+	CreatedBy          uuid.UUID          `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+}
+
+type Endorsement struct {
+	ID                uuid.UUID          `json:"id"`
+	PolicyID          uuid.UUID          `json:"policy_id"`
+	EndorsementType   string             `json:"endorsement_type"`
+	Status            string             `json:"status"`
+	EffectiveDate     time.Time          `json:"effective_date"`
+	Changes           json.RawMessage    `json:"changes"`
+	Reason            pgtype.Text        `json:"reason"`
+	PremiumAdjustment pgtype.Int8        `json:"premium_adjustment"`
+	RequestedBy       uuid.UUID          `json:"requested_by"`
+	ApprovedBy        pgtype.UUID        `json:"approved_by"`
+	ApprovedAt        pgtype.Timestamptz `json:"approved_at"`
+	AppliedAt         pgtype.Timestamptz `json:"applied_at"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
 }
 
 type Exclusion struct {
@@ -237,6 +314,7 @@ type Member struct {
 	VerifiedAt   pgtype.Timestamptz `json:"verified_at"`
 	CreatedAt    time.Time          `json:"created_at"`
 	UpdatedAt    time.Time          `json:"updated_at"`
+	Status       string             `json:"status"`
 }
 
 type Notification struct {
@@ -314,6 +392,37 @@ type Policy struct {
 	CreatedBy         pgtype.UUID        `json:"created_by"`
 	CreatedAt         time.Time          `json:"created_at"`
 	UpdatedAt         time.Time          `json:"updated_at"`
+	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
+}
+
+type PolicyDocument struct {
+	ID           uuid.UUID   `json:"id"`
+	PolicyID     uuid.UUID   `json:"policy_id"`
+	MemberID     pgtype.UUID `json:"member_id"`
+	DocumentType string      `json:"document_type"`
+	FileName     string      `json:"file_name"`
+	FileSize     pgtype.Int8 `json:"file_size"`
+	S3Key        string      `json:"s3_key"`
+	GeneratedBy  uuid.UUID   `json:"generated_by"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
+type PolicyRenewal struct {
+	ID                  uuid.UUID          `json:"id"`
+	PolicyID            uuid.UUID          `json:"policy_id"`
+	RenewedPolicyID     pgtype.UUID        `json:"renewed_policy_id"`
+	Status              string             `json:"status"`
+	RenewalDate         time.Time          `json:"renewal_date"`
+	NewPremium          pgtype.Int8        `json:"new_premium"`
+	PremiumChangeReason pgtype.Text        `json:"premium_change_reason"`
+	NewPlanID           pgtype.UUID        `json:"new_plan_id"`
+	ApprovedBy          pgtype.UUID        `json:"approved_by"`
+	ApprovedAt          pgtype.Timestamptz `json:"approved_at"`
+	CompletedAt         pgtype.Timestamptz `json:"completed_at"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	CreatedBy           uuid.UUID          `json:"created_by"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
 }
 
 type Preauthorization struct {
@@ -368,6 +477,7 @@ type Provider struct {
 	CreatedBy     pgtype.UUID `json:"created_by"`
 	CreatedAt     time.Time   `json:"created_at"`
 	UpdatedAt     time.Time   `json:"updated_at"`
+	Tier          string      `json:"tier"`
 }
 
 type ProviderNetwork struct {
@@ -378,6 +488,27 @@ type ProviderNetwork struct {
 	Status          string      `json:"status"`
 	CreatedAt       time.Time   `json:"created_at"`
 	UpdatedAt       time.Time   `json:"updated_at"`
+}
+
+type ProviderStatement struct {
+	ID               uuid.UUID          `json:"id"`
+	ProviderID       uuid.UUID          `json:"provider_id"`
+	StatementNumber  string             `json:"statement_number"`
+	PeriodStart      pgtype.Date        `json:"period_start"`
+	PeriodEnd        pgtype.Date        `json:"period_end"`
+	TotalClaimed     int64              `json:"total_claimed"`
+	TotalMatched     int64              `json:"total_matched"`
+	TotalDiscrepancy int64              `json:"total_discrepancy"`
+	MatchedCount     int32              `json:"matched_count"`
+	UnmatchedCount   int32              `json:"unmatched_count"`
+	Status           string             `json:"status"`
+	FileName         pgtype.Text        `json:"file_name"`
+	S3Key            pgtype.Text        `json:"s3_key"`
+	ReconciledBy     pgtype.UUID        `json:"reconciled_by"`
+	ReconciledAt     pgtype.Timestamptz `json:"reconciled_at"`
+	CreatedBy        uuid.UUID          `json:"created_by"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
 type Quotation struct {
@@ -486,6 +617,70 @@ type RolePermission struct {
 	RoleID       uuid.UUID `json:"role_id"`
 	PermissionID uuid.UUID `json:"permission_id"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+type StatementLineItem struct {
+	ID                uuid.UUID   `json:"id"`
+	StatementID       uuid.UUID   `json:"statement_id"`
+	ClaimNumber       pgtype.Text `json:"claim_number"`
+	ServiceDate       pgtype.Date `json:"service_date"`
+	MemberName        pgtype.Text `json:"member_name"`
+	ProcedureCode     pgtype.Text `json:"procedure_code"`
+	ClaimedAmount     int64       `json:"claimed_amount"`
+	MatchedClaimID    pgtype.UUID `json:"matched_claim_id"`
+	MatchStatus       string      `json:"match_status"`
+	DiscrepancyAmount int64       `json:"discrepancy_amount"`
+	Notes             pgtype.Text `json:"notes"`
+	CreatedAt         time.Time   `json:"created_at"`
+}
+
+type UnderwritingAssessment struct {
+	ID                  uuid.UUID          `json:"id"`
+	PolicyID            uuid.UUID          `json:"policy_id"`
+	MemberID            pgtype.UUID        `json:"member_id"`
+	Status              string             `json:"status"`
+	Questionnaire       json.RawMessage    `json:"questionnaire"`
+	MedicalDeclarations []byte             `json:"medical_declarations"`
+	RiskScore           pgtype.Int4        `json:"risk_score"`
+	RiskFlags           []byte             `json:"risk_flags"`
+	DecisionReason      pgtype.Text        `json:"decision_reason"`
+	AssessedBy          pgtype.UUID        `json:"assessed_by"`
+	AssessedAt          pgtype.Timestamptz `json:"assessed_at"`
+	CreatedBy           uuid.UUID          `json:"created_by"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+}
+
+type UnderwritingFlag struct {
+	ID           uuid.UUID          `json:"id"`
+	AssessmentID pgtype.UUID        `json:"assessment_id"`
+	PolicyID     uuid.UUID          `json:"policy_id"`
+	MemberID     pgtype.UUID        `json:"member_id"`
+	FlagType     string             `json:"flag_type"`
+	Severity     string             `json:"severity"`
+	Details      string             `json:"details"`
+	Status       string             `json:"status"`
+	ResolvedBy   pgtype.UUID        `json:"resolved_by"`
+	ResolvedAt   pgtype.Timestamptz `json:"resolved_at"`
+	Resolution   pgtype.Text        `json:"resolution"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
+type UnderwritingRule struct {
+	ID              uuid.UUID   `json:"id"`
+	PlanID          uuid.UUID   `json:"plan_id"`
+	RuleType        string      `json:"rule_type"`
+	Relationship    pgtype.Text `json:"relationship"`
+	ParameterKey    string      `json:"parameter_key"`
+	ParameterValue  string      `json:"parameter_value"`
+	Severity        string      `json:"severity"`
+	RiskScoreWeight int32       `json:"risk_score_weight"`
+	IsBlocking      bool        `json:"is_blocking"`
+	IsActive        bool        `json:"is_active"`
+	Description     pgtype.Text `json:"description"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
 }
 
 type User struct {

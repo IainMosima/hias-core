@@ -118,3 +118,126 @@ func (h *PolicyHandler) CalculateProrate(ctx *gin.Context) {
 	}
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
+
+func (h *PolicyHandler) SuspendPolicy(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid policy ID")
+		return
+	}
+
+	resp := h.policySvc.SuspendPolicy(ctx.Request.Context(), id)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *PolicyHandler) UpdatePolicy(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid policy ID")
+		return
+	}
+
+	var req policySchema.UpdatePolicyRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp := h.policySvc.UpdatePolicy(ctx.Request.Context(), id, req)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *PolicyHandler) ListPoliciesByStatus(ctx *gin.Context) {
+	status := ctx.Query("status")
+	if status == "" {
+		utils.RespondError(ctx, http.StatusBadRequest, "status query parameter is required")
+		return
+	}
+
+	pagination := utils.GetPaginationParams(ctx)
+	resp := h.policySvc.ListPoliciesByStatus(ctx.Request.Context(), status, pagination.Page, pagination.PageSize)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *PolicyHandler) ChangePlan(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid policy ID")
+		return
+	}
+
+	var req policySchema.ChangePlanRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp := h.policySvc.ChangePlan(ctx.Request.Context(), id, req, getUserID(ctx))
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *PolicyHandler) BulkActivate(ctx *gin.Context) {
+	var req policySchema.BulkIDsRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var ids []uuid.UUID
+	for _, idStr := range req.IDs {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			utils.RespondError(ctx, http.StatusBadRequest, "Invalid policy ID: "+idStr)
+			return
+		}
+		ids = append(ids, id)
+	}
+
+	resp := h.policySvc.BulkActivate(ctx.Request.Context(), ids)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *PolicyHandler) BulkLapse(ctx *gin.Context) {
+	var req policySchema.BulkIDsRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var ids []uuid.UUID
+	for _, idStr := range req.IDs {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			utils.RespondError(ctx, http.StatusBadRequest, "Invalid policy ID: "+idStr)
+			return
+		}
+		ids = append(ids, id)
+	}
+
+	resp := h.policySvc.BulkLapse(ctx.Request.Context(), ids)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}

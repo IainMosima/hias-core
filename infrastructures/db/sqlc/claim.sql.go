@@ -37,8 +37,8 @@ func (q *Queries) CountClaimsByStatus(ctx context.Context, status string) (int64
 }
 
 const createClaim = `-- name: CreateClaim :one
-INSERT INTO claims (claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, diagnosis_codes, service_date, admission_date, discharge_date, notes, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at
+INSERT INTO claims (claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, diagnosis_codes, service_date, admission_date, discharge_date, notes, created_by, claim_type, sla_breach_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at
 `
 
 type CreateClaimParams struct {
@@ -55,6 +55,8 @@ type CreateClaimParams struct {
 	DischargeDate  pgtype.Timestamptz `json:"discharge_date"`
 	Notes          string             `json:"notes"`
 	CreatedBy      pgtype.UUID        `json:"created_by"`
+	ClaimType      string             `json:"claim_type"`
+	SlaBreachAt    pgtype.Timestamptz `json:"sla_breach_at"`
 }
 
 func (q *Queries) CreateClaim(ctx context.Context, arg CreateClaimParams) (Claim, error) {
@@ -72,6 +74,8 @@ func (q *Queries) CreateClaim(ctx context.Context, arg CreateClaimParams) (Claim
 		arg.DischargeDate,
 		arg.Notes,
 		arg.CreatedBy,
+		arg.ClaimType,
+		arg.SlaBreachAt,
 	)
 	var i Claim
 	err := row.Scan(
@@ -95,6 +99,11 @@ func (q *Queries) CreateClaim(ctx context.Context, arg CreateClaimParams) (Claim
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
 	)
 	return i, err
 }
@@ -123,7 +132,7 @@ func (q *Queries) GetApprovedAmountForBenefitThisYear(ctx context.Context, arg G
 }
 
 const getApprovedClaimsForRemittance = `-- name: GetApprovedClaimsForRemittance :many
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims WHERE status = 'APPROVED' AND provider_id = $1
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims WHERE status = 'APPROVED' AND provider_id = $1
 `
 
 func (q *Queries) GetApprovedClaimsForRemittance(ctx context.Context, providerID uuid.UUID) ([]Claim, error) {
@@ -156,6 +165,11 @@ func (q *Queries) GetApprovedClaimsForRemittance(ctx context.Context, providerID
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
 		); err != nil {
 			return nil, err
 		}
@@ -168,7 +182,7 @@ func (q *Queries) GetApprovedClaimsForRemittance(ctx context.Context, providerID
 }
 
 const getClaimByID = `-- name: GetClaimByID :one
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims WHERE id = $1
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims WHERE id = $1
 `
 
 func (q *Queries) GetClaimByID(ctx context.Context, id uuid.UUID) (Claim, error) {
@@ -195,12 +209,17 @@ func (q *Queries) GetClaimByID(ctx context.Context, id uuid.UUID) (Claim, error)
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
 	)
 	return i, err
 }
 
 const getClaimByNumber = `-- name: GetClaimByNumber :one
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims WHERE claim_number = $1
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims WHERE claim_number = $1
 `
 
 func (q *Queries) GetClaimByNumber(ctx context.Context, claimNumber string) (Claim, error) {
@@ -227,12 +246,17 @@ func (q *Queries) GetClaimByNumber(ctx context.Context, claimNumber string) (Cla
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
 	)
 	return i, err
 }
 
 const getClaimsForAdjudication = `-- name: GetClaimsForAdjudication :many
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims WHERE status = 'VALIDATED' ORDER BY created_at ASC LIMIT $1
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims WHERE status = 'VALIDATED' ORDER BY created_at ASC LIMIT $1
 `
 
 func (q *Queries) GetClaimsForAdjudication(ctx context.Context, limit int32) ([]Claim, error) {
@@ -265,6 +289,11 @@ func (q *Queries) GetClaimsForAdjudication(ctx context.Context, limit int32) ([]
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
 		); err != nil {
 			return nil, err
 		}
@@ -277,7 +306,7 @@ func (q *Queries) GetClaimsForAdjudication(ctx context.Context, limit int32) ([]
 }
 
 const listClaims = `-- name: ListClaims :many
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListClaimsParams struct {
@@ -315,6 +344,11 @@ func (q *Queries) ListClaims(ctx context.Context, arg ListClaimsParams) ([]Claim
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
 		); err != nil {
 			return nil, err
 		}
@@ -327,7 +361,7 @@ func (q *Queries) ListClaims(ctx context.Context, arg ListClaimsParams) ([]Claim
 }
 
 const listClaimsByMember = `-- name: ListClaimsByMember :many
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims WHERE member_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims WHERE member_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListClaimsByMemberParams struct {
@@ -366,6 +400,11 @@ func (q *Queries) ListClaimsByMember(ctx context.Context, arg ListClaimsByMember
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
 		); err != nil {
 			return nil, err
 		}
@@ -378,7 +417,7 @@ func (q *Queries) ListClaimsByMember(ctx context.Context, arg ListClaimsByMember
 }
 
 const listClaimsByPolicy = `-- name: ListClaimsByPolicy :many
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims WHERE policy_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims WHERE policy_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListClaimsByPolicyParams struct {
@@ -417,6 +456,11 @@ func (q *Queries) ListClaimsByPolicy(ctx context.Context, arg ListClaimsByPolicy
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
 		); err != nil {
 			return nil, err
 		}
@@ -429,7 +473,7 @@ func (q *Queries) ListClaimsByPolicy(ctx context.Context, arg ListClaimsByPolicy
 }
 
 const listClaimsByProvider = `-- name: ListClaimsByProvider :many
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims WHERE provider_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims WHERE provider_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListClaimsByProviderParams struct {
@@ -468,6 +512,11 @@ func (q *Queries) ListClaimsByProvider(ctx context.Context, arg ListClaimsByProv
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
 		); err != nil {
 			return nil, err
 		}
@@ -480,7 +529,7 @@ func (q *Queries) ListClaimsByProvider(ctx context.Context, arg ListClaimsByProv
 }
 
 const listClaimsByStatus = `-- name: ListClaimsByStatus :many
-SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at FROM claims WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListClaimsByStatusParams struct {
@@ -519,6 +568,11 @@ func (q *Queries) ListClaimsByStatus(ctx context.Context, arg ListClaimsByStatus
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
 		); err != nil {
 			return nil, err
 		}
@@ -530,13 +584,110 @@ func (q *Queries) ListClaimsByStatus(ctx context.Context, arg ListClaimsByStatus
 	return items, nil
 }
 
+const listSLABreachedClaims = `-- name: ListSLABreachedClaims :many
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims
+WHERE sla_breach_at IS NOT NULL
+  AND sla_breach_at < NOW()
+  AND status NOT IN ('PAID', 'REJECTED')
+ORDER BY sla_breach_at ASC
+LIMIT $1 OFFSET $2
+`
+
+type ListSLABreachedClaimsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListSLABreachedClaims(ctx context.Context, arg ListSLABreachedClaimsParams) ([]Claim, error) {
+	rows, err := q.db.Query(ctx, listSLABreachedClaims, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Claim{}
+	for rows.Next() {
+		var i Claim
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClaimNumber,
+			&i.PolicyID,
+			&i.MemberID,
+			&i.ProviderID,
+			&i.PreauthID,
+			&i.Status,
+			&i.TotalAmount,
+			&i.ApprovedAmount,
+			&i.CoPayAmount,
+			&i.MemberResponsibility,
+			&i.DiagnosisCodes,
+			&i.ServiceDate,
+			&i.AdmissionDate,
+			&i.DischargeDate,
+			&i.Notes,
+			&i.RejectionReason,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markClaimReadyForPayment = `-- name: MarkClaimReadyForPayment :one
+UPDATE claims SET status = 'READY_FOR_PAYMENT', updated_at = NOW() WHERE id = $1 RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at
+`
+
+func (q *Queries) MarkClaimReadyForPayment(ctx context.Context, id uuid.UUID) (Claim, error) {
+	row := q.db.QueryRow(ctx, markClaimReadyForPayment, id)
+	var i Claim
+	err := row.Scan(
+		&i.ID,
+		&i.ClaimNumber,
+		&i.PolicyID,
+		&i.MemberID,
+		&i.ProviderID,
+		&i.PreauthID,
+		&i.Status,
+		&i.TotalAmount,
+		&i.ApprovedAmount,
+		&i.CoPayAmount,
+		&i.MemberResponsibility,
+		&i.DiagnosisCodes,
+		&i.ServiceDate,
+		&i.AdmissionDate,
+		&i.DischargeDate,
+		&i.Notes,
+		&i.RejectionReason,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
+	)
+	return i, err
+}
+
 const updateClaimAmounts = `-- name: UpdateClaimAmounts :one
 UPDATE claims SET
     approved_amount = $2,
     co_pay_amount = $3,
     member_responsibility = $4,
     updated_at = NOW()
-WHERE id = $1 RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at
+WHERE id = $1 RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at
 `
 
 type UpdateClaimAmountsParams struct {
@@ -575,12 +726,17 @@ func (q *Queries) UpdateClaimAmounts(ctx context.Context, arg UpdateClaimAmounts
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
 	)
 	return i, err
 }
 
 const updateClaimRejection = `-- name: UpdateClaimRejection :one
-UPDATE claims SET status = 'REJECTED', rejection_reason = $2, updated_at = NOW() WHERE id = $1 RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at
+UPDATE claims SET status = 'REJECTED', rejection_reason = $2, updated_at = NOW() WHERE id = $1 RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at
 `
 
 type UpdateClaimRejectionParams struct {
@@ -612,12 +768,17 @@ func (q *Queries) UpdateClaimRejection(ctx context.Context, arg UpdateClaimRejec
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
 	)
 	return i, err
 }
 
 const updateClaimStatus = `-- name: UpdateClaimStatus :one
-UPDATE claims SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at
+UPDATE claims SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at
 `
 
 type UpdateClaimStatusParams struct {
@@ -649,6 +810,66 @@ func (q *Queries) UpdateClaimStatus(ctx context.Context, arg UpdateClaimStatusPa
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
+	)
+	return i, err
+}
+
+const vetClaim = `-- name: VetClaim :one
+UPDATE claims SET
+    vetted_amount = $2,
+    vetted_by = $3,
+    vetted_at = NOW(),
+    status = $4,
+    updated_at = NOW()
+WHERE id = $1 RETURNING id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at
+`
+
+type VetClaimParams struct {
+	ID           uuid.UUID   `json:"id"`
+	VettedAmount pgtype.Int8 `json:"vetted_amount"`
+	VettedBy     pgtype.UUID `json:"vetted_by"`
+	Status       string      `json:"status"`
+}
+
+func (q *Queries) VetClaim(ctx context.Context, arg VetClaimParams) (Claim, error) {
+	row := q.db.QueryRow(ctx, vetClaim,
+		arg.ID,
+		arg.VettedAmount,
+		arg.VettedBy,
+		arg.Status,
+	)
+	var i Claim
+	err := row.Scan(
+		&i.ID,
+		&i.ClaimNumber,
+		&i.PolicyID,
+		&i.MemberID,
+		&i.ProviderID,
+		&i.PreauthID,
+		&i.Status,
+		&i.TotalAmount,
+		&i.ApprovedAmount,
+		&i.CoPayAmount,
+		&i.MemberResponsibility,
+		&i.DiagnosisCodes,
+		&i.ServiceDate,
+		&i.AdmissionDate,
+		&i.DischargeDate,
+		&i.Notes,
+		&i.RejectionReason,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
 	)
 	return i, err
 }

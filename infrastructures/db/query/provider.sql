@@ -23,6 +23,12 @@ SELECT COUNT(*) FROM providers;
 -- name: UpdateProviderStatus :one
 UPDATE providers SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
 
+-- name: UpdateProviderTier :one
+UPDATE providers SET tier = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: ListProvidersByTier :many
+SELECT * FROM providers WHERE tier = $1 ORDER BY name LIMIT $2 OFFSET $3;
+
 -- name: UpdateProvider :one
 UPDATE providers SET
     name = COALESCE(sqlc.narg('name'), name),

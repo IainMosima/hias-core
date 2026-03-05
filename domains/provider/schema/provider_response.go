@@ -12,6 +12,7 @@ type ProviderResponse struct {
 	Type          string    `json:"type"`
 	LicenseNumber string    `json:"license_number"`
 	Status        string    `json:"status"`
+	Tier          string    `json:"tier"`
 	County        string    `json:"county"`
 	Phone         string    `json:"phone"`
 	Email         string    `json:"email"`
@@ -46,7 +47,7 @@ type RateCardResponse struct {
 func ToProviderResponse(p *entity.Provider) ProviderResponse {
 	return ProviderResponse{
 		ID: p.ID, Name: p.Name, Type: p.Type, LicenseNumber: p.LicenseNumber,
-		Status: p.Status, County: p.County, Phone: p.Phone, Email: p.Email,
+		Status: p.Status, Tier: p.Tier, County: p.County, Phone: p.Phone, Email: p.Email,
 		ContactPerson: p.ContactPerson, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }

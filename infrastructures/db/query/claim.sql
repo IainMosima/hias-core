@@ -1,6 +1,6 @@
 -- name: CreateClaim :one
-INSERT INTO claims (claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, diagnosis_codes, service_date, admission_date, discharge_date, notes, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
+INSERT INTO claims (claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, diagnosis_codes, service_date, admission_date, discharge_date, notes, created_by, claim_type, sla_breach_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
 
 -- name: GetClaimByID :one
 SELECT * FROM claims WHERE id = $1;
@@ -48,6 +48,26 @@ WHERE id = $1 RETURNING *;
 
 -- name: UpdateClaimRejection :one
 UPDATE claims SET status = 'REJECTED', rejection_reason = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: VetClaim :one
+UPDATE claims SET
+    vetted_amount = $2,
+    vetted_by = $3,
+    vetted_at = NOW(),
+    status = $4,
+    updated_at = NOW()
+WHERE id = $1 RETURNING *;
+
+-- name: MarkClaimReadyForPayment :one
+UPDATE claims SET status = 'READY_FOR_PAYMENT', updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: ListSLABreachedClaims :many
+SELECT * FROM claims
+WHERE sla_breach_at IS NOT NULL
+  AND sla_breach_at < NOW()
+  AND status NOT IN ('PAID', 'REJECTED')
+ORDER BY sla_breach_at ASC
+LIMIT $1 OFFSET $2;
 
 -- name: GetApprovedAmountForBenefitThisYear :one
 SELECT COALESCE(SUM(c.approved_amount), 0)::bigint as total_approved
