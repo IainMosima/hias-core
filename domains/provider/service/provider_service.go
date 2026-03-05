@@ -19,4 +19,7 @@ type ProviderService interface {
 	UpdateTier(ctx context.Context, id uuid.UUID, tier string, userID uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse]
 	ListByTier(ctx context.Context, tier string, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse]
 	GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64]
+	UpdateAccreditation(ctx context.Context, id uuid.UUID, req providerSchema.UpdateAccreditationRequest, userID uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse]
+	ListByAccreditationStatus(ctx context.Context, status string, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse]
+	ListExpiringAccreditations(ctx context.Context, days, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse]
 }

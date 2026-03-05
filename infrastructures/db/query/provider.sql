@@ -39,3 +39,19 @@ UPDATE providers SET
     contact_person = COALESCE(sqlc.narg('contact_person'), contact_person),
     updated_at = NOW()
 WHERE id = sqlc.arg('id') RETURNING *;
+
+-- name: UpdateAccreditation :one
+UPDATE providers SET
+    accreditation_status = $2,
+    accreditation_expiry = $3,
+    accreditation_body = $4,
+    updated_at = NOW()
+WHERE id = $1 RETURNING *;
+
+-- name: ListProvidersByAccreditationStatus :many
+SELECT * FROM providers WHERE accreditation_status = $1 ORDER BY name LIMIT $2 OFFSET $3;
+
+-- name: ListExpiringAccreditations :many
+SELECT * FROM providers WHERE accreditation_status = 'ACCREDITED'
+AND accreditation_expiry <= NOW() + make_interval(days => $1)
+ORDER BY accreditation_expiry LIMIT $2 OFFSET $3;

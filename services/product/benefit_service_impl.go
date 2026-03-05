@@ -103,6 +103,64 @@ func (s *benefitServiceImpl) CalculateCoPay(ctx context.Context, benefitID uuid.
 	return schema.NewServiceResponse(copay, http.StatusOK, "Co-pay calculated")
 }
 
+func (s *benefitServiceImpl) CreateSubBenefit(ctx context.Context, parentID uuid.UUID, req productSchema.CreateBenefitRequest) *schema.ServiceResponse[productSchema.BenefitResponse] {
+	parent, err := s.benefitRepo.GetByID(ctx, parentID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.BenefitResponse](http.StatusNotFound, "Parent benefit not found", err)
+	}
+
+	subLimitType := req.SubLimitType
+	if subLimitType == "" {
+		subLimitType = string(shared.SubLimitTypeNone)
+	}
+	maxAge := req.MaxAge
+	if maxAge == 0 {
+		maxAge = shared.DefaultMaxAge
+	}
+	waitingPeriodType := req.WaitingPeriodType
+	if waitingPeriodType == "" {
+		waitingPeriodType = string(shared.WaitingPeriodTypeGeneral)
+	}
+
+	benefit := &entity.Benefit{
+		PlanID:            parent.PlanID,
+		ParentBenefitID:   &parentID,
+		Name:              req.Name,
+		Category:          req.Category,
+		AnnualLimit:       req.AnnualLimit,
+		CoPayType:         req.CoPayType,
+		CoPayValue:        req.CoPayValue,
+		WaitingPeriodDays: req.WaitingPeriodDays,
+		SubLimitType:      subLimitType,
+		SubLimitValue:     req.SubLimitValue,
+		MinAge:            req.MinAge,
+		MaxAge:            maxAge,
+		WaitingPeriodType: waitingPeriodType,
+		DeductibleAmount:  req.DeductibleAmount,
+	}
+
+	created, err := s.benefitRepo.CreateWithParent(ctx, benefit)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.BenefitResponse](http.StatusInternalServerError, "Failed to create sub-benefit", err)
+	}
+
+	s.logAudit(ctx, uuid.Nil, string(shared.AuditEntityTypeBenefit), created.ID, string(shared.AuditActionCreate))
+	return schema.NewServiceResponse(productSchema.ToBenefitResponse(created), http.StatusCreated, "Sub-benefit created")
+}
+
+func (s *benefitServiceImpl) ListSubBenefits(ctx context.Context, parentID uuid.UUID) *schema.ServiceResponse[[]productSchema.BenefitResponse] {
+	benefits, err := s.benefitRepo.ListSubBenefits(ctx, parentID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]productSchema.BenefitResponse](http.StatusInternalServerError, "Failed to list sub-benefits", err)
+	}
+
+	responses := make([]productSchema.BenefitResponse, len(benefits))
+	for i, b := range benefits {
+		responses[i] = productSchema.ToBenefitResponse(b)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Sub-benefits retrieved")
+}
+
 func (s *benefitServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
 	if s.auditSvc != nil {
 		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")

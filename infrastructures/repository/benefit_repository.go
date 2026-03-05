@@ -103,10 +103,51 @@ func (r *benefitRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *benefitRepository) CreateWithParent(ctx context.Context, benefit *entity.Benefit) (*entity.Benefit, error) {
+	dbBenefit, err := r.store.CreateBenefitWithParent(ctx, db.CreateBenefitWithParentParams{
+		PlanID:            benefit.PlanID,
+		ParentBenefitID:   uuidPtrToPgtype(benefit.ParentBenefitID),
+		Name:              benefit.Name,
+		Category:          benefit.Category,
+		AnnualLimit:       benefit.AnnualLimit,
+		CoPayType:         benefit.CoPayType,
+		CoPayValue:        benefit.CoPayValue,
+		WaitingPeriodDays: int32(benefit.WaitingPeriodDays),
+		SubLimitType:      benefit.SubLimitType,
+		SubLimitValue:     benefit.SubLimitValue,
+		MinAge:            int32(benefit.MinAge),
+		MaxAge:            int32(benefit.MaxAge),
+		WaitingPeriodType: benefit.WaitingPeriodType,
+		DeductibleAmount:  benefit.DeductibleAmount,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sub-benefit: %w", err)
+	}
+	return sqlcBenefitToDomain(dbBenefit), nil
+}
+
+func (r *benefitRepository) ListSubBenefits(ctx context.Context, parentID uuid.UUID) ([]*entity.Benefit, error) {
+	dbBenefits, err := r.store.ListSubBenefits(ctx, uuidToPgtype(parentID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list sub-benefits: %w", err)
+	}
+	benefits := make([]*entity.Benefit, len(dbBenefits))
+	for i, b := range dbBenefits {
+		benefits[i] = sqlcBenefitToDomain(b)
+	}
+	return benefits, nil
+}
+
 func sqlcBenefitToDomain(b db.Benefit) *entity.Benefit {
+	var parentBenefitID *uuid.UUID
+	if b.ParentBenefitID.Valid {
+		id := uuid.UUID(b.ParentBenefitID.Bytes)
+		parentBenefitID = &id
+	}
 	return &entity.Benefit{
 		ID:                b.ID,
 		PlanID:            b.PlanID,
+		ParentBenefitID:   parentBenefitID,
 		Name:              b.Name,
 		Category:          b.Category,
 		AnnualLimit:       b.AnnualLimit,

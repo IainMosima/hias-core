@@ -1,11 +1,15 @@
 package claims
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -503,6 +507,38 @@ func (s *claimServiceImpl) VetClaim(ctx context.Context, id uuid.UUID, req claim
 		)
 	}
 
+	// Claim-type-specific vetting rules
+	switch shared.ClaimType(claim.ClaimType) {
+	case shared.ClaimTypeDirect:
+		// Direct (provider-submitted): if inpatient (has admission date), require pre-authorization
+		if claim.AdmissionDate != nil && claim.PreAuthID == uuid.Nil {
+			return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+				http.StatusBadRequest,
+				"Inpatient direct claims require pre-authorization reference",
+				nil,
+			)
+		}
+	case shared.ClaimTypeReimbursement:
+		// Reimbursement: verify vetted amount doesn't exceed total claimed
+		if req.VettedAmount > claim.TotalAmount {
+			return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+				http.StatusBadRequest,
+				"Vetted amount cannot exceed total claimed amount for reimbursement claims",
+				nil,
+			)
+		}
+	case shared.ClaimTypeException:
+		// Exception claims: must be vetted by manager role (enforced by RBAC middleware)
+		// Verify amount is reasonable (within 150% of approved)
+		if claim.ApprovedAmount > 0 && req.VettedAmount > claim.ApprovedAmount*3/2 {
+			return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+				http.StatusBadRequest,
+				"Exception claim vetted amount exceeds 150% of approved amount — requires manual override",
+				nil,
+			)
+		}
+	}
+
 	// Determine status based on vetted vs approved amount
 	vetStatus := string(shared.ClaimStatusVetted)
 	if claim.ApprovedAmount > 0 && req.VettedAmount < claim.ApprovedAmount {
@@ -658,6 +694,113 @@ func (s *claimServiceImpl) DeleteClaimDocument(ctx context.Context, docID uuid.U
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimDocumentResponse](http.StatusInternalServerError, "Failed to delete document", err)
 	}
 	return schema.NewServiceResponse(claimsSchema.ToClaimDocumentResponse(deleted), http.StatusOK, "Document deleted")
+}
+
+func (s *claimServiceImpl) ImportClaimsCSV(ctx context.Context, csvData []byte, createdBy uuid.UUID) *schema.ServiceResponse[claimsSchema.BulkClaimResultResponse] {
+	reader := csv.NewReader(bytes.NewReader(csvData))
+
+	header, err := reader.Read()
+	if err != nil {
+		return schema.NewServiceErrorResponse[claimsSchema.BulkClaimResultResponse](http.StatusBadRequest, "Failed to read CSV header", err)
+	}
+
+	colIndex := make(map[string]int)
+	for i, col := range header {
+		colIndex[strings.TrimSpace(strings.ToLower(col))] = i
+	}
+
+	requiredCols := []string{"policy_id", "member_id", "provider_id", "service_date", "procedure_code", "procedure_name", "quantity", "unit_price"}
+	for _, col := range requiredCols {
+		if _, ok := colIndex[col]; !ok {
+			return schema.NewServiceErrorResponse[claimsSchema.BulkClaimResultResponse](
+				http.StatusBadRequest,
+				fmt.Sprintf("Missing required CSV column: %s", col),
+				nil,
+			)
+		}
+	}
+
+	result := claimsSchema.BulkClaimResultResponse{}
+	lineNum := 1
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		lineNum++
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("Line %d: CSV parse error: %v", lineNum, err))
+			continue
+		}
+
+		getField := func(field string) string {
+			if idx, ok := colIndex[field]; ok && idx < len(record) {
+				return strings.TrimSpace(record[idx])
+			}
+			return ""
+		}
+
+		serviceDate, err := time.Parse("2006-01-02", getField("service_date"))
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("Line %d: invalid service_date", lineNum))
+			continue
+		}
+
+		qty, _ := strconv.Atoi(getField("quantity"))
+		if qty <= 0 {
+			qty = 1
+		}
+		unitPrice, _ := strconv.ParseInt(getField("unit_price"), 10, 64)
+
+		claimType := getField("claim_type")
+		if claimType == "" {
+			claimType = string(shared.ClaimTypeDirect)
+		}
+
+		var diagCodes []string
+		if dc := getField("diagnosis_code"); dc != "" {
+			diagCodes = strings.Split(dc, ";")
+		} else {
+			diagCodes = []string{"UNSPECIFIED"}
+		}
+
+		req := claimsSchema.SubmitClaimRequest{
+			PolicyID:       getField("policy_id"),
+			MemberID:       getField("member_id"),
+			ProviderID:     getField("provider_id"),
+			PreAuthID:      getField("preauth_id"),
+			DiagnosisCodes: diagCodes,
+			ServiceDate:    serviceDate,
+			Notes:          getField("notes"),
+			ClaimType:      claimType,
+			LineItems: []claimsSchema.LineItemRequest{
+				{
+					ProcedureCode: getField("procedure_code"),
+					ProcedureName: getField("procedure_name"),
+					DiagnosisCode: getField("diagnosis_code"),
+					Quantity:      qty,
+					UnitPrice:     unitPrice,
+				},
+			},
+		}
+
+		resp := s.SubmitClaim(ctx, req, createdBy)
+		if resp.Error != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("Line %d: %s", lineNum, resp.Message))
+		} else {
+			result.Succeeded++
+			result.Claims = append(result.Claims, resp.Data)
+		}
+	}
+
+	if result.Succeeded == 0 && result.Failed == 0 {
+		return schema.NewServiceErrorResponse[claimsSchema.BulkClaimResultResponse](http.StatusBadRequest, "CSV contains no data rows", nil)
+	}
+
+	return schema.NewServiceResponse(result, http.StatusOK, fmt.Sprintf("CSV import: %d succeeded, %d failed", result.Succeeded, result.Failed))
 }
 
 func (s *claimServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {

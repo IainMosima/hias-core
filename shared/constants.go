@@ -34,4 +34,15 @@ const (
 	// Number format prefixes
 	CaseNumberPrefix      = "CASE"
 	StatementNumberPrefix = "STMT"
+
+	// Reinsurance number format prefixes
+	TreatyNumberPrefix             = "TRY"
+	CessionNumberPrefix            = "CES"
+	RecoveryNumberPrefix           = "REC"
+	BordereauNumberPrefix          = "BDX"
+	ReinsurerStatementNumberPrefix = "RST"
+
+	// Reinsurance thresholds
+	CatastropheThresholdCents int64 = 500_000_000 // 5,000,000 KES
+	AggregateWarningPercent         = 80
 )

@@ -53,22 +53,53 @@ type AuditEvent struct {
 }
 
 type Benefit struct {
-	ID                uuid.UUID `json:"id"`
-	PlanID            uuid.UUID `json:"plan_id"`
-	Name              string    `json:"name"`
-	Category          string    `json:"category"`
-	AnnualLimit       int64     `json:"annual_limit"`
-	CoPayType         string    `json:"co_pay_type"`
-	CoPayValue        int64     `json:"co_pay_value"`
-	WaitingPeriodDays int32     `json:"waiting_period_days"`
-	SubLimitType      string    `json:"sub_limit_type"`
-	SubLimitValue     int64     `json:"sub_limit_value"`
-	MinAge            int32     `json:"min_age"`
-	MaxAge            int32     `json:"max_age"`
-	WaitingPeriodType string    `json:"waiting_period_type"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
-	DeductibleAmount  int64     `json:"deductible_amount"`
+	ID                uuid.UUID   `json:"id"`
+	PlanID            uuid.UUID   `json:"plan_id"`
+	Name              string      `json:"name"`
+	Category          string      `json:"category"`
+	AnnualLimit       int64       `json:"annual_limit"`
+	CoPayType         string      `json:"co_pay_type"`
+	CoPayValue        int64       `json:"co_pay_value"`
+	WaitingPeriodDays int32       `json:"waiting_period_days"`
+	SubLimitType      string      `json:"sub_limit_type"`
+	SubLimitValue     int64       `json:"sub_limit_value"`
+	MinAge            int32       `json:"min_age"`
+	MaxAge            int32       `json:"max_age"`
+	WaitingPeriodType string      `json:"waiting_period_type"`
+	CreatedAt         time.Time   `json:"created_at"`
+	UpdatedAt         time.Time   `json:"updated_at"`
+	DeductibleAmount  int64       `json:"deductible_amount"`
+	ParentBenefitID   pgtype.UUID `json:"parent_benefit_id"`
+}
+
+type BordereauItem struct {
+	ID               uuid.UUID   `json:"id"`
+	BordereauID      uuid.UUID   `json:"bordereau_id"`
+	CessionID        pgtype.UUID `json:"cession_id"`
+	RecoveryID       pgtype.UUID `json:"recovery_id"`
+	PolicyNumber     pgtype.Text `json:"policy_number"`
+	ClaimNumber      pgtype.Text `json:"claim_number"`
+	GrossAmount      int64       `json:"gross_amount"`
+	CededAmount      int64       `json:"ceded_amount"`
+	CommissionAmount int64       `json:"commission_amount"`
+	CreatedAt        time.Time   `json:"created_at"`
+}
+
+type Bordereaux struct {
+	ID              uuid.UUID   `json:"id"`
+	BordereauNumber string      `json:"bordereau_number"`
+	TreatyID        uuid.UUID   `json:"treaty_id"`
+	BordereauType   string      `json:"bordereau_type"`
+	PeriodStart     pgtype.Date `json:"period_start"`
+	PeriodEnd       pgtype.Date `json:"period_end"`
+	TotalGross      int64       `json:"total_gross"`
+	TotalCeded      int64       `json:"total_ceded"`
+	TotalCommission int64       `json:"total_commission"`
+	ItemCount       int32       `json:"item_count"`
+	Status          string      `json:"status"`
+	CreatedBy       uuid.UUID   `json:"created_by"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
 }
 
 type CaseRecord struct {
@@ -92,6 +123,24 @@ type CaseRecord struct {
 	CreatedBy          uuid.UUID          `json:"created_by"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`
+}
+
+type Cession struct {
+	ID               uuid.UUID      `json:"id"`
+	CessionNumber    string         `json:"cession_number"`
+	TreatyID         uuid.UUID      `json:"treaty_id"`
+	PolicyID         uuid.UUID      `json:"policy_id"`
+	TreatyLayerID    pgtype.UUID    `json:"treaty_layer_id"`
+	CessionType      string         `json:"cession_type"`
+	GrossAmount      int64          `json:"gross_amount"`
+	CededAmount      int64          `json:"ceded_amount"`
+	RetainedAmount   int64          `json:"retained_amount"`
+	CommissionAmount int64          `json:"commission_amount"`
+	SharePercentage  pgtype.Numeric `json:"share_percentage"`
+	Status           string         `json:"status"`
+	CreatedBy        uuid.UUID      `json:"created_by"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
 }
 
 type Claim struct {
@@ -462,22 +511,41 @@ type PremiumRule struct {
 	MaxAge          int32       `json:"max_age"`
 }
 
+type ProfitCommission struct {
+	ID                  uuid.UUID      `json:"id"`
+	TreatyID            uuid.UUID      `json:"treaty_id"`
+	CommissionType      string         `json:"commission_type"`
+	LossRatioFrom       pgtype.Numeric `json:"loss_ratio_from"`
+	LossRatioTo         pgtype.Numeric `json:"loss_ratio_to"`
+	CommissionRate      pgtype.Numeric `json:"commission_rate"`
+	CarryForwardYears   int32          `json:"carry_forward_years"`
+	CarryForwardBalance int64          `json:"carry_forward_balance"`
+	PeriodStart         pgtype.Date    `json:"period_start"`
+	PeriodEnd           pgtype.Date    `json:"period_end"`
+	CalculatedAmount    int64          `json:"calculated_amount"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+}
+
 type Provider struct {
-	ID            uuid.UUID   `json:"id"`
-	Name          string      `json:"name"`
-	Type          string      `json:"type"`
-	LicenseNumber string      `json:"license_number"`
-	Status        string      `json:"status"`
-	County        pgtype.Text `json:"county"`
-	Address       pgtype.Text `json:"address"`
-	Phone         pgtype.Text `json:"phone"`
-	Email         pgtype.Text `json:"email"`
-	ContactPerson pgtype.Text `json:"contact_person"`
-	UserID        pgtype.UUID `json:"user_id"`
-	CreatedBy     pgtype.UUID `json:"created_by"`
-	CreatedAt     time.Time   `json:"created_at"`
-	UpdatedAt     time.Time   `json:"updated_at"`
-	Tier          string      `json:"tier"`
+	ID                  uuid.UUID          `json:"id"`
+	Name                string             `json:"name"`
+	Type                string             `json:"type"`
+	LicenseNumber       string             `json:"license_number"`
+	Status              string             `json:"status"`
+	County              pgtype.Text        `json:"county"`
+	Address             pgtype.Text        `json:"address"`
+	Phone               pgtype.Text        `json:"phone"`
+	Email               pgtype.Text        `json:"email"`
+	ContactPerson       pgtype.Text        `json:"contact_person"`
+	UserID              pgtype.UUID        `json:"user_id"`
+	CreatedBy           pgtype.UUID        `json:"created_by"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+	Tier                string             `json:"tier"`
+	AccreditationStatus pgtype.Text        `json:"accreditation_status"`
+	AccreditationExpiry pgtype.Timestamptz `json:"accreditation_expiry"`
+	AccreditationBody   pgtype.Text        `json:"accreditation_body"`
 }
 
 type ProviderNetwork struct {
@@ -588,6 +656,54 @@ type RateCard struct {
 	UpdatedAt     time.Time   `json:"updated_at"`
 }
 
+type RecoveryWorkflowEvent struct {
+	ID          uuid.UUID   `json:"id"`
+	RecoveryID  uuid.UUID   `json:"recovery_id"`
+	FromStatus  string      `json:"from_status"`
+	ToStatus    string      `json:"to_status"`
+	EventType   string      `json:"event_type"`
+	Notes       pgtype.Text `json:"notes"`
+	PerformedBy uuid.UUID   `json:"performed_by"`
+	CreatedAt   time.Time   `json:"created_at"`
+}
+
+type ReinsuranceRecovery struct {
+	ID                uuid.UUID   `json:"id"`
+	RecoveryNumber    string      `json:"recovery_number"`
+	ClaimID           uuid.UUID   `json:"claim_id"`
+	TreatyID          uuid.UUID   `json:"treaty_id"`
+	TreatyLayerID     pgtype.UUID `json:"treaty_layer_id"`
+	CessionID         pgtype.UUID `json:"cession_id"`
+	GrossClaimAmount  int64       `json:"gross_claim_amount"`
+	RecoverableAmount int64       `json:"recoverable_amount"`
+	RecoveredAmount   int64       `json:"recovered_amount"`
+	OutstandingAmount int64       `json:"outstanding_amount"`
+	Status            string      `json:"status"`
+	WorkflowStatus    string      `json:"workflow_status"`
+	Notes             pgtype.Text `json:"notes"`
+	CreatedBy         uuid.UUID   `json:"created_by"`
+	CreatedAt         time.Time   `json:"created_at"`
+	UpdatedAt         time.Time   `json:"updated_at"`
+}
+
+type ReinsurerStatement struct {
+	ID               uuid.UUID   `json:"id"`
+	StatementNumber  string      `json:"statement_number"`
+	TreatyID         uuid.UUID   `json:"treaty_id"`
+	ParticipantID    uuid.UUID   `json:"participant_id"`
+	PeriodStart      pgtype.Date `json:"period_start"`
+	PeriodEnd        pgtype.Date `json:"period_end"`
+	PremiumCeded     int64       `json:"premium_ceded"`
+	ClaimsRecovered  int64       `json:"claims_recovered"`
+	CommissionDue    int64       `json:"commission_due"`
+	ProfitCommission int64       `json:"profit_commission"`
+	NetBalance       int64       `json:"net_balance"`
+	Status           string      `json:"status"`
+	CreatedBy        uuid.UUID   `json:"created_by"`
+	CreatedAt        time.Time   `json:"created_at"`
+	UpdatedAt        time.Time   `json:"updated_at"`
+}
+
 type Remittance struct {
 	ID                   uuid.UUID       `json:"id"`
 	ProviderID           uuid.UUID       `json:"provider_id"`
@@ -632,6 +748,62 @@ type StatementLineItem struct {
 	DiscrepancyAmount int64       `json:"discrepancy_amount"`
 	Notes             pgtype.Text `json:"notes"`
 	CreatedAt         time.Time   `json:"created_at"`
+}
+
+type Treaty struct {
+	ID             uuid.UUID   `json:"id"`
+	TreatyNumber   string      `json:"treaty_number"`
+	Name           string      `json:"name"`
+	TreatyType     string      `json:"treaty_type"`
+	Status         string      `json:"status"`
+	EffectiveDate  pgtype.Date `json:"effective_date"`
+	ExpiryDate     pgtype.Date `json:"expiry_date"`
+	RetentionLimit int64       `json:"retention_limit"`
+	Currency       string      `json:"currency"`
+	Notes          pgtype.Text `json:"notes"`
+	CreatedBy      uuid.UUID   `json:"created_by"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
+type TreatyAlert struct {
+	ID             uuid.UUID          `json:"id"`
+	TreatyID       uuid.UUID          `json:"treaty_id"`
+	TreatyLayerID  pgtype.UUID        `json:"treaty_layer_id"`
+	AlertType      string             `json:"alert_type"`
+	Severity       string             `json:"severity"`
+	Message        string             `json:"message"`
+	ThresholdValue int64              `json:"threshold_value"`
+	CurrentValue   int64              `json:"current_value"`
+	IsAcknowledged bool               `json:"is_acknowledged"`
+	AcknowledgedBy pgtype.UUID        `json:"acknowledged_by"`
+	AcknowledgedAt pgtype.Timestamptz `json:"acknowledged_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+}
+
+type TreatyLayer struct {
+	ID               uuid.UUID      `json:"id"`
+	TreatyID         uuid.UUID      `json:"treaty_id"`
+	LayerNumber      int32          `json:"layer_number"`
+	AttachmentPoint  int64          `json:"attachment_point"`
+	LayerLimit       int64          `json:"layer_limit"`
+	DeductibleAmount int64          `json:"deductible_amount"`
+	PremiumRate      pgtype.Numeric `json:"premium_rate"`
+	AggregateLimit   pgtype.Int8    `json:"aggregate_limit"`
+	AggregateUsed    int64          `json:"aggregate_used"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+}
+
+type TreatyParticipant struct {
+	ID              uuid.UUID      `json:"id"`
+	TreatyID        uuid.UUID      `json:"treaty_id"`
+	ReinsurerName   string         `json:"reinsurer_name"`
+	SharePercentage pgtype.Numeric `json:"share_percentage"`
+	CommissionRate  pgtype.Numeric `json:"commission_rate"`
+	IsLead          bool           `json:"is_lead"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 type UnderwritingAssessment struct {

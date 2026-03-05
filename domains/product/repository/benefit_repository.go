@@ -13,4 +13,6 @@ type BenefitRepository interface {
 	ListByCategory(ctx context.Context, planID uuid.UUID, category string) ([]*entity.Benefit, error)
 	Update(ctx context.Context, benefit *entity.Benefit) (*entity.Benefit, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	CreateWithParent(ctx context.Context, benefit *entity.Benefit) (*entity.Benefit, error)
+	ListSubBenefits(ctx context.Context, parentID uuid.UUID) ([]*entity.Benefit, error)
 }

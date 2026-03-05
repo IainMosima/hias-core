@@ -43,6 +43,15 @@ type Handlers struct {
 	CreditNote       *handlers.CreditNoteHandler
 	Case             *handlers.CaseHandler
 	Statement        *handlers.StatementHandler
+
+	// Reinsurance
+	Treaty               *handlers.TreatyHandler
+	Cession              *handlers.CessionHandler
+	Recovery             *handlers.RecoveryHandler
+	Bordereau            *handlers.BordereauHandler
+	ReinsurerStatement   *handlers.ReinsurerStatementHandler
+	TreatyAlert          *handlers.TreatyAlertHandler
+	ReinsuranceAnalytics *handlers.ReinsuranceAnalyticsHandler
 }
 
 func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) {
@@ -99,6 +108,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			plans.GET("/:id/premium-rules", h.PremiumRule.ListPremiumRules)
 			plans.POST("/:id/premium-rules", h.PremiumRule.CreatePremiumRule)
 			plans.POST("/:id/calculate-premium", h.PremiumRule.CalculatePremium)
+			plans.GET("/:id/rate-sheet", h.PremiumRule.GetRateSheet)
 
 			// Provider Networks (nested under plans)
 			plans.GET("/:id/provider-networks", h.ProviderNetwork.ListProviderNetworks)
@@ -107,6 +117,13 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			// Underwriting Rules (nested under plans)
 			plans.GET("/:id/underwriting-rules", h.UnderwritingRule.ListRules)
 			plans.POST("/:id/underwriting-rules", h.UnderwritingRule.CreateRule)
+		}
+
+		// Benefits (standalone for sub-benefits)
+		benefits := authenticated.Group("/benefits")
+		{
+			benefits.GET("/:id/sub-benefits", h.Benefit.ListSubBenefits)
+			benefits.POST("/:id/sub-benefits", h.Benefit.CreateSubBenefit)
 		}
 
 		// Exclusions (standalone for update/delete)
@@ -275,6 +292,8 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 		{
 			providers.GET("", h.Provider.ListProviders)
 			providers.GET("/by-tier", h.Provider.ListByTier)
+			providers.GET("/by-accreditation", h.Provider.ListByAccreditationStatus)
+			providers.GET("/expiring-accreditations", h.Provider.ListExpiringAccreditations)
 			providers.GET("/:id", h.Provider.GetProvider)
 			providers.POST("", h.Provider.RegisterProvider)
 			providers.PUT("/:id", h.Provider.UpdateProvider)
@@ -283,6 +302,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			providers.PUT("/:id/suspend", h.Provider.SuspendProvider)
 			providers.PUT("/:id/terminate", h.Provider.TerminateProvider)
 			providers.PUT("/:id/tier", h.Provider.UpdateTier)
+			providers.PUT("/:id/accreditation", h.Provider.UpdateAccreditation)
 
 			// Contracts (nested under providers)
 			providers.GET("/:id/contracts", h.Contract.ListContracts)
@@ -321,12 +341,34 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			claims.GET("/:id", h.Claim.GetClaim)
 			claims.POST("", h.Claim.SubmitClaim)
 			claims.POST("/bulk", h.Claim.BulkSubmitClaims)
-			claims.PUT("/:id/approve", h.Claim.ApproveClaim)
-			claims.PUT("/:id/reject", h.Claim.RejectClaim)
-			claims.PUT("/:id/vet", h.Claim.VetClaim)
-			claims.PUT("/:id/ready-for-payment", h.Claim.MarkReadyForPayment)
-			claims.PUT("/:id/mark-paid", h.Claim.MarkPaid)
-			claims.PUT("/:id/mark-part-paid", h.Claim.MarkPartPaid)
+			claims.POST("/import-csv", middleware.RequireRole(
+				string(shared.UserRoleAdmin),
+				string(shared.UserRoleClaimsOfficer),
+			), h.Claim.ImportClaimsCSV)
+			claims.PUT("/:id/vet", middleware.RequireRole(
+				string(shared.UserRoleAdmin),
+				string(shared.UserRoleClaimsOfficer),
+			), h.Claim.VetClaim)
+			claims.PUT("/:id/approve", middleware.RequireRole(
+				string(shared.UserRoleAdmin),
+				string(shared.UserRoleManager),
+			), h.Claim.ApproveClaim)
+			claims.PUT("/:id/reject", middleware.RequireRole(
+				string(shared.UserRoleAdmin),
+				string(shared.UserRoleManager),
+			), h.Claim.RejectClaim)
+			claims.PUT("/:id/ready-for-payment", middleware.RequireRole(
+				string(shared.UserRoleAdmin),
+				string(shared.UserRoleFinance),
+			), h.Claim.MarkReadyForPayment)
+			claims.PUT("/:id/mark-paid", middleware.RequireRole(
+				string(shared.UserRoleAdmin),
+				string(shared.UserRoleFinance),
+			), h.Claim.MarkPaid)
+			claims.PUT("/:id/mark-part-paid", middleware.RequireRole(
+				string(shared.UserRoleAdmin),
+				string(shared.UserRoleFinance),
+			), h.Claim.MarkPartPaid)
 
 			// Claim Documents (nested under claims)
 			claims.GET("/:id/documents", h.Claim.ListClaimDocuments)
@@ -476,6 +518,110 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			approvalLimits.GET("", h.ApprovalLimit.ListLimits)
 			approvalLimits.POST("", h.ApprovalLimit.CreateLimit)
 			approvalLimits.PUT("/:id", h.ApprovalLimit.UpdateLimit)
+		}
+
+		// ===== Reinsurance =====
+
+		// Treaties
+		treaties := authenticated.Group("/treaties")
+		{
+			treaties.GET("", h.Treaty.ListTreaties)
+			treaties.POST("", h.Treaty.CreateTreaty)
+			treaties.POST("/expire", h.Treaty.ExpireOverdue)
+			treaties.GET("/:id", h.Treaty.GetTreaty)
+			treaties.PUT("/:id", h.Treaty.UpdateTreaty)
+			treaties.PUT("/:id/activate", h.Treaty.ActivateTreaty)
+			treaties.PUT("/:id/terminate", h.Treaty.TerminateTreaty)
+
+			// Participants (nested under treaties)
+			treaties.GET("/:id/participants", h.Treaty.ListParticipants)
+			treaties.POST("/:id/participants", h.Treaty.AddParticipant)
+			treaties.PUT("/:id/participants/:participantId", h.Treaty.UpdateParticipant)
+			treaties.DELETE("/:id/participants/:participantId", h.Treaty.RemoveParticipant)
+
+			// Layers (nested under treaties)
+			treaties.GET("/:id/layers", h.Treaty.ListLayers)
+			treaties.POST("/:id/layers", h.Treaty.AddLayer)
+			treaties.PUT("/:id/layers/:layerId", h.Treaty.UpdateLayer)
+			treaties.DELETE("/:id/layers/:layerId", h.Treaty.RemoveLayer)
+
+			// Profit Commission Rules (nested under treaties)
+			treaties.GET("/:id/profit-commission-rules", h.Treaty.ListProfitCommissionRules)
+			treaties.POST("/:id/profit-commission-rules", h.Treaty.AddProfitCommissionRule)
+			treaties.DELETE("/:id/profit-commission-rules/:ruleId", h.Treaty.RemoveProfitCommissionRule)
+
+			// Treaty sub-resources
+			treaties.GET("/:id/cessions", h.Cession.ListCessions)
+			treaties.GET("/:id/recoveries", h.Recovery.ListRecoveries)
+			treaties.GET("/:id/bordereaux", h.Bordereau.ListByTreaty)
+			treaties.GET("/:id/statements", h.ReinsurerStatement.ListByTreaty)
+			treaties.GET("/:id/alerts", h.TreatyAlert.ListByTreaty)
+		}
+
+		// Cessions
+		cessions := authenticated.Group("/cessions")
+		{
+			cessions.POST("", h.Cession.CedePremium)
+			cessions.POST("/auto-cede", h.Cession.AutoCede)
+			cessions.GET("/:id", h.Cession.GetCession)
+			cessions.PUT("/:id/book", h.Cession.BookCession)
+			cessions.PUT("/:id/reverse", h.Cession.ReverseCession)
+		}
+
+		// Recoveries
+		recoveries := authenticated.Group("/recoveries")
+		{
+			recoveries.POST("", h.Recovery.CreateRecovery)
+			recoveries.GET("/outstanding", h.Recovery.ListOutstanding)
+			recoveries.GET("/aged-analysis", h.Recovery.AgedAnalysis)
+			recoveries.POST("/apply-for-claim/:claimId", h.Recovery.ApplyRecoveryForClaim)
+			recoveries.GET("/:id", h.Recovery.GetRecovery)
+			recoveries.PUT("/:id/acknowledge", h.Recovery.AcknowledgeRecovery)
+			recoveries.PUT("/:id/request-info", h.Recovery.RequestInfo)
+			recoveries.PUT("/:id/approve", h.Recovery.ApproveRecovery)
+			recoveries.PUT("/:id/record-payment", h.Recovery.RecordPayment)
+			recoveries.PUT("/:id/write-off", h.Recovery.WriteOffRecovery)
+			recoveries.GET("/:id/workflow", h.Recovery.GetWorkflowEvents)
+		}
+
+		// Bordereaux
+		bordereaux := authenticated.Group("/bordereaux")
+		{
+			bordereaux.POST("/premium", h.Bordereau.GeneratePremiumBordereau)
+			bordereaux.POST("/claim", h.Bordereau.GenerateClaimBordereau)
+			bordereaux.GET("/:id", h.Bordereau.GetBordereau)
+			bordereaux.PUT("/:id/finalize", h.Bordereau.FinalizeBordereau)
+			bordereaux.PUT("/:id/mark-sent", h.Bordereau.MarkSent)
+			bordereaux.GET("/:id/items", h.Bordereau.ListItems)
+		}
+
+		// Reinsurer Statements
+		reinsurerStatements := authenticated.Group("/reinsurer-statements")
+		{
+			reinsurerStatements.POST("", h.ReinsurerStatement.GenerateStatement)
+			reinsurerStatements.POST("/profit-commission", h.ReinsurerStatement.CalculateProfitCommission)
+			reinsurerStatements.GET("/:id", h.ReinsurerStatement.GetStatement)
+			reinsurerStatements.PUT("/:id/issue", h.ReinsurerStatement.IssueStatement)
+			reinsurerStatements.PUT("/:id/acknowledge", h.ReinsurerStatement.AcknowledgeStatement)
+			reinsurerStatements.PUT("/:id/settle", h.ReinsurerStatement.SettleStatement)
+		}
+
+		// Treaty Alerts
+		treatyAlerts := authenticated.Group("/treaty-alerts")
+		{
+			treatyAlerts.GET("", h.TreatyAlert.ListAlerts)
+			treatyAlerts.GET("/unacknowledged", h.TreatyAlert.ListUnacknowledged)
+			treatyAlerts.GET("/count", h.TreatyAlert.CountUnacknowledged)
+			treatyAlerts.PUT("/:id/acknowledge", h.TreatyAlert.AcknowledgeAlert)
+			treatyAlerts.POST("/check-limits/:treatyId", h.TreatyAlert.CheckTreatyLimits)
+			treatyAlerts.POST("/check-catastrophe/:treatyId", h.TreatyAlert.CheckCatastropheThresholds)
+			treatyAlerts.POST("/check-expiry", h.TreatyAlert.CheckExpiryWarnings)
+		}
+
+		// Reinsurance Analytics
+		reinsuranceAnalytics := authenticated.Group("/analytics/reinsurance")
+		{
+			reinsuranceAnalytics.GET("", h.ReinsuranceAnalytics.GetReinsuranceDashboard)
 		}
 	}
 }

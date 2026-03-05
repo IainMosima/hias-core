@@ -123,6 +123,21 @@ func (s *adjudicatorServiceImpl) Adjudicate(ctx context.Context, claim *entity.C
 		Details: "Provider is active",
 	})
 
+	// 3a. Provider accreditation check
+	if provider.AccreditationStatus != "" && provider.AccreditationStatus != string(shared.AccreditationStatusNone) {
+		if provider.AccreditationStatus != string(shared.AccreditationStatusAccredited) {
+			ruleResults = append(ruleResults, entity.RuleResult{
+				Category: string(shared.RuleCategoryEligibility), Rule: "provider_accreditation", Result: string(shared.RuleResultFlag),
+				Details: fmt.Sprintf("Provider accreditation status is %s (not ACCREDITED)", provider.AccreditationStatus),
+			})
+		} else {
+			ruleResults = append(ruleResults, entity.RuleResult{
+				Category: string(shared.RuleCategoryEligibility), Rule: "provider_accreditation", Result: string(shared.RuleResultPass),
+				Details: "Provider is accredited",
+			})
+		}
+	}
+
 	// 3b. Provider network eligibility check
 	if s.networkRepo != nil {
 		inNetwork, err := s.networkRepo.CheckEligibility(ctx, policy.PlanID, claim.ProviderID, determineBenefitCategory(claim))

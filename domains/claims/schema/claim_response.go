@@ -129,6 +129,13 @@ type ClaimDocumentResponse struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+type BulkClaimResultResponse struct {
+	Succeeded int             `json:"succeeded"`
+	Failed    int             `json:"failed"`
+	Claims    []ClaimResponse `json:"claims,omitempty"`
+	Errors    []string        `json:"errors,omitempty"`
+}
+
 func ToClaimDocumentResponse(d *claimEntity.ClaimDocument) ClaimDocumentResponse {
 	return ClaimDocumentResponse{
 		ID: d.ID, ClaimID: d.ClaimID, FileName: d.FileName,

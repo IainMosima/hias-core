@@ -21,21 +21,22 @@ type PlanResponse struct {
 }
 
 type BenefitResponse struct {
-	ID                uuid.UUID `json:"id"`
-	PlanID            uuid.UUID `json:"plan_id"`
-	Name              string    `json:"name"`
-	Category          string    `json:"category"`
-	AnnualLimit       int64     `json:"annual_limit"`
-	CoPayType         string    `json:"co_pay_type"`
-	CoPayValue        int64     `json:"co_pay_value"`
-	WaitingPeriodDays int       `json:"waiting_period_days"`
-	SubLimitType      string    `json:"sub_limit_type"`
-	SubLimitValue     int64     `json:"sub_limit_value"`
-	MinAge            int       `json:"min_age"`
-	MaxAge            int       `json:"max_age"`
-	WaitingPeriodType string    `json:"waiting_period_type"`
-	DeductibleAmount  int64     `json:"deductible_amount"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID                uuid.UUID  `json:"id"`
+	PlanID            uuid.UUID  `json:"plan_id"`
+	ParentBenefitID   *uuid.UUID `json:"parent_benefit_id,omitempty"`
+	Name              string     `json:"name"`
+	Category          string     `json:"category"`
+	AnnualLimit       int64      `json:"annual_limit"`
+	CoPayType         string     `json:"co_pay_type"`
+	CoPayValue        int64      `json:"co_pay_value"`
+	WaitingPeriodDays int        `json:"waiting_period_days"`
+	SubLimitType      string     `json:"sub_limit_type"`
+	SubLimitValue     int64      `json:"sub_limit_value"`
+	MinAge            int        `json:"min_age"`
+	MaxAge            int        `json:"max_age"`
+	WaitingPeriodType string     `json:"waiting_period_type"`
+	DeductibleAmount  int64      `json:"deductible_amount"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 type ExclusionResponse struct {
@@ -57,7 +58,7 @@ func ToPlanResponse(p *entity.Plan) PlanResponse {
 
 func ToBenefitResponse(b *entity.Benefit) BenefitResponse {
 	return BenefitResponse{
-		ID: b.ID, PlanID: b.PlanID, Name: b.Name, Category: b.Category,
+		ID: b.ID, PlanID: b.PlanID, ParentBenefitID: b.ParentBenefitID, Name: b.Name, Category: b.Category,
 		AnnualLimit: b.AnnualLimit, CoPayType: b.CoPayType, CoPayValue: b.CoPayValue,
 		WaitingPeriodDays: b.WaitingPeriodDays, SubLimitType: b.SubLimitType,
 		SubLimitValue: b.SubLimitValue, MinAge: b.MinAge, MaxAge: b.MaxAge,

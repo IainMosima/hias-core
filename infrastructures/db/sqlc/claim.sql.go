@@ -108,6 +108,55 @@ func (q *Queries) CreateClaim(ctx context.Context, arg CreateClaimParams) (Claim
 	return i, err
 }
 
+const findClaimByProviderAndDate = `-- name: FindClaimByProviderAndDate :one
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims
+WHERE provider_id = $1
+AND service_date = $2
+AND ABS(total_amount - $3) < 100
+AND status NOT IN ('REJECTED', 'CANCELLED')
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type FindClaimByProviderAndDateParams struct {
+	ProviderID  uuid.UUID `json:"provider_id"`
+	ServiceDate time.Time `json:"service_date"`
+	TotalAmount int64     `json:"total_amount"`
+}
+
+func (q *Queries) FindClaimByProviderAndDate(ctx context.Context, arg FindClaimByProviderAndDateParams) (Claim, error) {
+	row := q.db.QueryRow(ctx, findClaimByProviderAndDate, arg.ProviderID, arg.ServiceDate, arg.TotalAmount)
+	var i Claim
+	err := row.Scan(
+		&i.ID,
+		&i.ClaimNumber,
+		&i.PolicyID,
+		&i.MemberID,
+		&i.ProviderID,
+		&i.PreauthID,
+		&i.Status,
+		&i.TotalAmount,
+		&i.ApprovedAmount,
+		&i.CoPayAmount,
+		&i.MemberResponsibility,
+		&i.DiagnosisCodes,
+		&i.ServiceDate,
+		&i.AdmissionDate,
+		&i.DischargeDate,
+		&i.Notes,
+		&i.RejectionReason,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClaimType,
+		&i.VettedAmount,
+		&i.VettedBy,
+		&i.VettedAt,
+		&i.SlaBreachAt,
+	)
+	return i, err
+}
+
 const getApprovedAmountForBenefitThisYear = `-- name: GetApprovedAmountForBenefitThisYear :one
 SELECT COALESCE(SUM(c.approved_amount), 0)::bigint as total_approved
 FROM claims c
@@ -261,6 +310,67 @@ SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, 
 
 func (q *Queries) GetClaimsForAdjudication(ctx context.Context, limit int32) ([]Claim, error) {
 	rows, err := q.db.Query(ctx, getClaimsForAdjudication, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Claim{}
+	for rows.Next() {
+		var i Claim
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClaimNumber,
+			&i.PolicyID,
+			&i.MemberID,
+			&i.ProviderID,
+			&i.PreauthID,
+			&i.Status,
+			&i.TotalAmount,
+			&i.ApprovedAmount,
+			&i.CoPayAmount,
+			&i.MemberResponsibility,
+			&i.DiagnosisCodes,
+			&i.ServiceDate,
+			&i.AdmissionDate,
+			&i.DischargeDate,
+			&i.Notes,
+			&i.RejectionReason,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClaimType,
+			&i.VettedAmount,
+			&i.VettedBy,
+			&i.VettedAt,
+			&i.SlaBreachAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listApproachingSLAClaims = `-- name: ListApproachingSLAClaims :many
+SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at FROM claims
+WHERE sla_breach_at IS NOT NULL
+  AND sla_breach_at > NOW()
+  AND sla_breach_at <= NOW() + INTERVAL '24 hours'
+  AND status NOT IN ('PAID', 'REJECTED', 'VETTED', 'READY_FOR_PAYMENT')
+ORDER BY sla_breach_at ASC
+LIMIT $1 OFFSET $2
+`
+
+type ListApproachingSLAClaimsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListApproachingSLAClaims(ctx context.Context, arg ListApproachingSLAClaimsParams) ([]Claim, error) {
+	rows, err := q.db.Query(ctx, listApproachingSLAClaims, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

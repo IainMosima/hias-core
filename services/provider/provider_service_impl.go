@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	auditService "github.com/bitbiz/hias-core/domains/audit/service"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
@@ -185,6 +186,53 @@ func (s *providerServiceImpl) ListByTier(ctx context.Context, tier string, page,
 		responses[i] = providerSchema.ToProviderResponse(p)
 	}
 	return schema.NewServiceResponse(responses, http.StatusOK, "Providers retrieved")
+}
+
+func (s *providerServiceImpl) UpdateAccreditation(ctx context.Context, id uuid.UUID, req providerSchema.UpdateAccreditationRequest, userID uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
+	var expiry *time.Time
+	if req.AccreditationExpiry != "" {
+		t, err := time.Parse("2006-01-02", req.AccreditationExpiry)
+		if err != nil {
+			return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, "Invalid accreditation_expiry format (YYYY-MM-DD)", err)
+		}
+		expiry = &t
+	}
+
+	updated, err := s.providerRepo.UpdateAccreditation(ctx, id, req.AccreditationStatus, expiry, req.AccreditationBody)
+	if err != nil {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to update accreditation", err)
+	}
+
+	s.logAudit(ctx, userID, string(shared.AuditEntityTypeProvider), id, string(shared.AuditActionUpdate))
+	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, "Accreditation updated")
+}
+
+func (s *providerServiceImpl) ListByAccreditationStatus(ctx context.Context, status string, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse] {
+	offset := (page - 1) * pageSize
+	providers, err := s.providerRepo.ListByAccreditationStatus(ctx, status, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to list providers by accreditation status", err)
+	}
+
+	responses := make([]providerSchema.ProviderResponse, len(providers))
+	for i, p := range providers {
+		responses[i] = providerSchema.ToProviderResponse(p)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Providers retrieved")
+}
+
+func (s *providerServiceImpl) ListExpiringAccreditations(ctx context.Context, days, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse] {
+	offset := (page - 1) * pageSize
+	providers, err := s.providerRepo.ListExpiringAccreditations(ctx, days, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to list expiring accreditations", err)
+	}
+
+	responses := make([]providerSchema.ProviderResponse, len(providers))
+	for i, p := range providers {
+		responses[i] = providerSchema.ToProviderResponse(p)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Expiring accreditations retrieved")
 }
 
 func (s *providerServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {

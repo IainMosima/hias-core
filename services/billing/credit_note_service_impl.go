@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 
 	auditService "github.com/bitbiz/hias-core/domains/audit/service"
 	billingEntity "github.com/bitbiz/hias-core/domains/billing/entity"
@@ -49,6 +50,16 @@ func (s *creditNoteServiceImpl) CreateCreditNote(ctx context.Context, policyID, 
 	created, err := s.creditNoteRepo.Create(ctx, cn)
 	if err != nil {
 		return schema.NewServiceErrorResponse[billingSchema.CreditNoteResponse](http.StatusInternalServerError, "Failed to create credit note", err)
+	}
+
+	// Auto-approve system-initiated pro-rata refund credit notes
+	if strings.Contains(reason, "Pro-rata refund") {
+		approved, approveErr := s.creditNoteRepo.Approve(ctx, created.ID, createdBy)
+		if approveErr != nil {
+			log.Printf("Warning: failed to auto-approve pro-rata credit note: %v", approveErr)
+		} else {
+			created = approved
+		}
 	}
 
 	s.logAudit(ctx, createdBy, string(shared.AuditEntityTypeCreditNote), created.ID, string(shared.AuditActionCreate))

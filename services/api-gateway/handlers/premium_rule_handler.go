@@ -69,6 +69,21 @@ func (h *PremiumRuleHandler) DeletePremiumRule(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+func (h *PremiumRuleHandler) GetRateSheet(ctx *gin.Context) {
+	planID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid plan ID")
+		return
+	}
+
+	resp := h.premiumRuleSvc.GetRateSheet(ctx.Request.Context(), planID)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
 type CalculatePremiumRequest struct {
 	MemberCount   int      `json:"member_count" binding:"required,min=1"`
 	Relationships []string `json:"relationships" binding:"required"`

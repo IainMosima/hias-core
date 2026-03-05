@@ -26,6 +26,7 @@ import (
 	"github.com/bitbiz/hias-core/services/preauth"
 	"github.com/bitbiz/hias-core/services/product"
 	"github.com/bitbiz/hias-core/services/provider"
+	"github.com/bitbiz/hias-core/services/reinsurance"
 	"github.com/bitbiz/hias-core/services/sales"
 	"github.com/bitbiz/hias-core/shared/auth"
 
@@ -140,6 +141,19 @@ func main() {
 	claimDocRepo := repository.NewClaimDocumentRepository(store)
 	statementRepo := repository.NewProviderStatementRepository(store)
 
+	// Reinsurance repositories
+	treatyRepo := repository.NewTreatyRepository(store)
+	treatyParticipantRepo := repository.NewTreatyParticipantRepository(store)
+	treatyLayerRepo := repository.NewTreatyLayerRepository(store)
+	profitCommissionRepo := repository.NewProfitCommissionRepository(store)
+	reinsuranceCessionRepo := repository.NewCessionRepository(store)
+	reinsuranceRecoveryRepo := repository.NewRecoveryRepository(store)
+	recoveryWorkflowEventRepo := repository.NewRecoveryWorkflowEventRepository(store)
+	bordereauRepo := repository.NewBordereauRepository(store)
+	bordereauItemRepo := repository.NewBordereauItemRepository(store)
+	reinsurerStatementRepo := repository.NewReinsurerStatementRepository(store)
+	treatyAlertRepo := repository.NewTreatyAlertRepository(store)
+
 	// 6. Services (bottom-up dependency order)
 	auditSvc := audit.NewAuditService(auditRepo)
 	notifSvc := notification.NewNotificationService(notifRepo, queueManager)
@@ -174,7 +188,7 @@ func main() {
 
 	// PDF generator and policy document service (created before policySvc to avoid circular deps)
 	pdfGenerator := documents.NewPDFGenerator()
-	policyDocSvc := policy.NewPolicyDocumentService(policyDocumentRepo, policyRepo, memberRepo, planRepo, benefitRepo, renewalRepo, preauthRepo, providerRepo, pdfGenerator, s3Svc, auditSvc)
+	policyDocSvc := policy.NewPolicyDocumentService(policyDocumentRepo, policyRepo, memberRepo, planRepo, benefitRepo, renewalRepo, preauthRepo, providerRepo, pdfGenerator, s3Svc, auditSvc, notifSvc)
 
 	// Credit note service (created before policy services since they depend on it)
 	creditNoteSvc := billing.NewCreditNoteService(creditNoteRepo, invoiceRepo, auditSvc)
@@ -184,7 +198,7 @@ func main() {
 	underwritingRuleSvc := policy.NewUnderwritingRuleService(underwritingRuleRepo, planRepo, auditSvc)
 
 	// Policy services
-	memberSvc := policy.NewMemberService(memberRepo, policyRepo, planRepo, premiumRuleRepo, premiumRuleSvc, underwritingFlagRepo, creditNoteSvc, auditSvc)
+	memberSvc := policy.NewMemberService(memberRepo, policyRepo, planRepo, premiumRuleRepo, premiumRuleSvc, underwritingFlagRepo, underwritingRuleRepo, creditNoteSvc, auditSvc)
 	policySvc := policy.NewPolicyService(policyRepo, planRepo, memberRepo, premiumRuleSvc, policyDocSvc, creditNoteSvc, auditSvc)
 	endorsementSvc := policy.NewEndorsementService(endorsementRepo, policyRepo, memberSvc, policySvc, auditSvc)
 	renewalSvc := policy.NewRenewalService(renewalRepo, policyRepo, memberRepo, claimRepo, premiumRuleSvc, premiumRuleRepo, planRepo, underwritingFlagRepo, auditSvc)
@@ -219,6 +233,14 @@ func main() {
 	leadSvc := sales.NewLeadService(leadRepo, leadActivityRepo, auditSvc)
 	quotationSvc := sales.NewQuotationService(quotationRepo, quotationVersionRepo, quotationDocumentRepo, approvalLimitRepo, leadRepo, auditSvc, premiumRuleSvc, notifSvc, policySvc, memberSvc, installmentSvc)
 	approvalLimitSvc := sales.NewApprovalLimitService(approvalLimitRepo, auditSvc)
+
+	// Reinsurance services
+	treatySvc := reinsurance.NewTreatyService(treatyRepo, treatyParticipantRepo, treatyLayerRepo, profitCommissionRepo, auditSvc)
+	cessionSvc := reinsurance.NewCessionService(reinsuranceCessionRepo, treatyRepo, treatyParticipantRepo, auditSvc)
+	recoverySvc := reinsurance.NewRecoveryService(reinsuranceRecoveryRepo, recoveryWorkflowEventRepo, treatyRepo, treatyLayerRepo, treatyParticipantRepo, reinsuranceCessionRepo, auditSvc)
+	bordereauSvc := reinsurance.NewBordereauService(bordereauRepo, bordereauItemRepo, reinsuranceCessionRepo, reinsuranceRecoveryRepo, auditSvc)
+	reinsurerStatementSvc := reinsurance.NewReinsurerStatementService(reinsurerStatementRepo, reinsuranceCessionRepo, reinsuranceRecoveryRepo, treatyParticipantRepo, profitCommissionRepo, auditSvc)
+	treatyAlertSvc := reinsurance.NewTreatyAlertService(treatyAlertRepo, treatyLayerRepo, reinsuranceRecoveryRepo, treatyRepo)
 
 	// Suppress unused variable warnings for services used internally
 	_ = billingSvc
@@ -259,6 +281,15 @@ func main() {
 		CreditNote:       handlers.NewCreditNoteHandler(creditNoteSvc),
 		Case:             handlers.NewCaseHandler(caseSvc),
 		Statement:        handlers.NewStatementHandler(statementSvc),
+
+		// Reinsurance
+		Treaty:               handlers.NewTreatyHandler(treatySvc),
+		Cession:              handlers.NewCessionHandler(cessionSvc),
+		Recovery:             handlers.NewRecoveryHandler(recoverySvc),
+		Bordereau:            handlers.NewBordereauHandler(bordereauSvc),
+		ReinsurerStatement:   handlers.NewReinsurerStatementHandler(reinsurerStatementSvc),
+		TreatyAlert:          handlers.NewTreatyAlertHandler(treatyAlertSvc),
+		ReinsuranceAnalytics: handlers.NewReinsuranceAnalyticsHandler(treatySvc, cessionSvc, recoverySvc, treatyAlertSvc),
 	}
 
 	// 8. Server

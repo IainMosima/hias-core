@@ -301,6 +301,24 @@ func calculateAge(dob string) int {
 	return int(math.Max(0, float64(age)))
 }
 
+func (s *premiumRuleServiceImpl) GetRateSheet(ctx context.Context, planID uuid.UUID) *schema.ServiceResponse[[]productSchema.PremiumRuleResponse] {
+	_, err := s.planRepo.GetByID(ctx, planID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]productSchema.PremiumRuleResponse](http.StatusNotFound, "Plan not found", err)
+	}
+
+	rules, err := s.ruleRepo.ListByPlan(ctx, planID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]productSchema.PremiumRuleResponse](http.StatusInternalServerError, "Failed to get rate sheet", err)
+	}
+
+	responses := make([]productSchema.PremiumRuleResponse, len(rules))
+	for i, r := range rules {
+		responses[i] = productSchema.ToPremiumRuleResponse(r)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Rate sheet retrieved")
+}
+
 func (s *premiumRuleServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
 	if s.auditSvc != nil {
 		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")

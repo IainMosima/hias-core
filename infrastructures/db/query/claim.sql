@@ -69,6 +69,24 @@ WHERE sla_breach_at IS NOT NULL
 ORDER BY sla_breach_at ASC
 LIMIT $1 OFFSET $2;
 
+-- name: FindClaimByProviderAndDate :one
+SELECT * FROM claims
+WHERE provider_id = $1
+AND service_date = $2
+AND ABS(total_amount - $3) < 100
+AND status NOT IN ('REJECTED', 'CANCELLED')
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: ListApproachingSLAClaims :many
+SELECT * FROM claims
+WHERE sla_breach_at IS NOT NULL
+  AND sla_breach_at > NOW()
+  AND sla_breach_at <= NOW() + INTERVAL '24 hours'
+  AND status NOT IN ('PAID', 'REJECTED', 'VETTED', 'READY_FOR_PAYMENT')
+ORDER BY sla_breach_at ASC
+LIMIT $1 OFFSET $2;
+
 -- name: GetApprovedAmountForBenefitThisYear :one
 SELECT COALESCE(SUM(c.approved_amount), 0)::bigint as total_approved
 FROM claims c

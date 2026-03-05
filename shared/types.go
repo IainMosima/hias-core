@@ -208,6 +208,7 @@ const (
 	NotificationTypeApproval  NotificationType = "APPROVAL"
 	NotificationTypeClaim     NotificationType = "CLAIM"
 	NotificationTypePolicy    NotificationType = "POLICY"
+	NotificationTypeDocument  NotificationType = "DOCUMENT"
 )
 
 // NotificationStatus represents the status of a notification
@@ -648,4 +649,144 @@ const (
 	CreditNoteStatusApproved  CreditNoteStatus = "APPROVED"
 	CreditNoteStatusApplied   CreditNoteStatus = "APPLIED"
 	CreditNoteStatusCancelled CreditNoteStatus = "CANCELLED"
+)
+
+// TreatyType represents the type of reinsurance treaty
+type TreatyType string
+
+const (
+	TreatyTypeQuotaShare TreatyType = "QUOTA_SHARE"
+	TreatyTypeXOL        TreatyType = "XOL"
+)
+
+// TreatyStatus represents the status of a reinsurance treaty
+type TreatyStatus string
+
+const (
+	TreatyStatusDraft      TreatyStatus = "DRAFT"
+	TreatyStatusActive     TreatyStatus = "ACTIVE"
+	TreatyStatusExpired    TreatyStatus = "EXPIRED"
+	TreatyStatusTerminated TreatyStatus = "TERMINATED"
+)
+
+// CessionType represents the type of reinsurance cession
+type CessionType string
+
+const (
+	CessionTypePremium CessionType = "PREMIUM"
+	CessionTypeClaim   CessionType = "CLAIM"
+)
+
+// CessionStatus represents the status of a cession
+type CessionStatus string
+
+const (
+	CessionStatusPending  CessionStatus = "PENDING"
+	CessionStatusBooked   CessionStatus = "BOOKED"
+	CessionStatusReversed CessionStatus = "REVERSED"
+)
+
+// RecoveryStatus represents the status of a reinsurance recovery
+type RecoveryStatus string
+
+const (
+	RecoveryStatusNotified      RecoveryStatus = "NOTIFIED"
+	RecoveryStatusAcknowledged  RecoveryStatus = "ACKNOWLEDGED"
+	RecoveryStatusInfoRequested RecoveryStatus = "INFO_REQUESTED"
+	RecoveryStatusApproved      RecoveryStatus = "APPROVED"
+	RecoveryStatusPaid          RecoveryStatus = "PAID"
+	RecoveryStatusWrittenOff    RecoveryStatus = "WRITTEN_OFF"
+)
+
+// RecoveryWorkflowStatus represents workflow stages for recovery processing
+type RecoveryWorkflowStatus string
+
+const (
+	RecoveryWorkflowNotification   RecoveryWorkflowStatus = "NOTIFICATION"
+	RecoveryWorkflowAcknowledgment RecoveryWorkflowStatus = "ACKNOWLEDGMENT"
+	RecoveryWorkflowInfoRequest    RecoveryWorkflowStatus = "INFO_REQUEST"
+	RecoveryWorkflowApproval       RecoveryWorkflowStatus = "APPROVAL"
+	RecoveryWorkflowPayment        RecoveryWorkflowStatus = "PAYMENT"
+)
+
+// BordereauType represents the type of bordereau report
+type BordereauType string
+
+const (
+	BordereauTypePremium BordereauType = "PREMIUM"
+	BordereauTypeClaim   BordereauType = "CLAIM"
+)
+
+// BordereauStatus represents the status of a bordereau
+type BordereauStatus string
+
+const (
+	BordereauStatusDraft     BordereauStatus = "DRAFT"
+	BordereauStatusFinalized BordereauStatus = "FINALIZED"
+	BordereauStatusSent      BordereauStatus = "SENT"
+)
+
+// ReinsurerStatementStatus represents the status of a reinsurer statement
+type ReinsurerStatementStatus string
+
+const (
+	ReinsurerStatementStatusDraft        ReinsurerStatementStatus = "DRAFT"
+	ReinsurerStatementStatusIssued       ReinsurerStatementStatus = "ISSUED"
+	ReinsurerStatementStatusAcknowledged ReinsurerStatementStatus = "ACKNOWLEDGED"
+	ReinsurerStatementStatusSettled      ReinsurerStatementStatus = "SETTLED"
+)
+
+// ProfitCommissionType represents the type of profit commission calculation
+type ProfitCommissionType string
+
+const (
+	ProfitCommissionTypeSlidingScale ProfitCommissionType = "SLIDING_SCALE"
+	ProfitCommissionTypeFlat         ProfitCommissionType = "FLAT"
+	ProfitCommissionTypeCarryForward ProfitCommissionType = "CARRY_FORWARD"
+)
+
+// TreatyAlertType represents the type of treaty alert
+type TreatyAlertType string
+
+const (
+	TreatyAlertTypeLimitBreach          TreatyAlertType = "LIMIT_BREACH"
+	TreatyAlertTypeAggregateWarning     TreatyAlertType = "AGGREGATE_WARNING"
+	TreatyAlertTypeCatastropheThreshold TreatyAlertType = "CATASTROPHE_THRESHOLD"
+	TreatyAlertTypeExpiryWarning        TreatyAlertType = "EXPIRY_WARNING"
+)
+
+// TreatyAlertSeverity represents the severity of a treaty alert
+type TreatyAlertSeverity string
+
+const (
+	TreatyAlertSeverityLow      TreatyAlertSeverity = "LOW"
+	TreatyAlertSeverityMedium   TreatyAlertSeverity = "MEDIUM"
+	TreatyAlertSeverityHigh     TreatyAlertSeverity = "HIGH"
+	TreatyAlertSeverityCritical TreatyAlertSeverity = "CRITICAL"
+)
+
+// AccreditationStatus represents the accreditation status of a provider
+type AccreditationStatus string
+
+const (
+	AccreditationStatusNone       AccreditationStatus = "NONE"
+	AccreditationStatusPending    AccreditationStatus = "PENDING"
+	AccreditationStatusAccredited AccreditationStatus = "ACCREDITED"
+	AccreditationStatusExpired    AccreditationStatus = "EXPIRED"
+	AccreditationStatusRevoked    AccreditationStatus = "REVOKED"
+)
+
+// Reinsurance audit entity types
+const (
+	AuditEntityTypeTreaty                AuditEntityType = "TREATY"
+	AuditEntityTypeTreatyParticipant     AuditEntityType = "TREATY_PARTICIPANT"
+	AuditEntityTypeTreatyLayer           AuditEntityType = "TREATY_LAYER"
+	AuditEntityTypeCession               AuditEntityType = "CESSION"
+	AuditEntityTypeReinsuranceRecovery   AuditEntityType = "REINSURANCE_RECOVERY"
+	AuditEntityTypeRecoveryWorkflowEvent AuditEntityType = "RECOVERY_WORKFLOW_EVENT"
+	AuditEntityTypeBordereau             AuditEntityType = "BORDEREAU"
+	AuditEntityTypeBordereauItem         AuditEntityType = "BORDEREAU_ITEM"
+	AuditEntityTypeReinsurerStatement    AuditEntityType = "REINSURER_STATEMENT"
+	AuditEntityTypeProfitCommission      AuditEntityType = "PROFIT_COMMISSION"
+	AuditEntityTypeTreatyAlert           AuditEntityType = "TREATY_ALERT"
 )

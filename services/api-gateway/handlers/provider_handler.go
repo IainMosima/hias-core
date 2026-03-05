@@ -178,3 +178,50 @@ func (h *ProviderHandler) ListByTier(ctx *gin.Context) {
 	}
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
+
+func (h *ProviderHandler) UpdateAccreditation(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid provider ID")
+		return
+	}
+
+	var req providerSchema.UpdateAccreditationRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp := h.providerSvc.UpdateAccreditation(ctx.Request.Context(), id, req, getUserID(ctx))
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *ProviderHandler) ListByAccreditationStatus(ctx *gin.Context) {
+	status := ctx.Query("status")
+	if status == "" {
+		utils.RespondError(ctx, http.StatusBadRequest, "status query parameter required")
+		return
+	}
+
+	pagination := utils.GetPaginationParams(ctx)
+	resp := h.providerSvc.ListByAccreditationStatus(ctx.Request.Context(), status, pagination.Page, pagination.PageSize)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *ProviderHandler) ListExpiringAccreditations(ctx *gin.Context) {
+	pagination := utils.GetPaginationParams(ctx)
+	resp := h.providerSvc.ListExpiringAccreditations(ctx.Request.Context(), 30, pagination.Page, pagination.PageSize)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}

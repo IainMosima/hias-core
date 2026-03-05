@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"github.com/bitbiz/hias-core/domains/claims/entity"
 	"github.com/google/uuid"
 )
@@ -26,4 +28,6 @@ type ClaimRepository interface {
 	VetClaim(ctx context.Context, id uuid.UUID, vettedAmount int64, vettedBy uuid.UUID, status string) (*entity.Claim, error)
 	MarkReadyForPayment(ctx context.Context, id uuid.UUID) (*entity.Claim, error)
 	ListSLABreached(ctx context.Context, limit, offset int) ([]*entity.Claim, error)
+	FindByProviderAndDate(ctx context.Context, providerID uuid.UUID, serviceDate time.Time, amount int64) (*entity.Claim, error)
+	ListApproachingSLA(ctx context.Context, limit, offset int) ([]*entity.Claim, error)
 }

@@ -7,18 +7,21 @@ import (
 )
 
 type ProviderResponse struct {
-	ID            uuid.UUID `json:"id"`
-	Name          string    `json:"name"`
-	Type          string    `json:"type"`
-	LicenseNumber string    `json:"license_number"`
-	Status        string    `json:"status"`
-	Tier          string    `json:"tier"`
-	County        string    `json:"county"`
-	Phone         string    `json:"phone"`
-	Email         string    `json:"email"`
-	ContactPerson string    `json:"contact_person"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID                  uuid.UUID  `json:"id"`
+	Name                string     `json:"name"`
+	Type                string     `json:"type"`
+	LicenseNumber       string     `json:"license_number"`
+	Status              string     `json:"status"`
+	Tier                string     `json:"tier"`
+	County              string     `json:"county"`
+	Phone               string     `json:"phone"`
+	Email               string     `json:"email"`
+	ContactPerson       string     `json:"contact_person"`
+	AccreditationStatus string     `json:"accreditation_status"`
+	AccreditationExpiry *time.Time `json:"accreditation_expiry,omitempty"`
+	AccreditationBody   string     `json:"accreditation_body,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 type ContractResponse struct {
@@ -48,7 +51,10 @@ func ToProviderResponse(p *entity.Provider) ProviderResponse {
 	return ProviderResponse{
 		ID: p.ID, Name: p.Name, Type: p.Type, LicenseNumber: p.LicenseNumber,
 		Status: p.Status, Tier: p.Tier, County: p.County, Phone: p.Phone, Email: p.Email,
-		ContactPerson: p.ContactPerson, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		ContactPerson:       p.ContactPerson,
+		AccreditationStatus: p.AccreditationStatus, AccreditationExpiry: p.AccreditationExpiry,
+		AccreditationBody: p.AccreditationBody,
+		CreatedAt:         p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }
 

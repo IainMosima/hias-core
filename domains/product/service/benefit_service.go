@@ -12,4 +12,6 @@ type BenefitService interface {
 	ListBenefitsByPlan(ctx context.Context, planID uuid.UUID) *schema.ServiceResponse[[]productSchema.BenefitResponse]
 	CheckCoverage(ctx context.Context, planID uuid.UUID, procedureCode string) *schema.ServiceResponse[bool]
 	CalculateCoPay(ctx context.Context, benefitID uuid.UUID, amount int64) *schema.ServiceResponse[int64]
+	CreateSubBenefit(ctx context.Context, parentID uuid.UUID, req productSchema.CreateBenefitRequest) *schema.ServiceResponse[productSchema.BenefitResponse]
+	ListSubBenefits(ctx context.Context, parentID uuid.UUID) *schema.ServiceResponse[[]productSchema.BenefitResponse]
 }

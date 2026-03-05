@@ -10,6 +10,7 @@ import (
 
 	auditService "github.com/bitbiz/hias-core/domains/audit/service"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
+	notificationService "github.com/bitbiz/hias-core/domains/notification/service"
 	"github.com/bitbiz/hias-core/domains/policy/entity"
 	"github.com/bitbiz/hias-core/domains/policy/repository"
 	policySchema "github.com/bitbiz/hias-core/domains/policy/schema"
@@ -24,17 +25,18 @@ import (
 )
 
 type policyDocumentServiceImpl struct {
-	docRepo      repository.PolicyDocumentRepository
-	policyRepo   repository.PolicyRepository
-	memberRepo   repository.MemberRepository
-	planRepo     productRepo.PlanRepository
-	benefitRepo  productRepo.BenefitRepository
-	renewalRepo  repository.PolicyRenewalRepository
-	preauthRepo  preauthRepo.PreAuthRepository
-	providerRepo providerRepo.ProviderRepository
-	pdfGenerator documents.PDFGenerator
-	s3Svc        awsSvc.S3Service
-	auditSvc     auditService.AuditService
+	docRepo         repository.PolicyDocumentRepository
+	policyRepo      repository.PolicyRepository
+	memberRepo      repository.MemberRepository
+	planRepo        productRepo.PlanRepository
+	benefitRepo     productRepo.BenefitRepository
+	renewalRepo     repository.PolicyRenewalRepository
+	preauthRepo     preauthRepo.PreAuthRepository
+	providerRepo    providerRepo.ProviderRepository
+	pdfGenerator    documents.PDFGenerator
+	s3Svc           awsSvc.S3Service
+	auditSvc        auditService.AuditService
+	notificationSvc notificationService.NotificationService
 }
 
 func NewPolicyDocumentService(
@@ -49,19 +51,21 @@ func NewPolicyDocumentService(
 	pdfGenerator documents.PDFGenerator,
 	s3Svc awsSvc.S3Service,
 	auditSvc auditService.AuditService,
+	notificationSvc notificationService.NotificationService,
 ) service.PolicyDocumentService {
 	return &policyDocumentServiceImpl{
-		docRepo:      docRepo,
-		policyRepo:   policyRepo,
-		memberRepo:   memberRepo,
-		planRepo:     planRepo,
-		benefitRepo:  benefitRepo,
-		renewalRepo:  renewalRepo,
-		preauthRepo:  preauthRepo,
-		providerRepo: providerRepo,
-		pdfGenerator: pdfGenerator,
-		s3Svc:        s3Svc,
-		auditSvc:     auditSvc,
+		docRepo:         docRepo,
+		policyRepo:      policyRepo,
+		memberRepo:      memberRepo,
+		planRepo:        planRepo,
+		benefitRepo:     benefitRepo,
+		renewalRepo:     renewalRepo,
+		preauthRepo:     preauthRepo,
+		providerRepo:    providerRepo,
+		pdfGenerator:    pdfGenerator,
+		s3Svc:           s3Svc,
+		auditSvc:        auditSvc,
+		notificationSvc: notificationSvc,
 	}
 }
 
@@ -108,6 +112,7 @@ func (s *policyDocumentServiceImpl) GenerateWelcomeLetter(ctx context.Context, p
 	}
 
 	s.logAudit(ctx, generatedBy, string(shared.AuditEntityTypePolicyDocument), created.ID, string(shared.AuditActionCreate))
+	s.sendDocumentNotification(ctx, pol.CreatedBy, "Welcome Letter", fileName)
 
 	return schema.NewServiceResponse(policySchema.ToPolicyDocumentResponse(created), http.StatusCreated, "Welcome letter generated")
 }
@@ -204,6 +209,8 @@ func (s *policyDocumentServiceImpl) GeneratePolicySchedule(ctx context.Context, 
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.PolicyDocumentResponse](http.StatusInternalServerError, "Failed to save document record", err)
 	}
+
+	s.sendDocumentNotification(ctx, pol.CreatedBy, "Policy Schedule", fileName)
 
 	return schema.NewServiceResponse(policySchema.ToPolicyDocumentResponse(created), http.StatusCreated, "Policy schedule generated")
 }
@@ -362,6 +369,8 @@ func (s *policyDocumentServiceImpl) GenerateLOU(ctx context.Context, preauthID u
 	}
 
 	s.logAudit(ctx, generatedBy, string(shared.AuditEntityTypePolicyDocument), created.ID, string(shared.AuditActionCreate))
+	s.sendDocumentNotification(ctx, pol.CreatedBy, "Letter of Undertaking", fileName)
+
 	return schema.NewServiceResponse(policySchema.ToPolicyDocumentResponse(created), http.StatusCreated, "Letter of Undertaking generated")
 }
 
@@ -398,6 +407,8 @@ func (s *policyDocumentServiceImpl) GenerateDeclineLetter(ctx context.Context, p
 	}
 
 	s.logAudit(ctx, generatedBy, string(shared.AuditEntityTypePolicyDocument), created.ID, string(shared.AuditActionCreate))
+	s.sendDocumentNotification(ctx, pol.CreatedBy, "Decline Letter", fileName)
+
 	return schema.NewServiceResponse(policySchema.ToPolicyDocumentResponse(created), http.StatusCreated, "Decline letter generated")
 }
 
@@ -411,6 +422,18 @@ func (s *policyDocumentServiceImpl) uploadToS3(ctx context.Context, key string, 
 		ContentType: "application/pdf",
 	})
 	return err
+}
+
+func (s *policyDocumentServiceImpl) sendDocumentNotification(ctx context.Context, recipientID uuid.UUID, docType, fileName string) {
+	if s.notificationSvc == nil {
+		return
+	}
+	subject := fmt.Sprintf("%s Ready", docType)
+	body := fmt.Sprintf("Your %s (%s) has been generated and is available for download.", docType, fileName)
+	resp := s.notificationSvc.Send(ctx, recipientID, string(shared.NotificationChannelInApp), string(shared.NotificationTypePolicy), subject, body)
+	if resp.Error != nil {
+		log.Printf("Warning: failed to send document notification: %v", resp.Error)
+	}
 }
 
 func (s *policyDocumentServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bitbiz/hias-core/domains/provider/entity"
 	domainRepo "github.com/bitbiz/hias-core/domains/provider/repository"
@@ -155,22 +156,70 @@ func (r *providerRepository) ListByTier(ctx context.Context, tier string, limit,
 	return providers, nil
 }
 
+func (r *providerRepository) UpdateAccreditation(ctx context.Context, id uuid.UUID, status string, expiry *time.Time, body string) (*entity.Provider, error) {
+	dbProvider, err := r.store.UpdateAccreditation(ctx, db.UpdateAccreditationParams{
+		ID:                  id,
+		AccreditationStatus: stringToPgtypeText(status),
+		AccreditationExpiry: timePtrToPgtypeTimestamptz(expiry),
+		AccreditationBody:   stringToPgtypeText(body),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update accreditation: %w", err)
+	}
+	return sqlcProviderToDomain(dbProvider), nil
+}
+
+func (r *providerRepository) ListByAccreditationStatus(ctx context.Context, status string, limit, offset int) ([]*entity.Provider, error) {
+	dbProviders, err := r.store.ListProvidersByAccreditationStatus(ctx, db.ListProvidersByAccreditationStatusParams{
+		AccreditationStatus: stringToPgtypeText(status),
+		Limit:               int32(limit),
+		Offset:              int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list providers by accreditation status: %w", err)
+	}
+	providers := make([]*entity.Provider, len(dbProviders))
+	for i, p := range dbProviders {
+		providers[i] = sqlcProviderToDomain(p)
+	}
+	return providers, nil
+}
+
+func (r *providerRepository) ListExpiringAccreditations(ctx context.Context, days, limit, offset int) ([]*entity.Provider, error) {
+	dbProviders, err := r.store.ListExpiringAccreditations(ctx, db.ListExpiringAccreditationsParams{
+		Days:   int32(days),
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list expiring accreditations: %w", err)
+	}
+	providers := make([]*entity.Provider, len(dbProviders))
+	for i, p := range dbProviders {
+		providers[i] = sqlcProviderToDomain(p)
+	}
+	return providers, nil
+}
+
 func sqlcProviderToDomain(p db.Provider) *entity.Provider {
 	return &entity.Provider{
-		ID:            p.ID,
-		Name:          p.Name,
-		Type:          p.Type,
-		LicenseNumber: p.LicenseNumber,
-		Status:        p.Status,
-		Tier:          p.Tier,
-		County:        p.County.String,
-		Address:       p.Address.String,
-		Phone:         p.Phone.String,
-		Email:         p.Email.String,
-		ContactPerson: p.ContactPerson.String,
-		UserID:        pgtypeToUUID(p.UserID),
-		CreatedBy:     pgtypeToUUID(p.CreatedBy),
-		CreatedAt:     p.CreatedAt,
-		UpdatedAt:     p.UpdatedAt,
+		ID:                  p.ID,
+		Name:                p.Name,
+		Type:                p.Type,
+		LicenseNumber:       p.LicenseNumber,
+		Status:              p.Status,
+		Tier:                p.Tier,
+		County:              p.County.String,
+		Address:             p.Address.String,
+		Phone:               p.Phone.String,
+		Email:               p.Email.String,
+		ContactPerson:       p.ContactPerson.String,
+		AccreditationStatus: p.AccreditationStatus.String,
+		AccreditationExpiry: pgtypeTimestamptzToTimePtr(p.AccreditationExpiry),
+		AccreditationBody:   p.AccreditationBody.String,
+		UserID:              pgtypeToUUID(p.UserID),
+		CreatedBy:           pgtypeToUUID(p.CreatedBy),
+		CreatedAt:           p.CreatedAt,
+		UpdatedAt:           p.UpdatedAt,
 	}
 }

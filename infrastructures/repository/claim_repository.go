@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bitbiz/hias-core/domains/claims/entity"
 	domainRepo "github.com/bitbiz/hias-core/domains/claims/repository"
@@ -251,6 +252,33 @@ func (r *claimRepository) ListSLABreached(ctx context.Context, limit, offset int
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list SLA breached claims: %w", err)
+	}
+	claims := make([]*entity.Claim, len(dbClaims))
+	for i, c := range dbClaims {
+		claims[i] = sqlcClaimToDomain(c)
+	}
+	return claims, nil
+}
+
+func (r *claimRepository) FindByProviderAndDate(ctx context.Context, providerID uuid.UUID, serviceDate time.Time, amount int64) (*entity.Claim, error) {
+	dbClaim, err := r.store.FindClaimByProviderAndDate(ctx, db.FindClaimByProviderAndDateParams{
+		ProviderID:  providerID,
+		ServiceDate: serviceDate,
+		TotalAmount: amount,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to find claim by provider and date: %w", err)
+	}
+	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) ListApproachingSLA(ctx context.Context, limit, offset int) ([]*entity.Claim, error) {
+	dbClaims, err := r.store.ListApproachingSLAClaims(ctx, db.ListApproachingSLAClaimsParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list approaching SLA claims: %w", err)
 	}
 	claims := make([]*entity.Claim, len(dbClaims))
 	for i, c := range dbClaims {

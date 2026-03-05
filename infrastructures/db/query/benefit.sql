@@ -29,3 +29,10 @@ WHERE id = sqlc.arg('id') RETURNING *;
 
 -- name: DeleteBenefit :exec
 DELETE FROM benefits WHERE id = $1;
+
+-- name: CreateBenefitWithParent :one
+INSERT INTO benefits (plan_id, parent_benefit_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, deductible_amount)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+
+-- name: ListSubBenefits :many
+SELECT * FROM benefits WHERE parent_benefit_id = $1 ORDER BY name;

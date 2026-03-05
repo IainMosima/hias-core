@@ -35,6 +35,7 @@ type memberServiceImpl struct {
 	premiumRuleRepo      productRepo.PremiumRuleRepository
 	premiumRuleSvc       productService.PremiumRuleService
 	underwritingFlagRepo repository.UnderwritingFlagRepository
+	underwritingRuleRepo repository.UnderwritingRuleRepository
 	creditNoteSvc        billingService.CreditNoteService
 	auditSvc             auditService.AuditService
 }
@@ -46,6 +47,7 @@ func NewMemberService(
 	premiumRuleRepo productRepo.PremiumRuleRepository,
 	premiumRuleSvc productService.PremiumRuleService,
 	underwritingFlagRepo repository.UnderwritingFlagRepository,
+	underwritingRuleRepo repository.UnderwritingRuleRepository,
 	creditNoteSvc billingService.CreditNoteService,
 	auditSvc auditService.AuditService,
 ) service.MemberService {
@@ -56,6 +58,7 @@ func NewMemberService(
 		premiumRuleRepo:      premiumRuleRepo,
 		premiumRuleSvc:       premiumRuleSvc,
 		underwritingFlagRepo: underwritingFlagRepo,
+		underwritingRuleRepo: underwritingRuleRepo,
 		creditNoteSvc:        creditNoteSvc,
 		auditSvc:             auditSvc,
 	}
@@ -97,6 +100,9 @@ func (s *memberServiceImpl) EnrollMember(ctx context.Context, policyID uuid.UUID
 			fmt.Sprintf("Age violation for %s: %s", req.Name, err.Error()))
 		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusBadRequest, err.Error(), nil)
 	}
+
+	// Underwriting: evaluate plan-specific underwriting rules
+	s.evaluateUnderwritingRules(ctx, policyID, pol.PlanID, req, dob)
 
 	member := &entity.Member{
 		PolicyID:     policyID,
@@ -489,6 +495,43 @@ func (s *memberServiceImpl) createFlag(ctx context.Context, policyID, memberID, 
 	}
 	if _, err := s.underwritingFlagRepo.Create(ctx, flag); err != nil {
 		log.Printf("Warning: failed to create underwriting flag: %v", err)
+	}
+}
+
+func (s *memberServiceImpl) evaluateUnderwritingRules(ctx context.Context, policyID, planID uuid.UUID, req policySchema.EnrollMemberRequest, dob time.Time) {
+	if s.underwritingRuleRepo == nil {
+		return
+	}
+
+	rules, err := s.underwritingRuleRepo.ListActiveByPlan(ctx, planID)
+	if err != nil || len(rules) == 0 {
+		return
+	}
+
+	age := calculateMemberAge(dob)
+
+	for _, rule := range rules {
+		// Skip if rule is for a different relationship
+		if rule.Relationship != "" && !strings.EqualFold(rule.Relationship, req.Relationship) {
+			continue
+		}
+
+		switch rule.RuleType {
+		case string(shared.UnderwritingRuleMaxAge):
+			maxAge := 0
+			fmt.Sscanf(rule.ParameterValue, "%d", &maxAge)
+			if maxAge > 0 && age > maxAge {
+				s.createFlag(ctx, policyID, uuid.Nil, uuid.Nil, rule.RuleType, rule.Severity,
+					fmt.Sprintf("Enrollment UW: member %s age %d exceeds max %d for %s", req.Name, age, maxAge, req.Relationship))
+			}
+		case string(shared.UnderwritingRuleMinAge):
+			minAge := 0
+			fmt.Sscanf(rule.ParameterValue, "%d", &minAge)
+			if minAge > 0 && age < minAge {
+				s.createFlag(ctx, policyID, uuid.Nil, uuid.Nil, rule.RuleType, rule.Severity,
+					fmt.Sprintf("Enrollment UW: member %s age %d below min %d for %s", req.Name, age, minAge, req.Relationship))
+			}
+		}
 	}
 }
 

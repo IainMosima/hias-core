@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
 
 	claimsSchema "github.com/bitbiz/hias-core/domains/claims/schema"
@@ -251,6 +252,34 @@ func (h *ClaimHandler) ListClaimDocuments(ctx *gin.Context) {
 	}
 
 	resp := h.claimSvc.ListClaimDocuments(ctx.Request.Context(), claimID)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+func (h *ClaimHandler) ImportClaimsCSV(ctx *gin.Context) {
+	file, err := ctx.FormFile("file")
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "File is required")
+		return
+	}
+
+	f, err := file.Open()
+	if err != nil {
+		utils.RespondError(ctx, http.StatusInternalServerError, "Failed to open file")
+		return
+	}
+	defer f.Close()
+
+	csvData, err := io.ReadAll(f)
+	if err != nil {
+		utils.RespondError(ctx, http.StatusInternalServerError, "Failed to read file")
+		return
+	}
+
+	resp := h.claimSvc.ImportClaimsCSV(ctx.Request.Context(), csvData, getUserID(ctx))
 	if resp.Error != nil {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return

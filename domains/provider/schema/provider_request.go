@@ -42,3 +42,9 @@ type CreateRateCardRequest struct {
 type BulkCreateRateCardRequest struct {
 	RateCards []CreateRateCardRequest `json:"rate_cards" binding:"required,min=1"`
 }
+
+type UpdateAccreditationRequest struct {
+	AccreditationStatus string `json:"accreditation_status" binding:"required,oneof=NONE PENDING ACCREDITED EXPIRED REVOKED"`
+	AccreditationExpiry string `json:"accreditation_expiry"` // YYYY-MM-DD
+	AccreditationBody   string `json:"accreditation_body"`
+}

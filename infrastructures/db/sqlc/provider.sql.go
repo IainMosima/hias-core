@@ -25,7 +25,7 @@ func (q *Queries) CountProviders(ctx context.Context) (int64, error) {
 
 const createProvider = `-- name: CreateProvider :one
 INSERT INTO providers (name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body
 `
 
 type CreateProviderParams struct {
@@ -73,12 +73,15 @@ func (q *Queries) CreateProvider(ctx context.Context, arg CreateProviderParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Tier,
+		&i.AccreditationStatus,
+		&i.AccreditationExpiry,
+		&i.AccreditationBody,
 	)
 	return i, err
 }
 
 const getProviderByID = `-- name: GetProviderByID :one
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE id = $1
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers WHERE id = $1
 `
 
 func (q *Queries) GetProviderByID(ctx context.Context, id uuid.UUID) (Provider, error) {
@@ -100,12 +103,15 @@ func (q *Queries) GetProviderByID(ctx context.Context, id uuid.UUID) (Provider, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Tier,
+		&i.AccreditationStatus,
+		&i.AccreditationExpiry,
+		&i.AccreditationBody,
 	)
 	return i, err
 }
 
 const getProviderByLicense = `-- name: GetProviderByLicense :one
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE license_number = $1
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers WHERE license_number = $1
 `
 
 func (q *Queries) GetProviderByLicense(ctx context.Context, licenseNumber string) (Provider, error) {
@@ -127,12 +133,15 @@ func (q *Queries) GetProviderByLicense(ctx context.Context, licenseNumber string
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Tier,
+		&i.AccreditationStatus,
+		&i.AccreditationExpiry,
+		&i.AccreditationBody,
 	)
 	return i, err
 }
 
 const getProviderByUserID = `-- name: GetProviderByUserID :one
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE user_id = $1
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers WHERE user_id = $1
 `
 
 func (q *Queries) GetProviderByUserID(ctx context.Context, userID pgtype.UUID) (Provider, error) {
@@ -154,12 +163,66 @@ func (q *Queries) GetProviderByUserID(ctx context.Context, userID pgtype.UUID) (
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Tier,
+		&i.AccreditationStatus,
+		&i.AccreditationExpiry,
+		&i.AccreditationBody,
 	)
 	return i, err
 }
 
+const listExpiringAccreditations = `-- name: ListExpiringAccreditations :many
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers WHERE accreditation_status = 'ACCREDITED'
+AND accreditation_expiry <= NOW() + make_interval(days => $1)
+ORDER BY accreditation_expiry LIMIT $2 OFFSET $3
+`
+
+type ListExpiringAccreditationsParams struct {
+	Days   int32 `json:"days"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListExpiringAccreditations(ctx context.Context, arg ListExpiringAccreditationsParams) ([]Provider, error) {
+	rows, err := q.db.Query(ctx, listExpiringAccreditations, arg.Days, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Provider{}
+	for rows.Next() {
+		var i Provider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.LicenseNumber,
+			&i.Status,
+			&i.County,
+			&i.Address,
+			&i.Phone,
+			&i.Email,
+			&i.ContactPerson,
+			&i.UserID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Tier,
+			&i.AccreditationStatus,
+			&i.AccreditationExpiry,
+			&i.AccreditationBody,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProviders = `-- name: ListProviders :many
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListProvidersParams struct {
@@ -192,6 +255,58 @@ func (q *Queries) ListProviders(ctx context.Context, arg ListProvidersParams) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Tier,
+			&i.AccreditationStatus,
+			&i.AccreditationExpiry,
+			&i.AccreditationBody,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProvidersByAccreditationStatus = `-- name: ListProvidersByAccreditationStatus :many
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers WHERE accreditation_status = $1 ORDER BY name LIMIT $2 OFFSET $3
+`
+
+type ListProvidersByAccreditationStatusParams struct {
+	AccreditationStatus pgtype.Text `json:"accreditation_status"`
+	Limit               int32       `json:"limit"`
+	Offset              int32       `json:"offset"`
+}
+
+func (q *Queries) ListProvidersByAccreditationStatus(ctx context.Context, arg ListProvidersByAccreditationStatusParams) ([]Provider, error) {
+	rows, err := q.db.Query(ctx, listProvidersByAccreditationStatus, arg.AccreditationStatus, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Provider{}
+	for rows.Next() {
+		var i Provider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.LicenseNumber,
+			&i.Status,
+			&i.County,
+			&i.Address,
+			&i.Phone,
+			&i.Email,
+			&i.ContactPerson,
+			&i.UserID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Tier,
+			&i.AccreditationStatus,
+			&i.AccreditationExpiry,
+			&i.AccreditationBody,
 		); err != nil {
 			return nil, err
 		}
@@ -204,7 +319,7 @@ func (q *Queries) ListProviders(ctx context.Context, arg ListProvidersParams) ([
 }
 
 const listProvidersByStatus = `-- name: ListProvidersByStatus :many
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE status = $1 ORDER BY name LIMIT $2 OFFSET $3
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers WHERE status = $1 ORDER BY name LIMIT $2 OFFSET $3
 `
 
 type ListProvidersByStatusParams struct {
@@ -238,6 +353,9 @@ func (q *Queries) ListProvidersByStatus(ctx context.Context, arg ListProvidersBy
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Tier,
+			&i.AccreditationStatus,
+			&i.AccreditationExpiry,
+			&i.AccreditationBody,
 		); err != nil {
 			return nil, err
 		}
@@ -250,7 +368,7 @@ func (q *Queries) ListProvidersByStatus(ctx context.Context, arg ListProvidersBy
 }
 
 const listProvidersByTier = `-- name: ListProvidersByTier :many
-SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier FROM providers WHERE tier = $1 ORDER BY name LIMIT $2 OFFSET $3
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers WHERE tier = $1 ORDER BY name LIMIT $2 OFFSET $3
 `
 
 type ListProvidersByTierParams struct {
@@ -284,6 +402,9 @@ func (q *Queries) ListProvidersByTier(ctx context.Context, arg ListProvidersByTi
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Tier,
+			&i.AccreditationStatus,
+			&i.AccreditationExpiry,
+			&i.AccreditationBody,
 		); err != nil {
 			return nil, err
 		}
@@ -295,6 +416,53 @@ func (q *Queries) ListProvidersByTier(ctx context.Context, arg ListProvidersByTi
 	return items, nil
 }
 
+const updateAccreditation = `-- name: UpdateAccreditation :one
+UPDATE providers SET
+    accreditation_status = $2,
+    accreditation_expiry = $3,
+    accreditation_body = $4,
+    updated_at = NOW()
+WHERE id = $1 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body
+`
+
+type UpdateAccreditationParams struct {
+	ID                  uuid.UUID          `json:"id"`
+	AccreditationStatus pgtype.Text        `json:"accreditation_status"`
+	AccreditationExpiry pgtype.Timestamptz `json:"accreditation_expiry"`
+	AccreditationBody   pgtype.Text        `json:"accreditation_body"`
+}
+
+func (q *Queries) UpdateAccreditation(ctx context.Context, arg UpdateAccreditationParams) (Provider, error) {
+	row := q.db.QueryRow(ctx, updateAccreditation,
+		arg.ID,
+		arg.AccreditationStatus,
+		arg.AccreditationExpiry,
+		arg.AccreditationBody,
+	)
+	var i Provider
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.LicenseNumber,
+		&i.Status,
+		&i.County,
+		&i.Address,
+		&i.Phone,
+		&i.Email,
+		&i.ContactPerson,
+		&i.UserID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Tier,
+		&i.AccreditationStatus,
+		&i.AccreditationExpiry,
+		&i.AccreditationBody,
+	)
+	return i, err
+}
+
 const updateProvider = `-- name: UpdateProvider :one
 UPDATE providers SET
     name = COALESCE($1, name),
@@ -304,7 +472,7 @@ UPDATE providers SET
     email = COALESCE($5, email),
     contact_person = COALESCE($6, contact_person),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier
+WHERE id = $7 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body
 `
 
 type UpdateProviderParams struct {
@@ -344,12 +512,15 @@ func (q *Queries) UpdateProvider(ctx context.Context, arg UpdateProviderParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Tier,
+		&i.AccreditationStatus,
+		&i.AccreditationExpiry,
+		&i.AccreditationBody,
 	)
 	return i, err
 }
 
 const updateProviderStatus = `-- name: UpdateProviderStatus :one
-UPDATE providers SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier
+UPDATE providers SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body
 `
 
 type UpdateProviderStatusParams struct {
@@ -376,12 +547,15 @@ func (q *Queries) UpdateProviderStatus(ctx context.Context, arg UpdateProviderSt
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Tier,
+		&i.AccreditationStatus,
+		&i.AccreditationExpiry,
+		&i.AccreditationBody,
 	)
 	return i, err
 }
 
 const updateProviderTier = `-- name: UpdateProviderTier :one
-UPDATE providers SET tier = $2, updated_at = NOW() WHERE id = $1 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier
+UPDATE providers SET tier = $2, updated_at = NOW() WHERE id = $1 RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body
 `
 
 type UpdateProviderTierParams struct {
@@ -408,6 +582,9 @@ func (q *Queries) UpdateProviderTier(ctx context.Context, arg UpdateProviderTier
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Tier,
+		&i.AccreditationStatus,
+		&i.AccreditationExpiry,
+		&i.AccreditationBody,
 	)
 	return i, err
 }

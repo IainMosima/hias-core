@@ -11,6 +11,7 @@ import (
 	billingRepo "github.com/bitbiz/hias-core/domains/billing/repository"
 	billingSchema "github.com/bitbiz/hias-core/domains/billing/schema"
 	"github.com/bitbiz/hias-core/domains/billing/service"
+	claimEntity "github.com/bitbiz/hias-core/domains/claims/entity"
 	claimRepo "github.com/bitbiz/hias-core/domains/claims/repository"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/bitbiz/hias-core/shared"
@@ -129,17 +130,31 @@ func (s *statementServiceImpl) ReconcileStatement(ctx context.Context, id uuid.U
 	var matchedCount, unmatchedCount int
 	tolerance := int64(100) // 1 KES tolerance
 
+	// Fetch the statement to get provider ID for fallback matching
+	stmt, stmtErr := s.statementRepo.GetByID(ctx, id)
+	if stmtErr != nil {
+		return schema.NewServiceErrorResponse[billingSchema.ProviderStatementResponse](http.StatusNotFound, "Statement not found", stmtErr)
+	}
+
 	for _, item := range items {
-		if item.ClaimNumber == "" {
-			unmatchedCount++
-			continue
+		var claim *claimEntity.Claim
+		var claimErr error
+
+		// Primary match: by claim number
+		if item.ClaimNumber != "" {
+			claim, claimErr = s.claimRepo.GetByNumber(ctx, item.ClaimNumber)
 		}
 
-		// Try to match by claim number
-		claim, claimErr := s.claimRepo.GetByNumber(ctx, item.ClaimNumber)
-		if claimErr != nil {
+		// Fallback match: by provider + service date + amount
+		if claimErr != nil || claim == nil {
+			if item.ServiceDate != nil {
+				claim, claimErr = s.claimRepo.FindByProviderAndDate(ctx, stmt.ProviderID, *item.ServiceDate, item.ClaimedAmount)
+			}
+		}
+
+		if claimErr != nil || claim == nil {
 			unmatchedCount++
-			s.statementRepo.MatchLineItem(ctx, item.ID, uuid.Nil, string(shared.MatchStatusUnmatched), 0, "Claim not found")
+			s.statementRepo.MatchLineItem(ctx, item.ID, uuid.Nil, string(shared.MatchStatusUnmatched), 0, "No matching claim found")
 			continue
 		}
 

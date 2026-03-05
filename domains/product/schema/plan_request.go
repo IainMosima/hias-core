@@ -19,6 +19,7 @@ type UpdatePlanRequest struct {
 }
 
 type CreateBenefitRequest struct {
+	ParentBenefitID   string `json:"parent_benefit_id,omitempty"`
 	Name              string `json:"name" binding:"required"`
 	Category          string `json:"category" binding:"required"`
 	AnnualLimit       int64  `json:"annual_limit" binding:"required,min=1"`

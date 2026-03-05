@@ -25,4 +25,5 @@ type ClaimService interface {
 	ListClaimDocuments(ctx context.Context, claimID uuid.UUID) *schema.ServiceResponse[[]claimsSchema.ClaimDocumentResponse]
 	DeleteClaimDocument(ctx context.Context, docID uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimDocumentResponse]
 	GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64]
+	ImportClaimsCSV(ctx context.Context, csvData []byte, createdBy uuid.UUID) *schema.ServiceResponse[claimsSchema.BulkClaimResultResponse]
 }

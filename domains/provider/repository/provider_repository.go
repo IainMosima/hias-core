@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"github.com/bitbiz/hias-core/domains/provider/entity"
 	"github.com/google/uuid"
 )
@@ -18,4 +20,7 @@ type ProviderRepository interface {
 	Update(ctx context.Context, provider *entity.Provider) (*entity.Provider, error)
 	UpdateTier(ctx context.Context, id uuid.UUID, tier string) (*entity.Provider, error)
 	ListByTier(ctx context.Context, tier string, limit, offset int) ([]*entity.Provider, error)
+	UpdateAccreditation(ctx context.Context, id uuid.UUID, status string, expiry *time.Time, body string) (*entity.Provider, error)
+	ListByAccreditationStatus(ctx context.Context, status string, limit, offset int) ([]*entity.Provider, error)
+	ListExpiringAccreditations(ctx context.Context, days, limit, offset int) ([]*entity.Provider, error)
 }

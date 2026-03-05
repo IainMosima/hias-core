@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,15 @@ func uuidToPgtype(id uuid.UUID) pgtype.UUID {
 		return pgtype.UUID{Valid: false}
 	}
 	return pgtype.UUID{Bytes: id, Valid: true}
+}
+
+// uuidPtrToPgtype converts a *uuid.UUID to pgtype.UUID.
+// A nil pointer is treated as invalid (NULL).
+func uuidPtrToPgtype(id *uuid.UUID) pgtype.UUID {
+	if id == nil || *id == uuid.Nil {
+		return pgtype.UUID{Valid: false}
+	}
+	return pgtype.UUID{Bytes: *id, Valid: true}
 }
 
 // pgtypeToUUID converts a pgtype.UUID to a google/uuid.UUID.
@@ -126,4 +136,29 @@ func pgtypeInt8ToInt64Ptr(v pgtype.Int8) *int64 {
 	}
 	result := v.Int64
 	return &result
+}
+
+// int64PtrToPgtypeInt8 converts *int64 to pgtype.Int8.
+// A nil pointer is treated as invalid (NULL).
+func int64PtrToPgtypeInt8(v *int64) pgtype.Int8 {
+	if v == nil {
+		return pgtype.Int8{Valid: false}
+	}
+	return pgtype.Int8{Int64: *v, Valid: true}
+}
+
+// float64ToPgNumeric converts a float64 to pgtype.Numeric.
+func float64ToPgNumeric(f float64) pgtype.Numeric {
+	var n pgtype.Numeric
+	n.Scan(fmt.Sprintf("%f", f))
+	return n
+}
+
+// pgNumericToFloat64 converts a pgtype.Numeric to float64.
+func pgNumericToFloat64(n pgtype.Numeric) float64 {
+	if !n.Valid {
+		return 0
+	}
+	f, _ := n.Float64Value()
+	return f.Float64
 }
