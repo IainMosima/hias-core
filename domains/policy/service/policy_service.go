@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"time"
+
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	policySchema "github.com/bitbiz/hias-core/domains/policy/schema"
 	"github.com/google/uuid"
@@ -23,4 +25,6 @@ type PolicyService interface {
 	BulkLapse(ctx context.Context, ids []uuid.UUID) *schema.ServiceResponse[policySchema.BulkResultResponse]
 	CalculateProratedPremium(ctx context.Context, policyID uuid.UUID) *schema.ServiceResponse[int64]
 	GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64]
+	ListPoliciesFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string, page, pageSize int) *schema.ServiceResponse[[]policySchema.PolicyResponse]
+	CountPoliciesFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string) *schema.ServiceResponse[int64]
 }

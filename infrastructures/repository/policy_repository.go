@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bitbiz/hias-core/domains/policy/entity"
 	domainRepo "github.com/bitbiz/hias-core/domains/policy/repository"
@@ -211,4 +212,34 @@ func sqlcPolicyToDomain(p db.Policy) *entity.Policy {
 		CreatedAt:         p.CreatedAt,
 		UpdatedAt:         p.UpdatedAt,
 	}
+}
+
+func (r *policyRepository) ListFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string, limit, offset int) ([]*entity.Policy, error) {
+	dbPolicies, err := r.store.ListPoliciesFiltered(ctx, db.ListPoliciesFilteredParams{
+		DateFrom:    timePtrToPgtypeTimestamptz(dateFrom),
+		DateTo:      timePtrToPgtypeTimestamptz(dateTo),
+		Search:      search,
+		QueryLimit:  int32(limit),
+		QueryOffset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list policies filtered: %w", err)
+	}
+	policies := make([]*entity.Policy, len(dbPolicies))
+	for i, p := range dbPolicies {
+		policies[i] = sqlcPolicyToDomain(p)
+	}
+	return policies, nil
+}
+
+func (r *policyRepository) CountFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string) (int64, error) {
+	count, err := r.store.CountPoliciesFiltered(ctx, db.CountPoliciesFilteredParams{
+		DateFrom: timePtrToPgtypeTimestamptz(dateFrom),
+		DateTo:   timePtrToPgtypeTimestamptz(dateTo),
+		Search:   search,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count policies filtered: %w", err)
+	}
+	return count, nil
 }

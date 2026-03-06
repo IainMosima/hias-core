@@ -30,4 +30,10 @@ type ClaimRepository interface {
 	ListSLABreached(ctx context.Context, limit, offset int) ([]*entity.Claim, error)
 	FindByProviderAndDate(ctx context.Context, providerID uuid.UUID, serviceDate time.Time, amount int64) (*entity.Claim, error)
 	ListApproachingSLA(ctx context.Context, limit, offset int) ([]*entity.Claim, error)
+	CountByMemberThisMonth(ctx context.Context, memberID uuid.UUID) (int64, error)
+	SetEscalatedTo(ctx context.Context, claimID uuid.UUID, role string) error
+	ListFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string, limit, offset int) ([]*entity.Claim, error)
+	CountFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string) (int64, error)
+	CreateStatusHistory(ctx context.Context, claimID uuid.UUID, fromStatus, toStatus, action, notes string, performedBy uuid.UUID) error
+	ListTimeline(ctx context.Context, claimID uuid.UUID) ([]*entity.ClaimStatusHistory, error)
 }

@@ -22,6 +22,21 @@ type PremiumRuleResponse struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+type MemberPremiumBreakdown struct {
+	Relationship string `json:"relationship"`
+	Age          int    `json:"age"`
+	AgeBand      string `json:"age_band,omitempty"`
+	RateAmount   int64  `json:"rate_amount"`
+	RuleName     string `json:"rule_name,omitempty"`
+}
+
+type PremiumBreakdownResponse struct {
+	TotalPremium    int64                    `json:"total_premium"`
+	MemberBreakdown []MemberPremiumBreakdown `json:"member_breakdown"`
+	DiscountApplied int64                    `json:"discount_applied"`
+	CalculationType string                   `json:"calculation_type"`
+}
+
 func ToPremiumRuleResponse(r *entity.PremiumRule) PremiumRuleResponse {
 	return PremiumRuleResponse{
 		ID: r.ID, PlanID: r.PlanID, CalculationType: r.CalculationType,

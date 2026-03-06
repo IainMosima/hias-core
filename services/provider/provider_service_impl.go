@@ -235,6 +235,28 @@ func (s *providerServiceImpl) ListExpiringAccreditations(ctx context.Context, da
 	return schema.NewServiceResponse(responses, http.StatusOK, "Expiring accreditations retrieved")
 }
 
+func (s *providerServiceImpl) ListProvidersFiltered(ctx context.Context, search string, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse] {
+	offset := (page - 1) * pageSize
+	providers, err := s.providerRepo.ListFiltered(ctx, search, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to list providers", err)
+	}
+
+	responses := make([]providerSchema.ProviderResponse, len(providers))
+	for i, p := range providers {
+		responses[i] = providerSchema.ToProviderResponse(p)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Providers retrieved")
+}
+
+func (s *providerServiceImpl) CountProvidersFiltered(ctx context.Context, search string) *schema.ServiceResponse[int64] {
+	count, err := s.providerRepo.CountFiltered(ctx, search)
+	if err != nil {
+		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to count providers", err)
+	}
+	return schema.NewServiceResponse(count, http.StatusOK, "Count retrieved")
+}
+
 func (s *providerServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
 	if s.auditSvc != nil {
 		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")

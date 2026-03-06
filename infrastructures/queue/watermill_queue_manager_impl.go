@@ -3,17 +3,19 @@ package queue
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 )
 
 type watermillQueueManager struct {
-	publisher  *WatermillPublisher
-	subscriber message.Subscriber
-	config     QueueConfig
-	logger     watermill.LoggerAdapter
-	router     *message.Router
+	publisher    *WatermillPublisher
+	subscriber   message.Subscriber
+	config       QueueConfig
+	logger       watermill.LoggerAdapter
+	router       *message.Router
+	handlerCount atomic.Int64
 }
 
 func NewWatermillQueueManager(publisher *WatermillPublisher, subscriber message.Subscriber, config QueueConfig) (QueueManager, error) {
@@ -43,8 +45,9 @@ func (m *watermillQueueManager) Subscribe(_ context.Context, topic string, handl
 		return fmt.Errorf("unknown queue topic: %s", topic)
 	}
 
+	seq := m.handlerCount.Add(1)
 	m.router.AddNoPublisherHandler(
-		fmt.Sprintf("handler-%s", topic),
+		fmt.Sprintf("handler-%s-%d", topic, seq),
 		queueURL,
 		m.subscriber,
 		func(msg *message.Message) error {

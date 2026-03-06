@@ -64,3 +64,17 @@ SELECT COUNT(*) FROM members WHERE status = 'ACTIVE' AND created_at BETWEEN sqlc
 SELECT CASE WHEN COUNT(*) = 0 THEN 0 ELSE
     ROUND(COUNT(CASE WHEN pr.status = 'COMPLETED' THEN 1 END)::numeric / COUNT(*)::numeric * 100, 2)
 END FROM policy_renewals pr WHERE pr.created_at BETWEEN sqlc.arg('start_date') AND sqlc.arg('end_date');
+
+-- name: ListPoliciesFiltered :many
+SELECT * FROM policies
+WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'))
+  AND (sqlc.arg('search')::text = '' OR (policy_number ILIKE '%' || sqlc.arg('search') || '%' OR policyholder_name ILIKE '%' || sqlc.arg('search') || '%' OR policyholder_email ILIKE '%' || sqlc.arg('search') || '%'))
+ORDER BY created_at DESC
+LIMIT sqlc.arg('query_limit') OFFSET sqlc.arg('query_offset');
+
+-- name: CountPoliciesFiltered :one
+SELECT COUNT(*) FROM policies
+WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'))
+  AND (sqlc.arg('search')::text = '' OR (policy_number ILIKE '%' || sqlc.arg('search') || '%' OR policyholder_name ILIKE '%' || sqlc.arg('search') || '%' OR policyholder_email ILIKE '%' || sqlc.arg('search') || '%'));

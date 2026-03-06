@@ -18,6 +18,16 @@ func NewApprovalLimitHandler(approvalSvc service.ApprovalLimitService) *Approval
 	return &ApprovalLimitHandler{approvalSvc: approvalSvc}
 }
 
+// ListLimits godoc
+// @Summary      List approval limits
+// @Description  Retrieve all configured approval limits
+// @Tags         ApprovalLimits
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/approval-limits [get]
 func (h *ApprovalLimitHandler) ListLimits(ctx *gin.Context) {
 	resp := h.approvalSvc.GetLimits(ctx.Request.Context())
 	if resp.Error != nil {
@@ -27,6 +37,17 @@ func (h *ApprovalLimitHandler) ListLimits(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// CreateLimit godoc
+// @Summary      Create an approval limit
+// @Description  Create a new approval limit configuration
+// @Tags         ApprovalLimits
+// @Accept       json
+// @Produce      json
+// @Param        request body salesSchema.CreateApprovalLimitRequest true "Approval limit creation request"
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/approval-limits [post]
 func (h *ApprovalLimitHandler) CreateLimit(ctx *gin.Context) {
 	var req salesSchema.CreateApprovalLimitRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -42,6 +63,18 @@ func (h *ApprovalLimitHandler) CreateLimit(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// UpdateLimit godoc
+// @Summary      Update an approval limit
+// @Description  Update an existing approval limit configuration by its ID
+// @Tags         ApprovalLimits
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Approval Limit ID"
+// @Param        request body salesSchema.UpdateApprovalLimitRequest true "Approval limit update request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/approval-limits/{id} [put]
 func (h *ApprovalLimitHandler) UpdateLimit(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

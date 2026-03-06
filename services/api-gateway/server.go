@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	auditService "github.com/bitbiz/hias-core/domains/audit/service"
 	"github.com/bitbiz/hias-core/services/api-gateway/middleware"
 	"github.com/bitbiz/hias-core/services/api-gateway/routes"
 	"github.com/bitbiz/hias-core/shared/auth"
@@ -21,13 +22,16 @@ type Server struct {
 	tokenMaker auth.TokenMaker
 }
 
-func NewServer(tokenMaker auth.TokenMaker, allowedOrigins string) *Server {
+func NewServer(tokenMaker auth.TokenMaker, allowedOrigins string, auditSvc auditService.AuditService) *Server {
 	router := gin.Default()
 
 	// Global middleware
 	router.Use(middleware.RecoveryMiddleware())
 	router.Use(middleware.RequestIDMiddleware())
 	router.Use(middleware.CORSMiddleware(allowedOrigins))
+	router.Use(middleware.RateLimiterMiddleware(120, 60))
+	router.Use(middleware.MetricsMiddleware())
+	router.Use(middleware.AuditMiddleware(auditSvc))
 
 	return &Server{
 		router:     router,

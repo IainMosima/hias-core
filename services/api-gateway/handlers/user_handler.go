@@ -20,6 +20,17 @@ func NewUserHandler(userSvc service.UserService) *UserHandler {
 	return &UserHandler{userSvc: userSvc}
 }
 
+// CreateUser godoc
+// @Summary      Create a new user
+// @Description  Creates a new user account in the system
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        request body schema.CreateUserRequest true "Create user request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/users [post]
 func (h *UserHandler) CreateUser(ctx *gin.Context) {
 	var req schema.CreateUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -37,6 +48,17 @@ func (h *UserHandler) CreateUser(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// GetUser godoc
+// @Summary      Get a user by ID
+// @Description  Retrieves the details of a specific user
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/users/{id} [get]
 func (h *UserHandler) GetUser(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -53,6 +75,18 @@ func (h *UserHandler) GetUser(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ListUsers godoc
+// @Summary      List all users
+// @Description  Returns a paginated list of all users in the system
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        page query int false "Page number"
+// @Param        page_size query int false "Page size"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/users [get]
 func (h *UserHandler) ListUsers(ctx *gin.Context) {
 	pagination := utils.GetPaginationParams(ctx)
 
@@ -66,6 +100,18 @@ func (h *UserHandler) ListUsers(ctx *gin.Context) {
 	utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 }
 
+// UpdateUser godoc
+// @Summary      Update a user
+// @Description  Updates the details of an existing user
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Param        request body schema.UpdateUserRequest true "Update user request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/users/{id} [put]
 func (h *UserHandler) UpdateUser(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -88,6 +134,18 @@ func (h *UserHandler) UpdateUser(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// AssignRole godoc
+// @Summary      Assign a role to a user
+// @Description  Assigns or changes the role of a specific user
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Param        request body schema.AssignRoleRequest true "Assign role request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/users/{id}/role [put]
 func (h *UserHandler) AssignRole(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -110,6 +168,18 @@ func (h *UserHandler) AssignRole(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// UpdateStatus godoc
+// @Summary      Update user status
+// @Description  Updates the status of a specific user (e.g., active, inactive)
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "User ID"
+// @Param        request body schema.UpdateStatusRequest true "Update status request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/users/{id}/status [put]
 func (h *UserHandler) UpdateStatus(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

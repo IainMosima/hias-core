@@ -2,7 +2,7 @@
 
 ## Overview
 
-When a claim is submitted via `POST /api/v1/claims`, it goes through an automated pipeline that validates, adjudicates, and flags the claim in a single synchronous request. The response includes the final status, calculated amounts, adjudication decision, and any fraud flags.
+When a claim is submitted via `POST /api/v1/claims`, it goes through an automated pipeline that validates, runs fraud checks, adjudicates, evaluates escalation rules, and publishes events — all in a single synchronous request. The response includes the final status, calculated amounts, adjudication decision, and any fraud flags.
 
 ## Pipeline Flow
 
@@ -13,18 +13,29 @@ Submit Claim
 [1] Create claim record (status: RECEIVED)
     |
     v
-[2] Create line items
+[2] Create line items, calculate total_amount
     |
     v
 [3] VALIDATE --- fail ---> REJECTED (with reasons)
     |
-   pass
+   pass (status: VALIDATED)
     |
     v
-    (status: VALIDATED)
+[4] FRAUD CHECKS (run BEFORE adjudication)
+    |   - Duplicate check
+    |   - Frequency check
+    |   - Amount threshold
+    |   - Expired contract
+    |   - Suspended provider
+    |   - Rate card overcharge
+    |   - Repeat visit
     |
     v
-[4] ADJUDICATE
+[5] Check for CRITICAL fraud flags
+    |   - If CRITICAL/HIGH fraud -> override to MANUAL_REVIEW after adjudication
+    |
+    v
+[6] ADJUDICATE (applies configurable rules from DB)
     |
     +--> REJECT ---------> REJECTED (with rule results)
     |
@@ -33,16 +44,32 @@ Submit Claim
     +--> APPROVE ---------> ADJUDICATED (amounts calculated)
     |
     v
-[5] Store adjudication decision
+[7] Override: if critical fraud + APPROVE -> force MANUAL_REVIEW
     |
     v
-[6] Update claim amounts + status
+[8] Store adjudication decision
     |
     v
-[7] Run fraud checks (frequency + amount threshold)
+[9] Update claim amounts + status
     |
     v
-[8] Return final claim with all data
+[10] Evaluate ESCALATION RULES (configurable from DB)
+    |   - AMOUNT_EXCEEDS -> escalate to senior reviewer
+    |   - FRAUD_FLAG -> escalate if HIGH/CRITICAL severity
+    |   - MANUAL_REVIEW -> escalate per rule config
+    |   Result: may set status to ESCALATED
+    |
+    v
+[11] Publish ClaimSubmittedEvent to queue (async)
+    |
+    v
+[12] If preauth_id provided, mark PreAuth as CLAIMED
+    |
+    v
+[13] Record timeline entry (claim_status_history)
+    |
+    v
+[14] Return final claim with all data
 ```
 
 ## Stage Details
@@ -71,138 +98,188 @@ If validation fails, the claim is rejected with all error reasons joined by `;`.
 
 **Files:** `services/claims/validator_service_impl.go`
 
-### Stage 4: Adjudication
+### Stage 4: Fraud Checks (BEFORE Adjudication)
+
+Fraud checks run **before** adjudication so that critical fraud flags can influence the adjudication outcome. Each check creates a `FraudFlag` record with a severity level.
+
+| Check | What It Does | Flag Type | Severity |
+|-------|-------------|-----------|----------|
+| Duplicate | Same claim number, different ID | `DUPLICATE` | HIGH |
+| Frequency | Same member+provider+procedure repeated | `FREQUENCY` | MEDIUM |
+| Amount Threshold | Total > 500,000 KES (50,000,000 cents) | `AMOUNT_THRESHOLD` | HIGH |
+| Expired Contract | Provider contract has expired | `EXPIRED_CONTRACT` | HIGH |
+| Suspended Provider | Provider is suspended | `SUSPENDED_PROVIDER` | CRITICAL |
+| Rate Card Overcharge | Unit price exceeds provider's agreed rate | `RATE_CARD_OVERCHARGE` | MEDIUM |
+| Repeat Visit | Same member+provider within short window | `REPEAT_VISIT` | LOW |
+
+**Files:** `services/claims/fraud_service_impl.go`, `services/claims/claim_service_impl.go` (Step 3)
+
+### Stage 5: Critical Fraud Override
+
+After fraud checks, the system checks if any flag has `HIGH` or `CRITICAL` severity. If so, even if adjudication approves the claim, the decision is overridden to `MANUAL_REVIEW`.
+
+### Stage 6: Adjudication
 
 The adjudicator runs a series of **business rules** and produces an `AdjudicationResult` with a decision (`APPROVE`, `REJECT`, or `MANUAL_REVIEW`), calculated amounts, and detailed rule results.
 
 Rules are evaluated in order. A `FAIL` on any critical rule short-circuits with a `REJECT`.
 
-#### Rule 1: Policy Active (eligibility)
-- Same as validation, but part of the adjudicator's own rule results
-- Fail -> REJECT
+#### Hardcoded Rules (always run)
 
-#### Rule 2: Member Enrolled (eligibility)
-- Member must exist in the DB
-- Fail -> REJECT
+| # | Rule | Check | On Fail |
+|---|------|-------|---------|
+| 1 | Policy Active | Policy status = ACTIVE | REJECT |
+| 2 | Member Enrolled | Member exists in DB | REJECT |
+| 3 | Provider Active | Provider status = ACTIVE | REJECT |
+| 4 | Benefits Exist | Plan has at least one benefit | REJECT |
+| 5 | Waiting Period | `service_date >= member.created_at + waiting_period_days` | REJECT |
+| 6 | Exclusion Check | Claim diagnosis codes vs plan exclusion ICD codes | REJECT |
+| 7 | Annual Limits | Calculate remaining limit, apply co-pay/deductible | Partial approval |
+| 8 | Pre-Auth Validation | If preauth_id provided, verify it's APPROVED and not expired | REJECT |
+| 9 | Duplicate Check | Via fraud service | MANUAL_REVIEW |
 
-#### Rule 3: Provider Active (eligibility)
-- Provider must exist and have `status = ACTIVE`
-- Fail -> REJECT
+#### Configurable Rules (from adjudication_rules table)
 
-#### Rule 4: Benefits Exist (coverage)
-- At least one benefit must be configured for the policy's plan
-- Fail -> REJECT
+After hardcoded rules pass, the system fetches active `AdjudicationRule` records from the DB and evaluates them:
 
-#### Rule 5: Waiting Period (eligibility)
-- For each benefit with `waiting_period_days > 0`:
-  - Calculates `waiting_end = member.created_at + waiting_period_days`
-  - If `claim.service_date < waiting_end` -> REJECT
-- Uses `member.created_at` as the enrollment date (when the member was added to the policy)
-- Example: Benefit has 30-day waiting period. Member enrolled Jan 1. Claim with service date Jan 15 -> REJECTED
+| Rule Type | What It Does | On Fail |
+|-----------|-------------|---------|
+| `AMOUNT_THRESHOLD` | Rejects if amount exceeds configured threshold | REJECT |
+| `FREQUENCY_LIMIT` | Rejects if member claims exceed monthly limit | REJECT |
+| `AUTO_APPROVE` | Auto-approves if amount is below configured threshold | FLAG (skip manual) |
 
-**Files:** `services/claims/adjudicator_service_impl.go` (lines 118-135)
+**CRUD for rules:** `GET/POST/PUT/DELETE /api/v1/adjudication-rules`
 
-#### Rule 6: Exclusion Check (coverage)
-- Fetches all exclusions for the policy's plan via `exclusionRepo.ListByPlan`
-- Parses the claim's `diagnosis_codes` JSON array
-- For each exclusion, parses its `icd_codes` JSON array
-- If any claim diagnosis code matches any exclusion ICD code -> REJECT
-- Example: Plan excludes cosmetic procedures with ICD codes `["Z41.1", "Z41.8"]`. Claim has diagnosis code `Z41.1` -> REJECTED
+**Files:** `services/claims/adjudicator_service_impl.go`
 
-**Files:** `services/claims/adjudicator_service_impl.go` (lines 137-157)
+#### Amount Calculation
 
-#### Rule 7: Annual Limits & Co-Pay Calculation (limits)
-- For each benefit in the plan:
-  - Queries total approved amount this year for the member + benefit category
-  - `remaining = annual_limit - used`
-  - If `remaining <= 0` -> skip this benefit (limit exhausted)
-  - If `payable_amount > remaining` -> cap at remaining (partial approval)
-  - Apply co-pay:
-    - `percentage`: `co_pay = payable * co_pay_value / 100`
-    - `fixed`: `co_pay = co_pay_value`
-  - `payable_amount -= co_pay_amount`
-  - Break after first matching benefit
-
-**Amount calculation:**
 ```
-payable_amount      = min(total_amount, remaining_annual_limit) - co_pay
-co_pay_amount       = calculated from benefit co-pay rules
-member_responsibility = co_pay + any excess above annual limit
+payable_amount       = min(total_amount, remaining_annual_limit) - co_pay - deductible
+co_pay_amount        = calculated from benefit co-pay rules (percentage or fixed)
+deductible_amount    = calculated from benefit deductible rules
+member_responsibility = co_pay + deductible + any excess above annual limit
 ```
 
-#### Rule 8: Duplicate Check (fraud)
-- Calls `fraudSvc.CheckDuplicate(claimNumber, claimID)`
-- Queries fraud_flags table for existing flags with same claim number but different claim ID
-- If duplicate found -> `MANUAL_REVIEW` (does NOT auto-reject, sends to human reviewer)
-
-### Stage 5-6: Store Decision & Update Claim
+### Stage 8-9: Store Decision & Update Claim
 
 The adjudication result is:
 1. Stored as an `AdjudicationDecision` record (with JSON rule results)
 2. Mapped to a claim status:
-   - `APPROVE` -> claim status `ADJUDICATED`
-   - `REJECT` -> claim status `REJECTED` (with rejection reason from failed rules)
-   - `MANUAL_REVIEW` -> claim status `MANUAL_REVIEW`
+   - `APPROVE` -> `ADJUDICATED`
+   - `REJECT` -> `REJECTED` (with rejection reason from failed rules)
+   - `MANUAL_REVIEW` -> `MANUAL_REVIEW`
 3. Claim amounts updated: `approved_amount`, `co_pay_amount`, `member_responsibility`
 
-### Stage 7: Post-Adjudication Fraud Checks
+### Stage 10: Escalation Rules
 
-These run **after** adjudication and create `FraudFlag` records. They do NOT change the claim status — they are informational flags visible when fetching the claim.
+After status is determined, configurable escalation rules from the `escalation_rules` table are evaluated:
 
-#### Frequency Check
-- `fraudSvc.CheckFrequency(memberID, providerID, procedureCode, claimID)`
-- Queries fraud_flags table for how many times this member+provider+procedure combo has been claimed
-- If count > 0 -> creates a `FREQUENCY` flag with `MEDIUM` severity
-- Purpose: catch patterns like a member visiting the same provider for the same procedure repeatedly
+| Condition | Check | Action |
+|-----------|-------|--------|
+| `AMOUNT_EXCEEDS` | Claim amount > rule threshold | Set status to `ESCALATED`, assign to escalation role |
+| `FRAUD_FLAG` | Any fraud flag with HIGH or CRITICAL severity | Set status to `ESCALATED` |
+| `MANUAL_REVIEW` | Claim is in MANUAL_REVIEW | Set status to `ESCALATED` |
 
-#### Amount Threshold Check
-- `fraudSvc.CheckAmountThreshold(providerID, procedureCode, totalAmount)`
-- Simple threshold: flags if `total_amount > 50,000,000` (500,000 KES)
-- If exceeded -> creates an `AMOUNT_THRESHOLD` flag with `HIGH` severity
-- Purpose: catch abnormally large claims
+**CRUD for rules:** `GET/POST/PUT/DELETE /api/v1/escalation-rules`
 
-**Files:** `services/claims/fraud_service_impl.go`, `services/claims/claim_service_impl.go` (lines 167-190)
+**Files:** `services/claims/claim_service_impl.go` (evaluateEscalationRules)
 
-### Stage 8: Response
+### Stage 11: Event Publishing
+
+A `ClaimSubmittedEvent` is published to the `claim-processing` SQS queue (async, non-blocking):
+```json
+{
+  "claim_id": "uuid",
+  "claim_number": "CLM-2026-000001",
+  "policy_id": "uuid",
+  "member_id": "uuid",
+  "total_amount": 1000000
+}
+```
+
+### Stage 13: Timeline Recording
+
+Every status change is recorded in the `claim_status_history` table for the claim timeline:
+```json
+{
+  "from_status": "RECEIVED",
+  "to_status": "ADJUDICATED",
+  "action": "SUBMIT",
+  "performed_by": "uuid",
+  "created_at": "2026-03-06T10:00:00Z"
+}
+```
+
+Retrieve via `GET /api/v1/claims/:id/timeline`.
+
+### Stage 14: Response
 
 The claim is re-fetched from DB to include all updated amounts and status. The response includes:
 ```json
 {
-  "id": "...",
-  "claim_number": "CLM-2026-000001",
-  "status": "ADJUDICATED",
-  "total_amount": 1000000,
-  "approved_amount": 800000,
-  "co_pay_amount": 200000,
-  "member_responsibility": 200000,
-  ...
+  "status": "success",
+  "message": "Claim submitted successfully",
+  "data": {
+    "id": "...",
+    "claim_number": "CLM-2026-000001",
+    "status": "ADJUDICATED",
+    "total_amount": 1000000,
+    "approved_amount": 800000,
+    "co_pay_amount": 100000,
+    "member_responsibility": 200000,
+    "line_items": [...],
+    "decision": { "decision": "APPROVE", "payable_amount": 800000, "rule_results": [...] },
+    "fraud_flags": [...]
+  }
 }
 ```
 
 When fetched via `GET /claims/:id`, additional nested data is included:
-- `line_items[]` - individual procedures
+- `line_items[]` - individual procedures with approved amounts
 - `decision` - full adjudication decision with rule results
-- `fraud_flags[]` - any fraud flags raised
+- `fraud_flags[]` - any fraud flags raised (with severity and resolution status)
 
 ## Post-Pipeline Actions
 
+### Vet Claim (`PUT /claims/:id/vet`)
+- Requires claim status: `ADJUDICATED` or `MANUAL_REVIEW` or `ESCALATED`
+- Claims officer reviews and optionally adjusts amounts
+- Sets status to `VETTED`
+
 ### Approve Claim (`PUT /claims/:id/approve`)
-- Requires claim status: `ADJUDICATED` or `MANUAL_REVIEW`
-- Uses amounts from the stored adjudication decision
+- Requires claim status: `ADJUDICATED`, `MANUAL_REVIEW`, `VETTED`, or `ESCALATED`
+- Uses amounts from the stored adjudication decision (or vetted amounts)
 - Sets status to `APPROVED`
+- Publishes `ClaimApprovedEvent` to queue
 
 ### Reject Claim (`PUT /claims/:id/reject`)
-- Requires claim status: `RECEIVED`, `VALIDATED`, `ADJUDICATED`, or `MANUAL_REVIEW`
+- Requires claim status: `RECEIVED`, `VALIDATED`, `ADJUDICATED`, `MANUAL_REVIEW`, or `ESCALATED`
 - Cannot reject `APPROVED` or `PAID` claims
 - Requires a `reason` in the request body
+
+### Ready for Payment (`PUT /claims/:id/ready-for-payment`)
+- Requires claim status: `APPROVED`
+- Sets status to `READY_FOR_PAYMENT`
+
+### Mark Paid (`PUT /claims/:id/mark-paid`)
+- Requires claim status: `READY_FOR_PAYMENT` or `APPROVED`
+- Sets status to `PAID`
+
+### Mark Part Paid (`PUT /claims/:id/mark-part-paid`)
+- Requires claim status: `READY_FOR_PAYMENT` or `APPROVED`
+- Sets status to `PART_PAID`
 
 ## Claim Status Lifecycle
 
 ```
-RECEIVED -> VALIDATED -> ADJUDICATED -> APPROVED -> PAID
-                |              |
-                |              +--> MANUAL_REVIEW -> APPROVED
+RECEIVED -> VALIDATED -> ADJUDICATED -> VETTED -> APPROVED -> READY_FOR_PAYMENT -> PAID
+                |              |           |                                     -> PART_PAID
+                |              |           +-> REJECTED
+                |              +--> MANUAL_REVIEW -> VETTED -> APPROVED
                 |              |                  -> REJECTED
+                |              +--> ESCALATED -> VETTED -> APPROVED
+                |              |              -> REJECTED
                 |              +--> REJECTED
                 +--> REJECTED
 ```
@@ -211,11 +288,27 @@ RECEIVED -> VALIDATED -> ADJUDICATED -> APPROVED -> PAID
 |--------|---------|
 | `RECEIVED` | Claim created, not yet processed |
 | `VALIDATED` | Passed pre-adjudication validation |
-| `ADJUDICATED` | Adjudication complete, auto-approved by rules, awaiting human approval |
-| `MANUAL_REVIEW` | Flagged for human review (e.g., duplicate detected) |
+| `ADJUDICATED` | Adjudication complete, auto-approved by rules, awaiting human review |
+| `MANUAL_REVIEW` | Flagged for human review (fraud, duplicate, etc.) |
+| `ESCALATED` | Escalated to senior reviewer per escalation rules |
+| `VETTED` | Claims officer has reviewed and verified amounts |
+| `PARTIALLY_VETTED` | Partial vetting complete |
 | `APPROVED` | Human-approved, ready for payment |
 | `REJECTED` | Rejected at any stage (validation, adjudication, or manual) |
+| `READY_FOR_PAYMENT` | Approved and queued for payment processing |
 | `PAID` | Payment processed (set by billing/remittance) |
+| `PART_PAID` | Partial payment processed |
+
+## Bulk Operations
+
+### Bulk Submit (`POST /claims/bulk`)
+Submit multiple claims in one request. Each goes through the full pipeline independently.
+
+### CSV Import (`POST /claims/import-csv`)
+Import claims from a CSV file. Admin/Claims Officer role required.
+
+### SLA Monitoring (`GET /claims/sla-breached`)
+Returns claims that have exceeded their SLA deadline. The `ClaimSLATask` scheduler checks every 15 minutes and sends notifications.
 
 ## Key Files Reference
 
@@ -223,12 +316,16 @@ RECEIVED -> VALIDATED -> ADJUDICATED -> APPROVED -> PAID
 |------|---------|
 | `services/claims/claim_service_impl.go` | Orchestrates the full pipeline in SubmitClaim |
 | `services/claims/validator_service_impl.go` | Pre-adjudication validation rules |
-| `services/claims/adjudicator_service_impl.go` | Business rules engine (eligibility, coverage, limits, fraud) |
-| `services/claims/fraud_service_impl.go` | Fraud check implementations (duplicate, frequency, threshold) |
+| `services/claims/adjudicator_service_impl.go` | Business rules engine (eligibility, coverage, limits, configurable rules) |
+| `services/claims/fraud_service_impl.go` | Fraud check implementations (7 check types) |
 | `domains/claims/entity/adjudication_decision.go` | AdjudicationDecision + AdjudicationResult + RuleResult types |
 | `domains/claims/entity/fraud_flag.go` | FraudFlag entity |
-| `domains/claims/repository/claim_repository.go` | ClaimRepository interface (UpdateStatus, UpdateAmounts, Reject) |
+| `domains/claims/entity/claim_status_history.go` | Timeline entry entity |
+| `domains/claims/repository/claim_repository.go` | ClaimRepository interface |
 | `domains/claims/repository/adjudication_repository.go` | AdjudicationRepository interface |
+| `domains/claims/repository/adjudication_rule_repository.go` | Configurable adjudication rules |
+| `domains/claims/repository/escalation_rule_repository.go` | Configurable escalation rules |
+| `infrastructures/scheduler/tasks/claim_sla_task.go` | SLA breach monitoring task |
 
 ## Exclusion Configuration
 
@@ -251,12 +348,3 @@ Request body:
 ```
 
 Types: `pre_existing`, `cosmetic`, `experimental`
-
-## Policy Status Guards
-
-| Action | Required Status | Endpoint |
-|--------|----------------|----------|
-| Activate | `DRAFT` | `PUT /policies/:id/activate` |
-| Lapse | `ACTIVE` | `PUT /policies/:id/lapse` |
-| Terminate | `ACTIVE` or `LAPSED` | `PUT /policies/:id/terminate` |
-| Reinstate | `LAPSED` | `PUT /policies/:id/reinstate` |

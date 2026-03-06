@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"github.com/bitbiz/hias-core/domains/policy/entity"
 	"github.com/google/uuid"
 )
@@ -21,4 +23,6 @@ type PolicyRepository interface {
 	UpdatePlanAndPremium(ctx context.Context, id uuid.UUID, planID uuid.UUID, premiumAmount int64) (*entity.Policy, error)
 	GetLapsedForTermination(ctx context.Context) ([]*entity.Policy, error)
 	GetOverdueForLapse(ctx context.Context) ([]*entity.Policy, error)
+	ListFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string, limit, offset int) ([]*entity.Policy, error)
+	CountFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string) (int64, error)
 }

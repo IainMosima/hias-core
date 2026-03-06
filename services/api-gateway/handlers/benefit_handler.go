@@ -18,6 +18,18 @@ func NewBenefitHandler(benefitSvc service.BenefitService) *BenefitHandler {
 	return &BenefitHandler{benefitSvc: benefitSvc}
 }
 
+// CreateBenefit godoc
+// @Summary      Create a benefit for a plan
+// @Description  Create a new benefit associated with the specified plan
+// @Tags         Benefits
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Plan ID"
+// @Param        request body schema.CreateBenefitRequest true "Benefit creation payload"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/plans/{id}/benefits [post]
 func (h *BenefitHandler) CreateBenefit(ctx *gin.Context) {
 	planID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -39,6 +51,17 @@ func (h *BenefitHandler) CreateBenefit(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ListBenefits godoc
+// @Summary      List benefits for a plan
+// @Description  Retrieve all benefits associated with the specified plan
+// @Tags         Benefits
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Plan ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/plans/{id}/benefits [get]
 func (h *BenefitHandler) ListBenefits(ctx *gin.Context) {
 	planID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -54,6 +77,18 @@ func (h *BenefitHandler) ListBenefits(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// CreateSubBenefit godoc
+// @Summary      Create a sub-benefit
+// @Description  Create a new sub-benefit under the specified parent benefit
+// @Tags         Benefits
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Parent Benefit ID"
+// @Param        request body schema.CreateBenefitRequest true "Sub-benefit creation payload"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/benefits/{id}/sub-benefits [post]
 func (h *BenefitHandler) CreateSubBenefit(ctx *gin.Context) {
 	parentID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -75,6 +110,17 @@ func (h *BenefitHandler) CreateSubBenefit(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ListSubBenefits godoc
+// @Summary      List sub-benefits
+// @Description  Retrieve all sub-benefits under the specified parent benefit
+// @Tags         Benefits
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Parent Benefit ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/benefits/{id}/sub-benefits [get]
 func (h *BenefitHandler) ListSubBenefits(ctx *gin.Context) {
 	parentID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

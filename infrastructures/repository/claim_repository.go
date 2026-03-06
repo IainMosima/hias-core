@@ -287,6 +287,90 @@ func (r *claimRepository) ListApproachingSLA(ctx context.Context, limit, offset 
 	return claims, nil
 }
 
+func (r *claimRepository) CountByMemberThisMonth(ctx context.Context, memberID uuid.UUID) (int64, error) {
+	count, err := r.store.CountClaimsByMemberThisMonth(ctx, memberID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count claims by member this month: %w", err)
+	}
+	return count, nil
+}
+
+func (r *claimRepository) SetEscalatedTo(ctx context.Context, claimID uuid.UUID, role string) error {
+	return r.store.SetClaimEscalatedTo(ctx, db.SetClaimEscalatedToParams{
+		ID:          claimID,
+		EscalatedTo: stringToPgtypeText(role),
+	})
+}
+
+func (r *claimRepository) ListFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string, limit, offset int) ([]*entity.Claim, error) {
+	dbClaims, err := r.store.ListClaimsFiltered(ctx, db.ListClaimsFilteredParams{
+		StatusFilter: status,
+		DateFrom:     timePtrToPgtypeTimestamptz(dateFrom),
+		DateTo:       timePtrToPgtypeTimestamptz(dateTo),
+		Search:       search,
+		QueryLimit:   int32(limit),
+		QueryOffset:  int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list claims filtered: %w", err)
+	}
+	claims := make([]*entity.Claim, len(dbClaims))
+	for i, c := range dbClaims {
+		claims[i] = sqlcClaimToDomain(c)
+	}
+	return claims, nil
+}
+
+func (r *claimRepository) CountFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string) (int64, error) {
+	count, err := r.store.CountClaimsFiltered(ctx, db.CountClaimsFilteredParams{
+		StatusFilter: status,
+		DateFrom:     timePtrToPgtypeTimestamptz(dateFrom),
+		DateTo:       timePtrToPgtypeTimestamptz(dateTo),
+		Search:       search,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count claims filtered: %w", err)
+	}
+	return count, nil
+}
+
+func (r *claimRepository) CreateStatusHistory(ctx context.Context, claimID uuid.UUID, fromStatus, toStatus, action, notes string, performedBy uuid.UUID) error {
+	_, err := r.store.CreateClaimStatusHistory(ctx, db.CreateClaimStatusHistoryParams{
+		ClaimID:     claimID,
+		FromStatus:  fromStatus,
+		ToStatus:    toStatus,
+		Action:      action,
+		Notes:       notes,
+		PerformedBy: performedBy,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create claim status history: %w", err)
+	}
+	return nil
+}
+
+func (r *claimRepository) ListTimeline(ctx context.Context, claimID uuid.UUID) ([]*entity.ClaimStatusHistory, error) {
+	rows, err := r.store.ListClaimTimeline(ctx, claimID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list claim timeline: %w", err)
+	}
+	entries := make([]*entity.ClaimStatusHistory, len(rows))
+	for i, row := range rows {
+		entries[i] = &entity.ClaimStatusHistory{
+			ID:              row.ID,
+			ClaimID:         row.ClaimID,
+			FromStatus:      row.FromStatus,
+			ToStatus:        row.ToStatus,
+			Action:          row.Action,
+			Notes:           row.Notes,
+			PerformedBy:     row.PerformedBy,
+			PerformedByName: row.PerformedByName,
+			CreatedAt:       row.CreatedAt,
+		}
+	}
+	return entries, nil
+}
+
 func sqlcClaimToDomain(c db.Claim) *entity.Claim {
 	return &entity.Claim{
 		ID:                   c.ID,
@@ -311,6 +395,7 @@ func sqlcClaimToDomain(c db.Claim) *entity.Claim {
 		VettedAt:             pgtypeTimestamptzToTimePtr(c.VettedAt),
 		SLABreachAt:          pgtypeTimestamptzToTimePtr(c.SlaBreachAt),
 		RejectionReason:      c.RejectionReason.String,
+		EscalatedTo:          c.EscalatedTo.String,
 		CreatedBy:            pgtypeToUUID(c.CreatedBy),
 		CreatedAt:            c.CreatedAt,
 		UpdatedAt:            c.UpdatedAt,

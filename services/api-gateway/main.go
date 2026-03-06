@@ -13,6 +13,7 @@ import (
 	"github.com/bitbiz/hias-core/infrastructures/repository"
 	"github.com/bitbiz/hias-core/infrastructures/scheduler"
 	schedulerTasks "github.com/bitbiz/hias-core/infrastructures/scheduler/tasks"
+	"github.com/bitbiz/hias-core/infrastructures/workers"
 	"github.com/bitbiz/hias-core/services/analytics"
 	"github.com/bitbiz/hias-core/services/api-gateway/handlers"
 	"github.com/bitbiz/hias-core/services/api-gateway/routes"
@@ -34,9 +35,18 @@ import (
 	"github.com/bitbiz/hias-core/services/sales"
 	"github.com/bitbiz/hias-core/shared/auth"
 
+	_ "github.com/bitbiz/hias-core/docs/swagger"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// @title           HIAS Core API
+// @version         1.0
+// @description     Health Insurance Administration System - Core API
+// @host            localhost:8080
+// @BasePath        /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	// 1. Load configuration
 	cfg, _, err := configs.LoadConfig("./configs")
@@ -145,6 +155,16 @@ func main() {
 	claimDocRepo := repository.NewClaimDocumentRepository(store)
 	statementRepo := repository.NewProviderStatementRepository(store)
 
+	// Adjudication & Escalation rule repositories
+	adjudicationRuleRepo := repository.NewAdjudicationRuleRepository(store)
+	escalationRuleRepo := repository.NewEscalationRuleRepository(store)
+
+	// Billing gap repositories
+	premiumLedgerRepo := repository.NewPremiumLedgerRepository(store)
+	commissionRuleRepo := repository.NewCommissionRuleRepository(store)
+	commissionPaymentRepo := repository.NewCommissionPaymentRepository(store)
+	refundRepo := repository.NewRefundRepository(store)
+
 	// Reinsurance repositories
 	treatyRepo := repository.NewTreatyRepository(store)
 	treatyParticipantRepo := repository.NewTreatyParticipantRepository(store)
@@ -209,7 +229,7 @@ func main() {
 	// Policy services
 	memberSvc := policy.NewMemberService(memberRepo, policyRepo, planRepo, premiumRuleRepo, premiumRuleSvc, underwritingFlagRepo, underwritingRuleRepo, creditNoteSvc, auditSvc)
 	policySvc := policy.NewPolicyService(policyRepo, planRepo, memberRepo, premiumRuleSvc, policyDocSvc, creditNoteSvc, auditSvc)
-	endorsementSvc := policy.NewEndorsementService(endorsementRepo, policyRepo, memberSvc, policySvc, auditSvc)
+	endorsementSvc := policy.NewEndorsementService(endorsementRepo, policyRepo, memberRepo, memberSvc, policySvc, premiumRuleSvc, auditSvc)
 	renewalSvc := policy.NewRenewalService(renewalRepo, policyRepo, memberRepo, claimRepo, premiumRuleSvc, premiumRuleRepo, planRepo, underwritingFlagRepo, auditSvc)
 	underwritingSvc := policy.NewUnderwritingService(underwritingRepo, policyRepo, memberRepo, underwritingRuleRepo, underwritingFlagRepo, auditSvc)
 
@@ -219,8 +239,12 @@ func main() {
 	// Claims services
 	fraudSvc := claims.NewFraudService(fraudFlagRepo, contractRepo, rateCardRepo, providerRepo)
 	validatorSvc := claims.NewValidatorService(policyRepo, memberRepo, providerRepo)
-	adjudicatorSvc := claims.NewAdjudicatorService(claimRepo, benefitRepo, exclusionRepo, policyRepo, memberRepo, providerRepo, providerNetworkRepo, fraudSvc, contractRepo, preauthRepo)
-	claimSvc := claims.NewClaimService(claimRepo, lineItemRepo, adjudicatorSvc, validatorSvc, fraudSvc, adjRepo, fraudFlagRepo, claimDocRepo, preauthRepo, auditSvc)
+	adjudicatorSvc := claims.NewAdjudicatorService(claimRepo, benefitRepo, exclusionRepo, policyRepo, memberRepo, providerRepo, providerNetworkRepo, fraudSvc, contractRepo, preauthRepo, adjudicationRuleRepo)
+	claimSvc := claims.NewClaimService(claimRepo, lineItemRepo, adjudicatorSvc, validatorSvc, fraudSvc, adjRepo, fraudFlagRepo, claimDocRepo, preauthRepo, auditSvc, notifSvc, approvalLimitRepo, escalationRuleRepo, queueManager)
+
+	// Adjudication & Escalation rule services
+	adjRuleSvc := claims.NewAdjudicationRuleService(adjudicationRuleRepo)
+	escRuleSvc := claims.NewEscalationRuleService(escalationRuleRepo)
 
 	// Case management service
 	caseSvc := claims.NewCaseService(caseRecordRepo, preauthRepo, auditSvc)
@@ -230,13 +254,18 @@ func main() {
 
 	// Billing services
 	billingSvc := billing.NewBillingService(invoiceRepo, policyRepo)
-	paymentSvc := billing.NewPaymentService(paymentRepo, invoiceRepo)
+	paymentSvc := billing.NewPaymentService(paymentRepo, invoiceRepo, queueManager)
 	remittanceSvc := billing.NewRemittanceService(remittanceRepo, claimRepo, providerRepo)
 	installmentSvc := billing.NewInstallmentService(installmentScheduleRepo, installmentRepo, policyRepo)
 	statementSvc := billing.NewStatementService(statementRepo, claimRepo, auditSvc)
 
+	// Billing gap services
+	premiumLedgerSvc := billing.NewPremiumLedgerService(premiumLedgerRepo)
+	commissionSvc := billing.NewCommissionService(commissionRuleRepo, commissionPaymentRepo)
+	refundSvc := billing.NewRefundService(refundRepo)
+
 	// Analytics service
-	analyticsSvc := analytics.NewAnalyticsService(analyticsRepo)
+	analyticsSvc := analytics.NewAnalyticsService(analyticsRepo, reportDataRepo, reportExporter)
 
 	// Sales services
 	leadSvc := sales.NewLeadService(leadRepo, leadActivityRepo, auditSvc)
@@ -254,13 +283,10 @@ func main() {
 	// Reporting service
 	reportSvc := reportingSvc.NewReportService(reportRepo, reportDataRepo, reportExporter, notifSvc, auditSvc, analyticsRepo)
 
-	// Suppress unused variable warnings for services used internally
-	_ = billingSvc
-
 	// 7. Handlers
 	h := routes.Handlers{
 		Health:           handlers.NewHealthHandler(),
-		Auth:             handlers.NewAuthHandler(authSvc),
+		Auth:             handlers.NewAuthHandler(authSvc, userSvc),
 		User:             handlers.NewUserHandler(userSvc),
 		Plan:             handlers.NewPlanHandler(planSvc),
 		Benefit:          handlers.NewBenefitHandler(benefitSvc),
@@ -294,6 +320,15 @@ func main() {
 		Case:             handlers.NewCaseHandler(caseSvc),
 		Statement:        handlers.NewStatementHandler(statementSvc),
 
+		// Adjudication & Escalation Rules
+		AdjudicationRule: handlers.NewAdjudicationRuleHandler(adjRuleSvc),
+		EscalationRule:   handlers.NewEscalationRuleHandler(escRuleSvc),
+
+		// Billing gap handlers
+		PremiumLedger: handlers.NewPremiumLedgerHandler(premiumLedgerSvc),
+		Commission:    handlers.NewCommissionHandler(commissionSvc),
+		Refund:        handlers.NewRefundHandler(refundSvc),
+
 		// Reinsurance
 		Treaty:               handlers.NewTreatyHandler(treatySvc),
 		Cession:              handlers.NewCessionHandler(cessionSvc),
@@ -305,12 +340,16 @@ func main() {
 
 		// Reporting
 		Report: handlers.NewReportHandler(reportSvc),
+
+		// Documents (standalone)
+		Document: handlers.NewDocumentHandler(store, s3Svc),
 	}
 
 	// 8. Scheduler (optional — only if enabled)
 	if cfg.SchedulerEnabled {
 		schedulerMgr := scheduler.NewSchedulerManager()
 
+		// Default schedule values
 		reportDistSchedule := cfg.ReportDistributionSchedule
 		if reportDistSchedule == "" {
 			reportDistSchedule = "*/5 * * * *"
@@ -319,15 +358,72 @@ func main() {
 		if reportCleanupSchedule == "" {
 			reportCleanupSchedule = "0 2 * * *"
 		}
+		billingCycleSchedule := cfg.BillingCycleSchedule
+		if billingCycleSchedule == "" {
+			billingCycleSchedule = "0 0 1 * *"
+		}
+		remittanceCycleSchedule := cfg.RemittanceCycleSchedule
+		if remittanceCycleSchedule == "" {
+			remittanceCycleSchedule = "0 0 * * 1"
+		}
+		paymentReminderSchedule := cfg.PaymentReminderSchedule
+		if paymentReminderSchedule == "" {
+			paymentReminderSchedule = "0 9 * * *"
+		}
+		paymentRetrySchedule := cfg.PaymentRetrySchedule
+		if paymentRetrySchedule == "" {
+			paymentRetrySchedule = "0 */4 * * *"
+		}
+		policyLapseSchedule := cfg.PolicyLapseSchedule
+		if policyLapseSchedule == "" {
+			policyLapseSchedule = "0 1 * * *"
+		}
+		preAuthExpirySchedule := cfg.PreAuthExpirySchedule
+		if preAuthExpirySchedule == "" {
+			preAuthExpirySchedule = "0 0 * * *"
+		}
+		reconciliationSchedule := cfg.ReconciliationSchedule
+		if reconciliationSchedule == "" {
+			reconciliationSchedule = "0 3 * * *"
+		}
+		notificationRetrySchedule := cfg.NotificationRetrySchedule
+		if notificationRetrySchedule == "" {
+			notificationRetrySchedule = "*/30 * * * *"
+		}
 
+		// Reporting tasks
 		reportDistTask := schedulerTasks.NewReportDistributionTask(reportDistSchedule, reportSvc)
 		reportCleanupTask := schedulerTasks.NewReportCleanupTask(reportCleanupSchedule, reportRepo)
 
-		if err := schedulerMgr.RegisterTask(reportDistTask); err != nil {
-			log.Printf("Warning: Failed to register report distribution task: %v", err)
+		// Billing & payment tasks
+		billingCycleTask := schedulerTasks.NewBillingCycleTask(billingCycleSchedule, billingSvc)
+		remittanceCycleTask := schedulerTasks.NewRemittanceCycleTask(remittanceCycleSchedule, remittanceSvc)
+		paymentReminderTask := schedulerTasks.NewPaymentReminderTask(paymentReminderSchedule, billingSvc)
+		paymentRetryTask := schedulerTasks.NewPaymentRetryTask(paymentRetrySchedule, paymentSvc)
+		reconciliationTask := schedulerTasks.NewReconciliationTask(reconciliationSchedule, paymentSvc)
+
+		// Policy & pre-auth tasks
+		policyLapseTask := schedulerTasks.NewPolicyLapseTask(policyLapseSchedule, policySvc)
+		preAuthExpiryTask := schedulerTasks.NewPreAuthExpiryTask(preAuthExpirySchedule, preauthSvc)
+
+		// Notification task
+		notificationRetryTask := schedulerTasks.NewNotificationRetryTask(notificationRetrySchedule, notifSvc)
+
+		// Claim SLA task
+		claimSLATask := schedulerTasks.NewClaimSLATask("*/15 * * * *", claimRepo, notifSvc)
+
+		// Register all tasks
+		allTasks := []scheduler.Task{
+			reportDistTask, reportCleanupTask,
+			billingCycleTask, remittanceCycleTask, paymentReminderTask,
+			paymentRetryTask, reconciliationTask,
+			policyLapseTask, preAuthExpiryTask,
+			notificationRetryTask, claimSLATask,
 		}
-		if err := schedulerMgr.RegisterTask(reportCleanupTask); err != nil {
-			log.Printf("Warning: Failed to register report cleanup task: %v", err)
+		for _, task := range allTasks {
+			if err := schedulerMgr.RegisterTask(task); err != nil {
+				log.Printf("Warning: Failed to register task %s: %v", task.Name(), err)
+			}
 		}
 
 		if err := schedulerMgr.Start(); err != nil {
@@ -337,8 +433,34 @@ func main() {
 		}
 	}
 
+	// 8b. Queue consumer manager (optional — only if queue is available)
+	if queueManager != nil {
+		consumerMgr := workers.NewConsumerManager(queueManager, workers.DefaultConsumerConfig())
+
+		queueHandlers := []workers.QueueHandler{
+			{Topic: queue.TopicClaimProcessing, Handler: workers.NewClaimSubmittedHandler()},
+			{Topic: queue.TopicClaimProcessing, Handler: workers.NewClaimApprovedHandler()},
+			{Topic: queue.TopicExtractionResults, Handler: workers.NewExtractionResultHandler()},
+			{Topic: queue.TopicPaymentEvents, Handler: workers.NewPaymentWebhookHandler()},
+			{Topic: queue.TopicNotificationEvents, Handler: workers.NewNotificationDispatchHandler()},
+			{Topic: queue.TopicClaimProcessing, Handler: workers.NewPreAuthSubmittedHandler()},
+		}
+		for _, qh := range queueHandlers {
+			if err := consumerMgr.RegisterHandler(qh); err != nil {
+				log.Printf("Warning: Failed to register queue handler %s: %v", qh.Handler.GetName(), err)
+			}
+		}
+
+		go func() {
+			if err := consumerMgr.Start(context.Background()); err != nil {
+				log.Printf("Warning: Consumer manager stopped: %v", err)
+			}
+		}()
+		log.Println("Queue consumer manager started")
+	}
+
 	// 9. Server
-	server := NewServer(tokenMaker, cfg.AllowedOrigins)
+	server := NewServer(tokenMaker, cfg.AllowedOrigins, auditSvc)
 	server.RegisterRoutes(h)
 
 	// 10. Start

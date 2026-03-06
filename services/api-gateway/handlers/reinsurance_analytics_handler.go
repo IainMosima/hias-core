@@ -30,6 +30,16 @@ func NewReinsuranceAnalyticsHandler(
 	}
 }
 
+// GetReinsuranceDashboard godoc
+// @Summary      Get reinsurance dashboard
+// @Description  Retrieve aggregated reinsurance analytics including treaty counts, ceded premiums, recoveries, and alerts
+// @Tags         ReinsuranceAnalytics
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/reinsurance [get]
 func (h *ReinsuranceAnalyticsHandler) GetReinsuranceDashboard(ctx *gin.Context) {
 	c := ctx.Request.Context()
 

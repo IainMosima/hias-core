@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"github.com/bitbiz/hias-core/domains/billing/entity"
 	"github.com/google/uuid"
 )
@@ -16,4 +18,6 @@ type InvoiceRepository interface {
 	ListOverdue(ctx context.Context) ([]*entity.Invoice, error)
 	Count(ctx context.Context) (int64, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*entity.Invoice, error)
+	ListFiltered(ctx context.Context, dateFrom, dateTo *time.Time, limit, offset int) ([]*entity.Invoice, error)
+	CountFiltered(ctx context.Context, dateFrom, dateTo *time.Time) (int64, error)
 }

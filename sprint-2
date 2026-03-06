@@ -1,0 +1,609 @@
+# SPRINT 2: Business Logic Depth & Polish — HIAS Core
+
+You are working on a Go insurance backend (DDD + Clean Architecture). This sprint addresses remaining business logic gaps to make the demo convincing to domain experts. The codebase is more complete than initially expected — many features originally flagged as missing are actually implemented. Focus only on the gaps described below.
+
+**Rules:**
+- Follow existing code conventions (see CLAUDE.md)
+- Money is BIGINT (cents), int64 in Go
+- All service methods return `*schema.ServiceResponse[T]`
+- Do NOT change interfaces unless explicitly stated
+- Run `go build ./...` after each task to verify compilation
+- Read the referenced files BEFORE editing — understand existing patterns
+
+**What is ALREADY working (do NOT touch):**
+- Quotation versioning (CreateVersion, CompareVersions) — fully implemented in `services/sales/quotation_service_impl.go`
+- Discount escalation with multi-level approval — fully implemented with `ApprovalLimit.EscalationRole`
+- Double receipting detection — exists in `PaymentService.InitiatePayment` (checks by reference number)
+- Commission computation — `CommissionService.CalculateCommission` works (rate_pct + flat_amount)
+- Refund processing — full 3-state workflow (PENDING → APPROVED → PROCESSED)
+- Premium ledger — `PremiumLedgerService` (RecordEntry, GetRegister, GetBalance) fully implemented
+- Reporting service — fully implemented with CSV/XLSX/PDF export via `ReportExporter`
+- Report generation, preview, drill-down, schedules — all working
+- Management dashboard — fully implemented with 12 KPIs
+- Analytics dashboard — `GetDashboard` aggregates 12 metrics from repository
+- All analytics SQL queries exist (claims volume, approval rate, TAT, loss ratio, fraud rate, top providers, policy/member counts, renewal rate)
+
+---
+
+## TASK 1: Fix Analytics ExportCSV — Currently Returns Hardcoded Stub
+
+**Problem:** `AnalyticsService.ExportCSV()` at `services/analytics/analytics_service_impl.go:84-86` returns hardcoded `[]byte("report,data\n")`. The report service has a full exporter (`infrastructures/reporting/report_exporter.go`) that supports CSV/XLSX/PDF. Reuse it.
+
+**Files to modify:**
+- `services/analytics/analytics_service_impl.go`
+- `services/api-gateway/main.go` (DI wiring if needed)
+
+**Implementation:**
+
+1. Add the report exporter and report data repository as dependencies:
+```go
+type analyticsServiceImpl struct {
+    analyticsRepo  repository.AnalyticsRepository
+    reportDataRepo reportDataRepo.ReportDataRepository
+    exporter       reportingInfra.ReportExporter
+}
+```
+
+Import paths:
+- `reportDataRepo "github.com/bitbiz/hias-core/domains/reporting/repository"`
+- `reportingInfra "github.com/bitbiz/hias-core/infrastructures/reporting"`
+
+2. Update the constructor to accept these new dependencies.
+
+3. Replace `ExportCSV` with actual implementation:
+
+```go
+func (s *analyticsServiceImpl) ExportCSV(ctx context.Context, reportType, period string) *schema.ServiceResponse[[]byte] {
+    start, end := parsePeriod(period)
+
+    var data []map[string]interface{}
+    var columns json.RawMessage
+    var err error
+
+    switch reportType {
+    case "claims":
+        data, err = s.reportDataRepo.GetClaimsRegisterData(ctx, start, end, "", 10000, 0)
+        columns = json.RawMessage(`[
+            {"name":"claim_number","label":"Claim No","type":"string"},
+            {"name":"policy_number","label":"Policy","type":"string"},
+            {"name":"member_name","label":"Member","type":"string"},
+            {"name":"provider_name","label":"Provider","type":"string"},
+            {"name":"claim_type","label":"Type","type":"string"},
+            {"name":"service_date","label":"Service Date","type":"date"},
+            {"name":"total_amount","label":"Claimed","type":"money"},
+            {"name":"approved_amount","label":"Approved","type":"money"},
+            {"name":"status","label":"Status","type":"string"}
+        ]`)
+    case "premiums":
+        data, err = s.reportDataRepo.GetPremiumRegisterData(ctx, start, end, 10000, 0)
+        columns = json.RawMessage(`[
+            {"name":"policy_number","label":"Policy","type":"string"},
+            {"name":"policyholder_name","label":"Policyholder","type":"string"},
+            {"name":"plan_name","label":"Plan","type":"string"},
+            {"name":"amount","label":"Amount","type":"money"},
+            {"name":"payment_date","label":"Date","type":"date"},
+            {"name":"payment_status","label":"Status","type":"string"},
+            {"name":"payment_method","label":"Method","type":"string"}
+        ]`)
+    case "members":
+        data, err = s.reportDataRepo.GetMembershipData(ctx, nil, "", 10000, 0)
+        columns = json.RawMessage(`[
+            {"name":"member_number","label":"Member No","type":"string"},
+            {"name":"full_name","label":"Name","type":"string"},
+            {"name":"date_of_birth","label":"DOB","type":"date"},
+            {"name":"gender","label":"Gender","type":"string"},
+            {"name":"phone","label":"Phone","type":"string"},
+            {"name":"policy_number","label":"Policy","type":"string"},
+            {"name":"plan_name","label":"Plan","type":"string"},
+            {"name":"status","label":"Status","type":"string"}
+        ]`)
+    case "providers":
+        data, err = s.reportDataRepo.GetProviderPerformanceData(ctx, start, end)
+        columns = json.RawMessage(`[
+            {"name":"provider_name","label":"Provider","type":"string"},
+            {"name":"total_claims","label":"Claims","type":"number"},
+            {"name":"total_claimed","label":"Total Claimed","type":"money"},
+            {"name":"total_approved","label":"Total Approved","type":"money"},
+            {"name":"rejection_rate","label":"Rejection Rate","type":"percentage"},
+            {"name":"fraud_flag_count","label":"Fraud Flags","type":"number"}
+        ]`)
+    case "loss_ratio":
+        data, err = s.reportDataRepo.GetLossRatioData(ctx, start, end)
+        columns = json.RawMessage(`[
+            {"name":"plan_name","label":"Plan","type":"string"},
+            {"name":"active_policies","label":"Policies","type":"number"},
+            {"name":"total_members","label":"Members","type":"number"},
+            {"name":"earned_premium","label":"Earned Premium","type":"money"},
+            {"name":"incurred_claims","label":"Incurred Claims","type":"money"},
+            {"name":"loss_ratio","label":"Loss Ratio","type":"percentage"}
+        ]`)
+    case "debtors":
+        data, err = s.reportDataRepo.GetPremiumDebtorsAgeingData(ctx)
+        columns = json.RawMessage(`[
+            {"name":"policy_number","label":"Policy","type":"string"},
+            {"name":"policyholder_name","label":"Policyholder","type":"string"},
+            {"name":"current_bucket","label":"Current","type":"money"},
+            {"name":"days_30","label":"30 Days","type":"money"},
+            {"name":"days_60","label":"60 Days","type":"money"},
+            {"name":"days_90_plus","label":"90+ Days","type":"money"}
+        ]`)
+    default:
+        return schema.NewServiceErrorResponse[[]byte](http.StatusBadRequest, fmt.Sprintf("Unknown report type: %s", reportType), nil)
+    }
+
+    if err != nil {
+        return schema.NewServiceErrorResponse[[]byte](http.StatusInternalServerError, "Failed to fetch report data", err)
+    }
+
+    csvData, err := s.exporter.ExportCSV(columns, data)
+    if err != nil {
+        return schema.NewServiceErrorResponse[[]byte](http.StatusInternalServerError, "Failed to export CSV", err)
+    }
+
+    return schema.NewServiceResponse(csvData, http.StatusOK, "CSV export generated")
+}
+```
+
+4. Add necessary imports: `"encoding/json"`, `"fmt"`.
+
+5. Update DI in `main.go` — pass `reportDataRepo` and `reportExporter` to `NewAnalyticsService`.
+
+---
+
+## TASK 2: Fix Analytics Error Handling — Silent Error Suppression
+
+**Problem:** `analytics_service_impl.go` lines 24-35 suppress all errors with `_`. The dashboard returns zero values instead of errors. At minimum, log errors so debugging is possible.
+
+**File to modify:**
+- `services/analytics/analytics_service_impl.go`
+
+**Implementation:**
+
+Replace the blank identifiers with logged errors in `GetDashboard()`. Follow the same pattern used in `services/reporting/report_service_impl.go:441-484` (which logs with `log.Printf`):
+
+```go
+func (s *analyticsServiceImpl) GetDashboard(ctx context.Context, period string) *schema.ServiceResponse[analyticsSvc.DashboardData] {
+    start, end := parsePeriod(period)
+
+    claimsVolume, err := s.analyticsRepo.GetClaimsVolume(ctx, start, end)
+    if err != nil {
+        log.Printf("Dashboard: failed to get claims volume: %v", err)
+    }
+    approvalRate, err := s.analyticsRepo.GetApprovalRate(ctx, start, end)
+    if err != nil {
+        log.Printf("Dashboard: failed to get approval rate: %v", err)
+    }
+    // ... same pattern for all remaining calls
+```
+
+Apply the same fix to `GetKPIs()`.
+
+Add `"log"` to imports.
+
+---
+
+## TASK 3: Implement Payment Reconciliation with Amount Verification
+
+**Problem:** `PaymentService.ReconcilePayment()` at `services/billing/payment_service_impl.go:80-86` just calls `repo.Reconcile()` without verifying the payment amount against the linked invoice. It should verify amounts match before marking as reconciled.
+
+**File to modify:**
+- `services/billing/payment_service_impl.go`
+
+**Implementation:**
+
+Replace the `ReconcilePayment` method:
+
+```go
+func (s *paymentServiceImpl) ReconcilePayment(ctx context.Context, paymentID uuid.UUID) *schema.ServiceResponse[billingSchema.PaymentResponse] {
+    payment, err := s.paymentRepo.GetByID(ctx, paymentID)
+    if err != nil {
+        return schema.NewServiceErrorResponse[billingSchema.PaymentResponse](http.StatusNotFound, "Payment not found", err)
+    }
+
+    // Only confirmed payments can be reconciled
+    if payment.Status != string(shared.PaymentStatusConfirmed) {
+        return schema.NewServiceErrorResponse[billingSchema.PaymentResponse](
+            http.StatusBadRequest,
+            fmt.Sprintf("Cannot reconcile payment in %s status; must be CONFIRMED", payment.Status),
+            nil,
+        )
+    }
+
+    // Verify against linked invoice if present
+    reconciliationNotes := ""
+    if payment.InvoiceID != uuid.Nil && s.invoiceRepo != nil {
+        invoice, invErr := s.invoiceRepo.GetByID(ctx, payment.InvoiceID)
+        if invErr == nil {
+            if payment.Amount < invoice.TotalAmount {
+                reconciliationNotes = fmt.Sprintf("Partial payment: received %d of %d (shortfall: %d)",
+                    payment.Amount, invoice.TotalAmount, invoice.TotalAmount-payment.Amount)
+            } else if payment.Amount > invoice.TotalAmount {
+                reconciliationNotes = fmt.Sprintf("Overpayment: received %d against invoice of %d (excess: %d)",
+                    payment.Amount, invoice.TotalAmount, payment.Amount-invoice.TotalAmount)
+            }
+        }
+    }
+
+    reconciled, err := s.paymentRepo.Reconcile(ctx, paymentID)
+    if err != nil {
+        return schema.NewServiceErrorResponse[billingSchema.PaymentResponse](http.StatusInternalServerError, "Failed to reconcile payment", err)
+    }
+
+    message := "Payment reconciled"
+    if reconciliationNotes != "" {
+        message = fmt.Sprintf("Payment reconciled — %s", reconciliationNotes)
+    }
+
+    return schema.NewServiceResponse(billingSchema.ToPaymentResponse(reconciled), http.StatusOK, message)
+}
+```
+
+Add imports: `"fmt"`, `"github.com/google/uuid"`.
+
+**Note:** Check that `InvoiceRepository` has a `GetByID` method. If it doesn't exist, add it following existing repository patterns.
+
+---
+
+## TASK 4: Implement Remittance Payment File with CSV Format
+
+**Problem:** `RemittanceService.ExportPaymentFile()` at `services/billing/remittance_service_impl.go:135-183` returns a JSON response. For the demo, it should also be able to generate an actual CSV payment file that can be submitted to a bank for batch processing. The current JSON export is good for API consumption but the demo asks for a downloadable payment file.
+
+**Files to modify:**
+- `services/billing/remittance_service_impl.go`
+- `domains/billing/schema/billing_response.go` (add CSV field to export response if needed)
+
+**Implementation:**
+
+Add a `GenerateCSV` field to the `PaymentExportResponse` that contains a base64-encoded CSV file ready for bank submission:
+
+```go
+func (s *remittanceServiceImpl) ExportPaymentFile(ctx context.Context, remittanceID uuid.UUID) *schema.ServiceResponse[billingSchema.PaymentExportResponse] {
+    // ... keep existing logic for building export (lines 136-179) ...
+
+    // After building the export response, generate CSV payment file
+    var csvBuf bytes.Buffer
+    writer := csv.NewWriter(&csvBuf)
+
+    // Bank payment file header
+    writer.Write([]string{"Provider Name", "Bank Account", "Amount (KES)", "Reference", "WHT Amount", "Net Amount", "Claim Numbers"})
+
+    // Aggregate payment row
+    claimNumbers := make([]string, 0, len(exportClaims))
+    for _, c := range exportClaims {
+        claimNumbers = append(claimNumbers, c.ClaimNumber)
+    }
+
+    writer.Write([]string{
+        provider.Name,
+        provider.BankAccount,
+        fmt.Sprintf("%.2f", float64(remittance.TotalAmount)/100),
+        fmt.Sprintf("REM-%s", remittance.ID.String()[:8]),
+        fmt.Sprintf("%.2f", float64(remittance.WHTAmount)/100),
+        fmt.Sprintf("%.2f", float64(remittance.NetAmount)/100),
+        strings.Join(claimNumbers, ";"),
+    })
+
+    writer.Flush()
+
+    export.PaymentFileCSV = base64.StdEncoding.EncodeToString(csvBuf.Bytes())
+
+    return schema.NewServiceResponse(export, http.StatusCreated, "Payment file exported")
+}
+```
+
+Add `PaymentFileCSV` field to `PaymentExportResponse` in `domains/billing/schema/billing_response.go`:
+```go
+PaymentFileCSV string `json:"payment_file_csv,omitempty"`
+```
+
+Add imports: `"bytes"`, `"encoding/csv"`, `"encoding/base64"`, `"strings"`, `"fmt"`.
+
+**Note:** Check if the Provider entity has a `BankAccount` field. If not, use an empty string or placeholder — the bank account field can be added in a future migration.
+
+---
+
+## TASK 5: Implement Commission Date Range Validation
+
+**Problem:** `CommissionService.CalculateCommission()` at `services/billing/commission_service_impl.go:54-68` uses the first matching rule without checking if the rule is within its effective date range (`EffectiveFrom`/`EffectiveTo`).
+
+**File to modify:**
+- `services/billing/commission_service_impl.go`
+
+**Implementation:**
+
+Update the `CalculateCommission` method to filter by effective dates:
+
+```go
+func (s *commissionServiceImpl) CalculateCommission(ctx context.Context, req billingSchema.CalculateCommissionRequest) *schema.ServiceResponse[billingSchema.CalculateCommissionResponse] {
+    planID, _ := uuid.Parse(req.PlanID)
+    rules, err := s.ruleRepo.ListByPlan(ctx, planID)
+    if err != nil || len(rules) == 0 {
+        return schema.NewServiceErrorResponse[billingSchema.CalculateCommissionResponse](http.StatusNotFound, "No commission rules found for plan", err)
+    }
+
+    // Find the active rule — must be within effective date range
+    now := time.Now()
+    var activeRule *entity.CommissionRule
+    for _, r := range rules {
+        inRange := true
+        if !r.EffectiveFrom.IsZero() && now.Before(r.EffectiveFrom) {
+            inRange = false
+        }
+        if !r.EffectiveTo.IsZero() && now.After(r.EffectiveTo) {
+            inRange = false
+        }
+        if inRange {
+            activeRule = r
+            break
+        }
+    }
+
+    if activeRule == nil {
+        return schema.NewServiceErrorResponse[billingSchema.CalculateCommissionResponse](http.StatusNotFound, "No active commission rule for current date", nil)
+    }
+
+    commission := (req.PremiumAmount * activeRule.RatePct / 100) + activeRule.FlatAmount
+
+    resp := billingSchema.CalculateCommissionResponse{
+        Commission: commission,
+        RatePct:    activeRule.RatePct,
+        FlatAmount: activeRule.FlatAmount,
+        RuleID:     activeRule.ID.String(),
+    }
+
+    return schema.NewServiceResponse(resp, http.StatusOK, "Commission calculated")
+}
+```
+
+Add import: `"time"`.
+
+Check `CalculateCommissionResponse` schema — if `RuleID` field doesn't exist, add it:
+```go
+RuleID string `json:"rule_id"`
+```
+
+---
+
+## TASK 6: Fix computeNextRun for Report Scheduling
+
+**Problem:** `services/reporting/report_service_impl.go:691-695` — `computeNextRun()` returns a hardcoded 1 hour from now instead of actually parsing the cron expression. This means all schedules run every hour regardless of their cron expression.
+
+**File to modify:**
+- `services/reporting/report_service_impl.go`
+
+**Implementation:**
+
+Use the `robfig/cron/v3` library (already in go.mod) to parse the cron expression:
+
+```go
+import (
+    "github.com/robfig/cron/v3"
+)
+
+func computeNextRun(cronExpr string) time.Time {
+    parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+    schedule, err := parser.Parse(cronExpr)
+    if err != nil {
+        log.Printf("Failed to parse cron expression '%s': %v — defaulting to 1 hour", cronExpr, err)
+        return time.Now().Add(1 * time.Hour)
+    }
+    return schedule.Next(time.Now())
+}
+```
+
+This ensures:
+- `"0 9 * * MON"` → next Monday at 9:00 AM
+- `"0 0 1 * *"` → 1st of next month at midnight
+- Invalid expressions fall back to 1 hour (with a log warning)
+
+---
+
+## TASK 7: Add Benefit Waiting Period Type to Benefit Creation
+
+**Problem:** `shared/types.go` defines `WaitingPeriodType` with values (General, Maternity, PreExisting, Chronic, Surgical) but the `CreateBenefitRequest` doesn't include a `waiting_period_type` field. Benefits have `WaitingPeriodDays` (int) but don't distinguish WHICH type of waiting period applies. This matters for the Scenario 1 demo.
+
+**Files to check and modify:**
+- `domains/product/entity/benefit.go` — check if `WaitingPeriodType` field exists
+- `domains/product/schema/` — check request/response schemas for benefit
+- `services/product/benefit_service_impl.go` — check CreateBenefit implementation
+- If the field doesn't exist on the entity, add it to:
+  - Entity struct
+  - DB migration (add column `waiting_period_type VARCHAR(50) DEFAULT ''` to benefits table)
+  - SQLC query (update CreateBenefit and related queries)
+  - Run `make sqlc`
+  - Update the schema request/response
+
+**Implementation:**
+
+First READ all the above files. Then:
+
+1. If `WaitingPeriodType` field is missing from the `Benefit` entity, add it:
+```go
+WaitingPeriodType string `json:"waiting_period_type"` // GENERAL, MATERNITY, PRE_EXISTING, CHRONIC, SURGICAL
+```
+
+2. Add to `CreateBenefitRequest`:
+```go
+WaitingPeriodType string `json:"waiting_period_type"`
+```
+
+3. Add to `BenefitResponse` and the `ToBenefitResponse` converter.
+
+4. In `benefit_service_impl.go`, pass the field through when creating the benefit.
+
+5. Create migration `000024_benefit_waiting_period_type.up.sql`:
+```sql
+ALTER TABLE benefits ADD COLUMN IF NOT EXISTS waiting_period_type VARCHAR(50) DEFAULT '';
+```
+And corresponding `.down.sql`:
+```sql
+ALTER TABLE benefits DROP COLUMN IF EXISTS waiting_period_type;
+```
+
+6. Update `infrastructures/db/query/benefit.sql` — add `waiting_period_type` to the CREATE and SELECT queries.
+
+7. Run `make sqlc` to regenerate.
+
+---
+
+## TASK 8: Improve Premium Calculation Response with Breakdown
+
+**Problem:** `PremiumRuleService.CalculatePremiumWithMembers()` returns only a single `int64` total. For the demo (Scenario 1: age-banded pricing), it would be far more compelling to show the breakdown — which rule matched each member, what age band they fell into, and what rate was applied.
+
+**Files to modify:**
+- `domains/product/service/premium_rule_service.go` (add new method)
+- `services/product/premium_rule_service_impl.go`
+- `domains/product/schema/premium_rule_response.go` (add breakdown response type)
+- `services/api-gateway/handlers/premium_rule_handler.go` (add endpoint if needed)
+- `services/api-gateway/routes/routes.go` (add route if needed)
+
+**Implementation:**
+
+1. Add a new response type in `domains/product/schema/premium_rule_response.go`:
+```go
+type PremiumBreakdownResponse struct {
+    TotalPremium    int64                    `json:"total_premium"`
+    MemberBreakdown []MemberPremiumBreakdown `json:"member_breakdown"`
+    DiscountApplied int64                    `json:"discount_applied"`
+    CalculationType string                   `json:"calculation_type"`
+}
+
+type MemberPremiumBreakdown struct {
+    Relationship string `json:"relationship"`
+    Age          int    `json:"age"`
+    AgeBand      string `json:"age_band"`
+    RateAmount   int64  `json:"rate_amount"`
+    RuleName     string `json:"rule_name"`
+}
+```
+
+2. Add a new method to the service interface in `domains/product/service/premium_rule_service.go`:
+```go
+CalculatePremiumBreakdown(ctx context.Context, planID uuid.UUID, proposedMembers json.RawMessage) *schema.ServiceResponse[productSchema.PremiumBreakdownResponse]
+```
+
+3. Implement in `services/product/premium_rule_service_impl.go`:
+```go
+func (s *premiumRuleServiceImpl) CalculatePremiumBreakdown(ctx context.Context, planID uuid.UUID, proposedMembers json.RawMessage) *schema.ServiceResponse[productSchema.PremiumBreakdownResponse] {
+    plan, err := s.planRepo.GetByID(ctx, planID)
+    if err != nil {
+        return schema.NewServiceErrorResponse[productSchema.PremiumBreakdownResponse](http.StatusNotFound, "Plan not found", err)
+    }
+
+    rules, err := s.ruleRepo.ListByPlan(ctx, planID)
+    if err != nil || len(rules) == 0 {
+        return schema.NewServiceResponse(productSchema.PremiumBreakdownResponse{
+            TotalPremium:    plan.BasePremium,
+            CalculationType: "base",
+        }, http.StatusOK, "Premium calculated (base — no rules configured)")
+    }
+
+    // Check per_family
+    for _, r := range rules {
+        if r.CalculationType == string(shared.PremiumCalculationTypePerFamily) {
+            var members []struct {
+                Relationship string `json:"relationship"`
+                DateOfBirth  string `json:"date_of_birth"`
+            }
+            json.Unmarshal(proposedMembers, &members)
+            matched := findFamilyRule(rules, len(members))
+            if matched != nil {
+                return schema.NewServiceResponse(productSchema.PremiumBreakdownResponse{
+                    TotalPremium:    matched.RateAmount,
+                    CalculationType: "per_family",
+                }, http.StatusOK, "Premium calculated (per_family)")
+            }
+        }
+    }
+
+    // Per-member with age-band matching
+    var members []struct {
+        Relationship string `json:"relationship"`
+        DateOfBirth  string `json:"date_of_birth"`
+    }
+    json.Unmarshal(proposedMembers, &members)
+
+    var totalPremium int64
+    var breakdowns []productSchema.MemberPremiumBreakdown
+
+    for _, m := range members {
+        age := calculateAge(m.DateOfBirth)
+        matched := findMatchingRule(rules, m.Relationship, age)
+
+        bd := productSchema.MemberPremiumBreakdown{
+            Relationship: m.Relationship,
+            Age:          age,
+        }
+
+        if matched != nil {
+            bd.RateAmount = matched.RateAmount
+            bd.RuleName = fmt.Sprintf("%s (age %d-%d)", matched.Relationship, matched.MinAge, matched.MaxAge)
+            if matched.Relationship == "" {
+                bd.RuleName = fmt.Sprintf("Generic (age %d-%d)", matched.MinAge, matched.MaxAge)
+            }
+            bd.AgeBand = fmt.Sprintf("%d-%d", matched.MinAge, matched.MaxAge)
+            totalPremium += matched.RateAmount
+        } else {
+            bd.RateAmount = plan.BasePremium
+            bd.RuleName = "Base premium (no matching rule)"
+            totalPremium += plan.BasePremium
+        }
+
+        breakdowns = append(breakdowns, bd)
+    }
+
+    // Group discount
+    var discountApplied int64
+    for _, r := range rules {
+        if r.DiscountType != "" && r.MinMembers > 0 && len(members) >= r.MinMembers {
+            if r.DiscountType == string(shared.DiscountTypePercentage) {
+                discountApplied = totalPremium * r.DiscountValue / 10000
+            } else if r.DiscountType == string(shared.DiscountTypeFixed) {
+                discountApplied = r.DiscountValue
+            }
+            totalPremium -= discountApplied
+            break
+        }
+    }
+
+    if totalPremium < 0 {
+        totalPremium = 0
+    }
+
+    return schema.NewServiceResponse(productSchema.PremiumBreakdownResponse{
+        TotalPremium:    totalPremium,
+        MemberBreakdown: breakdowns,
+        DiscountApplied: discountApplied,
+        CalculationType: "per_member_age_banded",
+    }, http.StatusOK, "Premium calculated with breakdown")
+}
+```
+
+4. Add a handler method and route:
+   - Handler: `PremiumRuleHandler.CalculateBreakdown` — accepts POST with `{plan_id, proposed_members}`
+   - Route: `POST /plans/:id/premium-rules/breakdown`
+
+---
+
+## VERIFICATION CHECKLIST
+
+After completing all tasks:
+
+1. `go build ./...` — must compile with no errors
+2. Analytics CSV export should produce actual data for claims/premiums/members/providers/loss_ratio/debtors
+3. Analytics dashboard errors should be logged (not silently swallowed)
+4. Payment reconciliation should verify amounts against invoices and report mismatches
+5. Remittance export should include a base64-encoded CSV payment file
+6. Commission calculation should respect date ranges on rules
+7. Report schedule `computeNextRun` should parse real cron expressions
+8. Benefits should accept `waiting_period_type` field
+9. Premium calculation should return per-member breakdown with age bands
+
+## DEPENDENCY ORDER
+
+All tasks are independent and can be done in parallel. Recommended grouping:
+
+- **Analytics fixes:** Tasks 1, 2 (related files)
+- **Billing fixes:** Tasks 3, 4, 5 (related domain)
+- **Reporting fix:** Task 6 (standalone)
+- **Product fixes:** Tasks 7, 8 (related domain)

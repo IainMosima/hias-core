@@ -20,6 +20,18 @@ func NewRateCardHandler(rateCardRepo repository.RateCardRepository) *RateCardHan
 	return &RateCardHandler{rateCardRepo: rateCardRepo}
 }
 
+// CreateRateCard godoc
+// @Summary      Create a rate card
+// @Description  Create a new rate card for a specific healthcare provider
+// @Tags         RateCards
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Provider ID"
+// @Param        request body providerSchema.CreateRateCardRequest true "Rate card creation request"
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/providers/{id}/rate-cards [post]
 func (h *RateCardHandler) CreateRateCard(ctx *gin.Context) {
 	providerID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -50,6 +62,17 @@ func (h *RateCardHandler) CreateRateCard(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, http.StatusCreated, "Rate card created", providerSchema.ToRateCardResponse(created))
 }
 
+// ListRateCards godoc
+// @Summary      List rate cards
+// @Description  Retrieve all rate cards for a specific healthcare provider
+// @Tags         RateCards
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Provider ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/providers/{id}/rate-cards [get]
 func (h *RateCardHandler) ListRateCards(ctx *gin.Context) {
 	providerID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -71,6 +94,18 @@ func (h *RateCardHandler) ListRateCards(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, http.StatusOK, "Rate cards retrieved", responses)
 }
 
+// BulkCreateRateCards godoc
+// @Summary      Bulk create rate cards
+// @Description  Create multiple rate cards at once for a specific healthcare provider
+// @Tags         RateCards
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Provider ID"
+// @Param        request body providerSchema.BulkCreateRateCardRequest true "Bulk rate card creation request"
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/providers/{id}/rate-cards/bulk [post]
 func (h *RateCardHandler) BulkCreateRateCards(ctx *gin.Context) {
 	providerID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

@@ -100,6 +100,53 @@ const (
 	ClaimStatusPartiallyVetted ClaimStatus = "PARTIALLY_VETTED"
 	ClaimStatusReadyForPayment ClaimStatus = "READY_FOR_PAYMENT"
 	ClaimStatusPartPaid        ClaimStatus = "PART_PAID"
+	ClaimStatusEscalated       ClaimStatus = "ESCALATED"
+)
+
+// AdjudicationRuleType represents configurable adjudication rule types
+type AdjudicationRuleType string
+
+const (
+	AdjudicationRuleTypeAmountThreshold AdjudicationRuleType = "AMOUNT_THRESHOLD"
+	AdjudicationRuleTypeFrequencyLimit  AdjudicationRuleType = "FREQUENCY_LIMIT"
+	AdjudicationRuleTypeBenefitCheck    AdjudicationRuleType = "BENEFIT_CHECK"
+	AdjudicationRuleTypeAutoApprove     AdjudicationRuleType = "AUTO_APPROVE"
+)
+
+// EscalationConditionType represents escalation rule condition types
+type EscalationConditionType string
+
+const (
+	EscalationConditionAmountExceeds EscalationConditionType = "AMOUNT_EXCEEDS"
+	EscalationConditionFraudFlag     EscalationConditionType = "FRAUD_FLAG"
+	EscalationConditionManualReview  EscalationConditionType = "MANUAL_REVIEW"
+)
+
+// CommissionPaymentStatus represents commission payment statuses
+type CommissionPaymentStatus string
+
+const (
+	CommissionPaymentStatusPending   CommissionPaymentStatus = "PENDING"
+	CommissionPaymentStatusProcessed CommissionPaymentStatus = "PROCESSED"
+	CommissionPaymentStatusFailed    CommissionPaymentStatus = "FAILED"
+)
+
+// RefundStatus represents the status of a refund
+type RefundStatus string
+
+const (
+	RefundStatusPending   RefundStatus = "PENDING"
+	RefundStatusApproved  RefundStatus = "APPROVED"
+	RefundStatusProcessed RefundStatus = "PROCESSED"
+	RefundStatusFailed    RefundStatus = "FAILED"
+)
+
+// PremiumLedgerEntryType represents ledger entry types
+type PremiumLedgerEntryType string
+
+const (
+	PremiumLedgerEntryTypeDebit  PremiumLedgerEntryType = "DEBIT"
+	PremiumLedgerEntryTypeCredit PremiumLedgerEntryType = "CREDIT"
 )
 
 // ClaimType represents the type of claim

@@ -59,7 +59,19 @@ func (s *reinsurerStatementServiceImpl) GenerateStatement(ctx context.Context, r
 	premiumCeded := totalCeded * int64(participant.SharePercentage) / 100
 	claimsRecovered := totalRecovered * int64(participant.SharePercentage) / 100
 	commissionDue := premiumCeded * int64(participant.CommissionRate) / 100
-	netBalance := premiumCeded - claimsRecovered - commissionDue
+
+	// Calculate profit commission
+	var profitCommission int64
+	profitCommResp := s.CalculateProfitCommission(ctx, reinsuranceSchema.CalculateProfitCommissionRequest{
+		TreatyID:    req.TreatyID,
+		PeriodStart: req.PeriodStart,
+		PeriodEnd:   req.PeriodEnd,
+	})
+	if profitCommResp.Error == nil {
+		profitCommission = profitCommResp.Data.CommissionAmount
+	}
+
+	netBalance := premiumCeded - claimsRecovered - commissionDue - profitCommission
 
 	statement := &entity.ReinsurerStatement{
 		StatementNumber:  utils.GenerateReinsurerStatementNumber(),
@@ -70,7 +82,7 @@ func (s *reinsurerStatementServiceImpl) GenerateStatement(ctx context.Context, r
 		PremiumCeded:     premiumCeded,
 		ClaimsRecovered:  claimsRecovered,
 		CommissionDue:    commissionDue,
-		ProfitCommission: 0,
+		ProfitCommission: profitCommission,
 		NetBalance:       netBalance,
 		Status:           string(shared.ReinsurerStatementStatusDraft),
 		CreatedBy:        createdBy,

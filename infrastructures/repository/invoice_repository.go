@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bitbiz/hias-core/domains/billing/entity"
 	domainRepo "github.com/bitbiz/hias-core/domains/billing/repository"
@@ -147,4 +148,32 @@ func sqlcInvoiceToDomain(inv db.Invoice) *entity.Invoice {
 		CreatedAt:          inv.CreatedAt,
 		UpdatedAt:          inv.UpdatedAt,
 	}
+}
+
+func (r *invoiceRepository) ListFiltered(ctx context.Context, dateFrom, dateTo *time.Time, limit, offset int) ([]*entity.Invoice, error) {
+	dbInvoices, err := r.store.ListInvoicesFiltered(ctx, db.ListInvoicesFilteredParams{
+		DateFrom:    timePtrToPgtypeTimestamptz(dateFrom),
+		DateTo:      timePtrToPgtypeTimestamptz(dateTo),
+		QueryLimit:  int32(limit),
+		QueryOffset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list invoices filtered: %w", err)
+	}
+	invoices := make([]*entity.Invoice, len(dbInvoices))
+	for i, inv := range dbInvoices {
+		invoices[i] = sqlcInvoiceToDomain(inv)
+	}
+	return invoices, nil
+}
+
+func (r *invoiceRepository) CountFiltered(ctx context.Context, dateFrom, dateTo *time.Time) (int64, error) {
+	count, err := r.store.CountInvoicesFiltered(ctx, db.CountInvoicesFilteredParams{
+		DateFrom: timePtrToPgtypeTimestamptz(dateFrom),
+		DateTo:   timePtrToPgtypeTimestamptz(dateTo),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count invoices filtered: %w", err)
+	}
+	return count, nil
 }

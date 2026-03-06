@@ -14,7 +14,7 @@ import (
 
 const createApprovalLimit = `-- name: CreateApprovalLimit :one
 INSERT INTO approval_limits (role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at, entity_type, max_claim_amount
 `
 
 type CreateApprovalLimitParams struct {
@@ -47,6 +47,8 @@ func (q *Queries) CreateApprovalLimit(ctx context.Context, arg CreateApprovalLim
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EntityType,
+		&i.MaxClaimAmount,
 	)
 	return i, err
 }
@@ -61,7 +63,7 @@ func (q *Queries) DeleteApprovalLimit(ctx context.Context, id uuid.UUID) error {
 }
 
 const getApprovalLimitByRole = `-- name: GetApprovalLimitByRole :one
-SELECT id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at FROM approval_limits WHERE role_name = $1 AND is_active = true
+SELECT id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at, entity_type, max_claim_amount FROM approval_limits WHERE role_name = $1 AND is_active = true
 `
 
 func (q *Queries) GetApprovalLimitByRole(ctx context.Context, roleName string) (ApprovalLimit, error) {
@@ -78,12 +80,14 @@ func (q *Queries) GetApprovalLimitByRole(ctx context.Context, roleName string) (
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EntityType,
+		&i.MaxClaimAmount,
 	)
 	return i, err
 }
 
 const listApprovalLimits = `-- name: ListApprovalLimits :many
-SELECT id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at FROM approval_limits WHERE is_active = true ORDER BY role_name
+SELECT id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at, entity_type, max_claim_amount FROM approval_limits WHERE is_active = true ORDER BY role_name
 `
 
 func (q *Queries) ListApprovalLimits(ctx context.Context) ([]ApprovalLimit, error) {
@@ -106,6 +110,8 @@ func (q *Queries) ListApprovalLimits(ctx context.Context) ([]ApprovalLimit, erro
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EntityType,
+			&i.MaxClaimAmount,
 		); err != nil {
 			return nil, err
 		}
@@ -125,7 +131,7 @@ UPDATE approval_limits SET
     max_loading_amount = COALESCE($4, max_loading_amount),
     escalation_role = COALESCE(NULLIF($5::text, ''), escalation_role),
     updated_at = NOW()
-WHERE id = $6 RETURNING id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at
+WHERE id = $6 RETURNING id, role_name, max_discount_percentage, max_discount_amount, max_loading_percentage, max_loading_amount, escalation_role, is_active, created_at, updated_at, entity_type, max_claim_amount
 `
 
 type UpdateApprovalLimitParams struct {
@@ -158,6 +164,8 @@ func (q *Queries) UpdateApprovalLimit(ctx context.Context, arg UpdateApprovalLim
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EntityType,
+		&i.MaxClaimAmount,
 	)
 	return i, err
 }

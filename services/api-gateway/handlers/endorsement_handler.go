@@ -18,6 +18,18 @@ func NewEndorsementHandler(endorsementSvc service.EndorsementService) *Endorseme
 	return &EndorsementHandler{endorsementSvc: endorsementSvc}
 }
 
+// CreateEndorsement godoc
+// @Summary      Create a new endorsement
+// @Description  Create a new endorsement for a policy
+// @Tags         Endorsements
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Policy ID"
+// @Param        request body policySchema.CreateEndorsementRequest true "Endorsement details"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/endorsements [post]
 func (h *EndorsementHandler) CreateEndorsement(ctx *gin.Context) {
 	var req policySchema.CreateEndorsementRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -36,6 +48,17 @@ func (h *EndorsementHandler) CreateEndorsement(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// GetEndorsement godoc
+// @Summary      Get an endorsement
+// @Description  Get endorsement details by ID
+// @Tags         Endorsements
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Endorsement ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/endorsements/{id} [get]
 func (h *EndorsementHandler) GetEndorsement(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -51,6 +74,17 @@ func (h *EndorsementHandler) GetEndorsement(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ListEndorsements godoc
+// @Summary      List endorsements for a policy
+// @Description  List all endorsements associated with a policy
+// @Tags         Endorsements
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Policy ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/endorsements [get]
 func (h *EndorsementHandler) ListEndorsements(ctx *gin.Context) {
 	policyID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -66,6 +100,17 @@ func (h *EndorsementHandler) ListEndorsements(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ApproveEndorsement godoc
+// @Summary      Approve an endorsement
+// @Description  Approve a pending endorsement by ID
+// @Tags         Endorsements
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Endorsement ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/endorsements/{id}/approve [put]
 func (h *EndorsementHandler) ApproveEndorsement(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -81,6 +126,18 @@ func (h *EndorsementHandler) ApproveEndorsement(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// RejectEndorsement godoc
+// @Summary      Reject an endorsement
+// @Description  Reject a pending endorsement by ID with a reason
+// @Tags         Endorsements
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Endorsement ID"
+// @Param        request body policySchema.RejectEndorsementRequest true "Rejection reason"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/endorsements/{id}/reject [put]
 func (h *EndorsementHandler) RejectEndorsement(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -102,6 +159,17 @@ func (h *EndorsementHandler) RejectEndorsement(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ApplyEndorsement godoc
+// @Summary      Apply an endorsement
+// @Description  Apply an approved endorsement to the policy
+// @Tags         Endorsements
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Endorsement ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/endorsements/{id}/apply [put]
 func (h *EndorsementHandler) ApplyEndorsement(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

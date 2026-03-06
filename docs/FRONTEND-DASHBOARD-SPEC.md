@@ -2,7 +2,7 @@
 
 ## Overview
 
-Build a Next.js admin dashboard for the HIAS Core health insurance administration system. The backend is a Go REST API with 246+ endpoints covering 12 domains: Identity, Product, Policy, Claims, Billing, Provider, Sales, PreAuth, Notification, Audit, Analytics, and Reinsurance.
+Build a Next.js admin dashboard for the HIAS Core health insurance administration system. The backend is a Go REST API with 246+ endpoints covering 14 domains: Identity, Product, Policy, Claims, Billing, Provider, Sales, PreAuth, Notification, Audit, Analytics, Reinsurance, Reporting, and Document.
 
 This document is a **complete specification** — it contains everything needed to build the frontend without reading the backend source code.
 
@@ -69,7 +69,10 @@ src/
 │   │   ├── billing/
 │   │   │   ├── invoices/page.tsx
 │   │   │   ├── payments/page.tsx
-│   │   │   └── remittances/page.tsx
+│   │   │   ├── remittances/page.tsx
+│   │   │   ├── commissions/page.tsx       # Commission payments
+│   │   │   ├── refunds/page.tsx           # Refund management
+│   │   │   └── premium-ledger/page.tsx    # Premium ledger entries
 │   │   ├── reinsurance/
 │   │   │   ├── page.tsx               # Reinsurance dashboard
 │   │   │   ├── treaties/page.tsx
@@ -86,6 +89,15 @@ src/
 │   │   ├── users/
 │   │   │   ├── page.tsx
 │   │   │   └── [id]/page.tsx
+│   │   ├── reports/
+│   │   │   ├── page.tsx                   # Report definitions + generated reports
+│   │   │   ├── generate/page.tsx          # Generate ad-hoc report
+│   │   │   └── schedules/page.tsx         # Report schedules (Admin/Manager)
+│   │   ├── settings/
+│   │   │   ├── profile/page.tsx           # User profile (GET/PUT /profile)
+│   │   │   ├── password/page.tsx          # Change password
+│   │   │   ├── adjudication-rules/page.tsx  # CRUD adjudication rules (Admin)
+│   │   │   └── escalation-rules/page.tsx    # CRUD escalation rules (Admin)
 │   │   ├── notifications/page.tsx
 │   │   ├── audit/page.tsx
 │   │   └── analytics/page.tsx
@@ -201,6 +213,21 @@ interface AuthState {
 - Name, email, phone, password fields
 - Redirect to login on success
 
+### Profile & Password (`/settings/profile`, `/settings/password`)
+
+**Profile Endpoints:**
+```
+GET /profile — Returns current authenticated user's profile
+PUT /profile — Updates name and phone only
+  Body: { "name": "...", "phone": "..." }
+
+PUT /auth/change-password
+  Body: { "current_password": "...", "new_password": "..." }
+```
+
+- Profile page shows current user info (name, email, phone, role) with editable name/phone fields
+- Password page has current password + new password + confirm new password fields
+
 ### Route Protection (`middleware.ts`)
 - Check for valid token on all `/dashboard/*` routes
 - Redirect to `/login` if unauthenticated
@@ -244,6 +271,9 @@ interface AuthState {
 │   Invoices   │                                          │
 │   Payments   │                                          │
 │   Remittances│                                          │
+│   Commissions│                                          │
+│   Refunds    │                                          │
+│   Prem Ledger│                                          │
 │              │                                          │
 │  Reinsurance▾│                                          │
 │   Dashboard  │                                          │
@@ -255,8 +285,17 @@ interface AuthState {
 │              │                                          │
 │  Providers   │                                          │
 │  Users       │                                          │
+│  Reports ▾   │                                          │
+│   All Reports│                                          │
+│   Generate   │                                          │
+│   Schedules  │                                          │
 │  Audit Trail │                                          │
 │  Analytics   │                                          │
+│  Settings ▾  │                                          │
+│   Profile    │                                          │
+│   Password   │                                          │
+│   Adjud Rules│                                          │
+│   Esc Rules  │                                          │
 │              │                                          │
 └──────────────┴──────────────────────────────────────────┘
 ```
@@ -282,8 +321,9 @@ interface AuthState {
 **KPI Cards Row:**
 | Card | API Source | Display |
 |------|----------|---------|
-| Total Policies | Custom count | Number |
-| Active Claims | Claims volume | Number |
+| Total Policies | `GET /analytics/kpis` → `total_policies_count` | Number |
+| Active Claims | `GET /analytics/kpis` → `active_claims_count` | Number |
+| SLA Breaches | `GET /analytics/kpis` → `sla_breach_count` | Number (red if > 0) |
 | Loss Ratio | `GET /analytics/kpis` | Percentage with trend arrow |
 | Premium Collected | `GET /analytics/kpis` | Money (KES) |
 | Approval Rate | `GET /analytics/kpis` | Percentage |
@@ -302,6 +342,12 @@ interface AuthState {
 **Recent Activity Feed:**
 - Latest 10 audit events (`GET /audit`)
 - Display: timestamp, user, action, entity
+
+**Documents — Latest Updates:**
+- Calls `GET /documents/standalone?limit=10`
+- Shows unified list of all document types (policy, claim, quotation)
+- Each item shows `source_type` badge, `file_name`, `created_at`
+- Click downloads via `GET /documents/:id/download` (returns presigned S3 URL)
 
 ---
 
@@ -327,6 +373,8 @@ interface AuthState {
     - Columns: calculation_type, relationship, rate_amount, age range, discount
     - "Add Rule" button → modal form
     - "Calculate Premium" button → modal with relationship/DOB inputs → shows calculated premium
+    - "Premium Breakdown" button → modal with proposed_members JSON array → shows per-member breakdown (`POST /plans/:id/premium-breakdown`)
+    - "View Rate Sheet" button → shows full rate sheet table (`GET /plans/:id/rate-sheet`)
   - **Underwriting Rules**: Table of rules
     - Columns: rule_type, relationship, parameter, severity, blocking, active
     - "Add Rule" button → modal form
@@ -349,6 +397,8 @@ interface AuthState {
   - Columns: Lead#, Contact, Company, Source, Expected Premium, Status, Follow-up Date
   - Filter by status, source, segment
 - "New Lead" button → form modal
+- **Due Follow-ups Widget**: Shows leads due for follow-up today (`GET /leads/due-follow-ups`)
+  - Display as a highlighted card or badge count at the top of the leads page
 
 #### Lead Detail (`/sales/leads/[id]`)
 - **Header**: Contact info, company, source, segment, expected premium, status badge
@@ -413,7 +463,7 @@ interface AuthState {
 - **Header**: Policy#, policyholder name/email/phone, status badge, premium amount, dates
 - **Action Buttons** (based on status):
   - DRAFT: "Activate" (requires payment reference input)
-  - ACTIVE: "Suspend" / "Lapse" / "Terminate" / "Change Plan"
+  - ACTIVE: "Suspend" / "Lapse" / "Terminate" / "Change Plan" / "Calculate Pro-rata" (`GET /policies/:id/prorate`)
   - LAPSED/SUSPENDED: "Reinstate"
 - **Tabs:**
   - **Members**:
@@ -437,6 +487,12 @@ interface AuthState {
     - **Installments sub-tab**: Schedule table + individual installments with "Mark Paid" buttons
     - **Invoices sub-tab**: List from policy invoices
     - **Credit Notes sub-tab**: List with "Approve" / "Apply" buttons
+    - **Premium Ledger sub-tab**: Chronological ledger entries (`GET /policies/:id/premium-register`)
+      - Columns: Date, Entry Type (DEBIT/CREDIT), Amount, Description, Reference#, Balance After
+      - Shows current balance via `GET /policies/:id/premium-balance`
+    - **Refunds sub-tab**: Refund requests for this policy (`GET /policies/:id/refunds`)
+      - Columns: Amount, Status, Reason, Approved By, Processed At
+      - "Request Refund" button → form (amount, reason, optional credit_note_id)
   - **Renewals**:
     - Table: Status, Renewal Date, New Premium, Plan Change, Approved By
     - "Initiate Renewal" button → form (renewal date, optional new plan)
@@ -493,6 +549,10 @@ interface AuthState {
   - **Documents**:
     - Upload area + file list
   - **Audit Trail**: Recent events for this claim
+  - **Timeline** (from `GET /claims/:id/timeline`):
+    - Chronological list of status transitions from the `claim_status_history` table
+    - Each entry: from_status, to_status, action, notes, performed_by, created_at
+    - Display as a vertical timeline component with status badges
 
 #### New Claim Form (`/claims/new`)
 - **Fields:**
@@ -556,6 +616,33 @@ interface AuthState {
 - Data table: Provider, Amount, Status, Period, Advice Sent
 - "Create Remittance" button → form (provider select, period)
 - Per remittance: "Export Payment File" button (downloads CSV/PDF)
+
+#### Commissions (`/billing/commissions`)
+- **Commission Rules**: Table of rules by plan (`GET /commissions/rules/plan/:id`)
+  - Columns: Plan, Intermediary, Rate %, Flat Amount, Effective From, Effective To
+  - "Add Rule" button → form (plan select, intermediary select, rate_pct, flat_amount, effective dates)
+  - Calls `POST /commissions/rules`
+- **Calculate Commission**: Form to calculate commission for a premium amount
+  - Inputs: Plan, Intermediary, Premium Amount
+  - Shows: Commission Amount, Rate Used, Rule Matched
+  - Calls `POST /commissions/calculate`
+- **Commission Payments**: Table of commission payment records (`GET /commissions/payments`)
+  - Columns: Policy, Intermediary, Amount, Currency, Status, Period, Paid At
+  - "Process Pending Payments" button → calls `POST /commissions/payments/process`
+
+#### Refunds (`/billing/refunds`)
+- Refund requests with approval workflow
+- **Request Refund**: Form (policy select, optional credit note, amount, reason)
+  - Calls `POST /refunds`
+- **Per refund action buttons** (role-based):
+  - PENDING: "Approve" (Admin/Manager) → `PUT /refunds/:id/approve`
+  - APPROVED: "Process" (Admin/Finance) → `PUT /refunds/:id/process`
+- Refund statuses: PENDING → APPROVED → PROCESSED
+
+#### Premium Ledger (`/billing/premium-ledger`)
+- **Create Entry**: Form (policy select, entry type DEBIT/CREDIT, amount, description, reference#, effective date)
+  - Calls `POST /premium-ledger`
+- View per-policy ledger from policy detail billing tab (see Section 4.4)
 
 ---
 
@@ -647,6 +734,10 @@ interface AuthState {
 #### Providers List (`/providers`)
 - Data table: Name, Type, License#, Status, Tier, Accreditation, County
 - Filters: type, status, tier, accreditation status
+  - Tier filter uses: `GET /providers/by-tier?tier=TIER_1&page=1&page_size=20`
+  - Accreditation filter uses: `GET /providers/by-accreditation?status=ACCREDITED&page=1&page_size=20`
+- **Expiring Accreditations Alert**: Banner/widget showing providers with accreditations expiring within N days
+  - `GET /providers/expiring-accreditations?days=30&page=1&page_size=10`
 - "Register Provider" button
 
 #### Provider Detail (`/providers/[id]`)
@@ -695,7 +786,84 @@ interface AuthState {
 - **Loss Ratio Chart**: Pie chart (breakdown by category)
 - **KPI Cards**: Approval rate, average TAT, loss ratio, fraud rate
 - **Top Providers Table**: Name, claim count, total amount, total approved
-- "Export CSV" button
+- "Export CSV" button — **NOTE: currently a stub**, returns empty CSV with headers only. Show "Coming Soon" badge.
+
+#### Reports (`/reports`)
+
+**Report Definitions** (`/reports`):
+- Data table: Name, Code, Category, Report Type, Active
+  - `GET /reports/definitions` — list all report definitions
+  - `GET /reports/definitions/:id` — get single definition
+- Filters: category (CLAIMS, POLICIES, BILLING, PROVIDERS, MEMBERS)
+- "Create Ad-Hoc Report" button (Admin/Manager only) → form:
+  - Name, description, category, columns (JSON), filters (JSON), allowed roles
+  - Calls `POST /reports/definitions/adhoc`
+
+**Generate Report** (`/reports/generate`):
+- Select report definition (dropdown)
+- Parameters form (dynamic based on definition's `default_parameters`)
+- Format selector: CSV | XLSX | PDF
+- "Preview" button → shows data table preview without generating file
+  - `POST /reports/preview` — body: `{ report_code, parameters }`
+  - Returns: `{ columns, data[], row_count, summary }`
+- "Generate" button → creates file for download
+  - `POST /reports/generate` — body: `{ report_code, parameters, format }`
+- "Drill Down" button → drill into entity detail (e.g., claims by policy)
+  - `POST /reports/drilldown` — body: `{ report_code, entity_id, start_date?, end_date?, format }`
+
+**Generated Reports** (shown on `/reports` page below definitions):
+- `GET /reports/generated` — list all generated reports
+- Table: Report#, Name, Format, Status, Row Count, File Size, Generated By, Date
+- Click → download: `GET /reports/generated/:id/download`
+- Report statuses: PENDING | PROCESSING | COMPLETED | FAILED
+
+**Report Schedules** (`/reports/schedules`) — Admin/Manager only:
+- `GET /reports/schedules` — list schedules
+- Table: Name, Report Definition, Cron, Format, Recipients, Active, Last Run, Next Run
+- "Create Schedule" button → form:
+  - Report definition (select), name, cron expression, parameters, format, recipients (user select)
+  - `POST /reports/schedules`
+- Per schedule: Edit (`PUT /reports/schedules/:id`), Delete (`DELETE /reports/schedules/:id`)
+- Toggle active/inactive
+
+**Management Dashboard** (`/reports/dashboard`) — Admin/Manager/Finance:
+- KPI cards from `GET /reports/dashboard?period=month`:
+  - Loss Ratio (%), Claims Volume, Approval Rate (%), Avg TAT (hours)
+  - Total Premium, Total Claims Paid, Active Policies, Total Members
+  - Renewal Rate (%), Premium Growth (%), Outstanding Premium, SLA Breach Count
+
+#### Documents (Unified)
+
+**Standalone Document List:**
+```
+GET /documents/standalone?limit=10&offset=0
+```
+- Returns unified list of all documents across policy/claim/quotation types
+- Response: `{ "status": "success", "data": { "documents": [...], "total": N, "limit": 10, "offset": 0 } }`
+- **NOTE:** Uses `limit`/`offset` pagination, NOT `page`/`page_size`
+- Each document: `{ id, source_type, source_id, document_type, file_name, file_size, s3_key, created_by, created_at, updated_at }`
+
+**Document Download:**
+```
+GET /documents/:id/download
+```
+- Returns presigned S3 URL for downloading any document type
+- Response: `{ "status": "success", "data": { "download_url": "https://...", "expires_in": 900 } }`
+
+#### Search & Filtering on List Endpoints
+
+All major list endpoints support:
+
+- **`search`** (query param) — ILIKE search on key fields:
+  - Claims: `claim_number`, `status`
+  - Policies: `policy_number`, `policyholder_name`, `policyholder_email`
+  - Members: `full_name`, `national_id`, `email`, `phone`
+  - Providers: `name`, `license_number`, `email`
+
+- **`date_from`**, **`date_to`** (query params) — filter by `created_at` date range:
+  - Supported on: claims, policies, invoices
+  - Format: `YYYY-MM-DD` or RFC3339
+  - Both are optional; omit for no date filtering
 
 ---
 
@@ -814,6 +982,14 @@ export type InstallmentStatus = "PENDING" | "PAID" | "OVERDUE";
 export type StatementStatus = "UPLOADED" | "RECONCILED";
 export type MatchStatus = "UNMATCHED" | "MATCHED" | "DISPUTED";
 export type Currency = "KES";
+export type CommissionPaymentStatus = "PENDING" | "PROCESSED" | "FAILED";
+export type RefundStatus = "PENDING" | "APPROVED" | "PROCESSED";
+export type PremiumLedgerEntryType = "DEBIT" | "CREDIT";
+
+// ── Reporting ────────────────────────────────────────────────
+export type ReportStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+export type ReportFormat = "CSV" | "XLSX" | "PDF";
+export type ReportCategory = "CLAIMS" | "POLICIES" | "BILLING" | "PROVIDERS" | "MEMBERS";
 
 // ── Sales ───────────────────────────────────────────────────
 export type LeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "PROPOSAL_SENT" | "NEGOTIATION" | "WON" | "LOST" | "DORMANT";
@@ -978,6 +1154,12 @@ export const statusColors: Record<string, string> = {
   TIER_1: "bg-green-100 text-green-800",
   TIER_2: "bg-blue-100 text-blue-800",
   TIER_3: "bg-gray-100 text-gray-800",
+
+  // Commission
+  PROCESSED: "bg-green-100 text-green-800",
+
+  // Report
+  COMPLETED: "bg-green-100 text-green-800",
 };
 
 export function getStatusColor(status: string): string {
@@ -1107,6 +1289,25 @@ export const REINSURER_STATEMENT_LABELS: Record<ReinsurerStatementStatus, string
   ISSUED: "Issued",
   ACKNOWLEDGED: "Acknowledged",
   SETTLED: "Settled",
+};
+
+export const COMMISSION_PAYMENT_STATUS_LABELS: Record<CommissionPaymentStatus, string> = {
+  PENDING: "Pending",
+  PROCESSED: "Processed",
+  FAILED: "Failed",
+};
+
+export const REFUND_STATUS_LABELS: Record<RefundStatus, string> = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  PROCESSED: "Processed",
+};
+
+export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
+  PENDING: "Pending",
+  PROCESSING: "Processing",
+  COMPLETED: "Completed",
+  FAILED: "Failed",
 };
 ```
 
@@ -2265,6 +2466,260 @@ interface PaymentExportClaim {
 }
 ```
 
+### Billing Extended Types (Commissions, Refunds, Premium Ledger)
+
+```typescript
+// lib/types/billing-extended.ts
+
+// ── Commissions ──────────────────────────────────────────────
+
+interface CommissionRuleResponse {
+  id: UUID;
+  plan_id: UUID;
+  intermediary_id: UUID;
+  rate_pct: number;
+  flat_amount: Money;
+  effective_from: ISODateTime;
+  effective_to?: ISODateTime;
+  created_at: ISODateTime;
+}
+
+interface CommissionPaymentResponse {
+  id: UUID;
+  policy_id: UUID;
+  intermediary_id: UUID;
+  commission_rule_id: UUID;
+  amount: Money;
+  currency: string;
+  status: "PENDING" | "PROCESSED" | "FAILED";
+  period_start: ISODateTime;
+  period_end: ISODateTime;
+  paid_at?: ISODateTime;
+  created_at: ISODateTime;
+}
+
+interface CalculateCommissionResponse {
+  commission_amount: Money;
+  rate_pct: number;
+  flat_amount: Money;
+  rule_id: string;
+}
+
+interface CreateCommissionRuleRequest {
+  plan_id: UUID;            // required
+  intermediary_id: UUID;    // required
+  rate_pct?: number;
+  flat_amount?: Money;
+  effective_from: ISODateTime;  // required
+  effective_to?: ISODateTime;
+}
+
+interface CalculateCommissionRequest {
+  plan_id: UUID;            // required
+  intermediary_id: UUID;    // required
+  premium_amount: Money;    // required, min 1
+}
+
+// ── Refunds ──────────────────────────────────────────────────
+
+type RefundStatus = "PENDING" | "APPROVED" | "PROCESSED";
+
+interface RefundResponse {
+  id: UUID;
+  policy_id: UUID;
+  credit_note_id?: UUID;
+  amount: Money;
+  currency: string;
+  status: RefundStatus;
+  reason: string;
+  approved_by?: UUID;
+  approved_at?: ISODateTime;
+  processed_at?: ISODateTime;
+  created_at: ISODateTime;
+}
+
+interface CreateRefundRequest {
+  policy_id: UUID;           // required
+  credit_note_id?: UUID;
+  amount: Money;             // required, min 1
+  reason: string;            // required
+}
+
+// ── Premium Ledger ───────────────────────────────────────────
+
+type PremiumLedgerEntryType = "DEBIT" | "CREDIT";
+
+interface PremiumLedgerResponse {
+  id: UUID;
+  policy_id: UUID;
+  entry_type: PremiumLedgerEntryType;
+  amount: Money;
+  description: string;
+  reference_number: string;
+  effective_date: ISODateTime;
+  balance_after: Money;
+  created_at: ISODateTime;
+}
+
+interface PremiumBalanceResponse {
+  policy_id: UUID;
+  balance: Money;
+}
+
+interface CreatePremiumLedgerRequest {
+  policy_id: UUID;            // required
+  entry_type: "DEBIT" | "CREDIT";  // required
+  amount: Money;              // required, min 1
+  description?: string;
+  reference_number: string;   // required
+  effective_date: ISODateTime;  // required
+}
+
+// ── Premium Breakdown ────────────────────────────────────────
+
+interface MemberPremiumBreakdown {
+  relationship: string;
+  age: number;
+  age_band?: string;
+  rate_amount: Money;
+  rule_name?: string;
+}
+
+interface PremiumBreakdownResponse {
+  total_premium: Money;
+  member_breakdown: MemberPremiumBreakdown[];
+  discount_applied: Money;
+  calculation_type: string;
+}
+```
+
+### Reporting Types
+
+```typescript
+// lib/types/reporting.ts
+
+type ReportStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+type ReportFormat = "CSV" | "XLSX" | "PDF";
+type ReportCategory = "CLAIMS" | "POLICIES" | "BILLING" | "PROVIDERS" | "MEMBERS";
+
+interface ReportDefinitionResponse {
+  id: UUID;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  report_type: string;
+  default_parameters: Record<string, unknown>;
+  allowed_roles: string[];
+  columns: Record<string, unknown>;
+  is_active: boolean;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+interface GeneratedReportResponse {
+  id: UUID;
+  report_definition_id: UUID;
+  schedule_id?: UUID;
+  report_number: string;
+  name: string;
+  parameters: Record<string, unknown>;
+  format: ReportFormat;
+  status: ReportStatus;
+  row_count: number;
+  file_size: number;
+  error_message?: string;
+  generated_by: UUID;
+  generated_at: ISODateTime;
+  expires_at?: ISODateTime;
+  created_at: ISODateTime;
+}
+
+interface ReportScheduleResponse {
+  id: UUID;
+  report_definition_id: UUID;
+  definition_name: string;
+  name: string;
+  cron_expression: string;
+  parameters: Record<string, unknown>;
+  export_format: ReportFormat;
+  recipients: UUID[];
+  is_active: boolean;
+  last_run_at?: ISODateTime;
+  next_run_at?: ISODateTime;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+interface ReportPreviewResponse {
+  columns: Record<string, unknown>;
+  data: Record<string, unknown>[];
+  row_count: number;
+  summary?: Record<string, unknown>;
+}
+
+interface ManagementDashboardResponse {
+  loss_ratio: number;
+  claims_volume: number;
+  approval_rate: number;
+  avg_tat_hours: number;
+  total_premium: Money;
+  total_claims_paid: Money;
+  active_policies: number;
+  total_members: number;
+  renewal_rate: number;
+  premium_growth_pct: number;
+  outstanding_premium: Money;
+  sla_breach_count: number;
+}
+
+interface GenerateReportRequest {
+  report_code: string;       // required
+  parameters?: Record<string, unknown>;
+  format: ReportFormat;      // required
+}
+
+interface PreviewReportRequest {
+  report_code: string;       // required
+  parameters?: Record<string, unknown>;
+}
+
+interface DrillDownRequest {
+  report_code: string;       // required
+  entity_id: UUID;           // required
+  start_date?: string;       // YYYY-MM-DD
+  end_date?: string;         // YYYY-MM-DD
+  format: ReportFormat;      // required
+}
+
+interface CreateAdHocReportRequest {
+  name: string;              // required
+  description?: string;
+  category: string;          // required
+  columns: Record<string, unknown>;  // required
+  filters: Record<string, unknown>;  // required
+  allowed_roles: string[];   // required
+}
+
+interface CreateScheduleRequest {
+  report_definition_id: UUID;  // required
+  name: string;                // required
+  cron_expression: string;     // required
+  parameters?: Record<string, unknown>;
+  export_format: ReportFormat; // required
+  recipients: string[];        // required, min 1
+}
+
+interface UpdateScheduleRequest {
+  name?: string;
+  cron_expression?: string;
+  parameters?: Record<string, unknown>;
+  export_format?: ReportFormat;
+  recipients?: string[];
+  is_active?: boolean;
+}
+```
+
 ### Provider Types
 
 ```typescript
@@ -2759,52 +3214,645 @@ interface KPIResponse {
   fraud_rate: number;
   total_premium_collected: Money;
   total_claims_paid: Money;
+  total_policies_count: number;
+  active_claims_count: number;
+  sla_breach_count: number;
 }
 ```
 
 ---
 
-## 6. API Client Setup
+## 6. Data Fetching Architecture
 
-### Axios Instance
+### Overview — 4-Layer Architecture
 
-```typescript
-// lib/api/client.ts
-
-import axios from "axios";
-
-const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL + "/api/v1",
-  headers: { "Content-Type": "application/json" },
-});
-
-// Request interceptor: inject access token
-apiClient.interceptors.request.use((config) => {
-  const token = getAccessToken(); // from store/cookies
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Response interceptor: handle 401 → refresh token
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      try {
-        await refreshAccessToken();
-        return apiClient(error.config); // retry original request
-      } catch {
-        redirectToLogin();
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+```
+Browser → Layer 1 (API Proxy) → Backend (Go)
+  ↑
+Layer 2 (API Client) — fetch wrapper, token refresh, envelope unwrap
+  ↑
+Layer 3 (React Query Hooks) — useQuery/useMutation, cache, invalidation
+  ↑
+Layer 4 (Query Client) — staleTime, gcTime, persistence, retry config
 ```
 
-### API Method Pattern
+### Layer 1: API Proxy (`app/api/v1/[...path]/route.ts`)
+
+All client requests go to `/api/v1/*` (same origin). A Next.js catch-all route proxies to the backend.
+
+```typescript
+// app/api/v1/[...path]/route.ts
+
+import { NextRequest, NextResponse } from "next/server";
+
+const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:8080";
+
+async function proxyRequest(req: NextRequest, params: { path: string[] }) {
+  const path = params.path.join("/");
+  const url = new URL(`/api/v1/${path}`, API_BASE_URL);
+  url.search = req.nextUrl.search;
+
+  const headers = new Headers(req.headers);
+  // Forward httpOnly cookies as Authorization header
+  const token = req.cookies.get("access_token")?.value;
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(url.toString(), {
+    method: req.method,
+    headers,
+    body: req.body,
+  });
+
+  return new NextResponse(response.body, {
+    status: response.status,
+    headers: response.headers,
+  });
+}
+
+export const GET = proxyRequest;
+export const POST = proxyRequest;
+export const PUT = proxyRequest;
+export const DELETE = proxyRequest;
+```
+
+**Key benefits:**
+- Backend URL never exposed to browser
+- No CORS issues (same-origin requests)
+- Secure httpOnly cookie forwarding
+- Central place for token refresh injection
+
+### Layer 2: API Client (`lib/api/apiClient.ts`)
+
+```typescript
+// lib/api/apiClient.ts
+
+// Backend response envelope
+interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  message: string;
+  timestamp: string;
+}
+
+// Paginated envelope
+interface PaginatedEnvelope<T> {
+  success: boolean;
+  data: T[];
+  message: string;
+  timestamp: string;
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
+let isRefreshing = false;
+let refreshPromise: Promise<void> | null = null;
+
+async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const url = `/api/v1${path}`;
+  const response = await fetch(url, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+  // Auto token refresh on 401 (with mutex)
+  if (response.status === 401) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = refreshToken().finally(() => {
+        isRefreshing = false;
+        refreshPromise = null;
+      });
+    }
+    await refreshPromise;
+    // Retry original request
+    return fetch(url, { ...options, credentials: "include" });
+  }
+
+  return response;
+}
+
+// Unwrap the ApiEnvelope, throw on failure
+async function handleApiResponseUnwrapped<T>(response: Response): Promise<T> {
+  const envelope: ApiEnvelope<T> = await response.json();
+  if (!response.ok || !envelope.success) {
+    throw new Error(envelope.message || `API error: ${response.status}`);
+  }
+  return envelope.data;
+}
+
+// Unwrap paginated envelope
+async function handlePaginatedResponse<T>(response: Response): Promise<{
+  data: T[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}> {
+  const envelope: PaginatedEnvelope<T> = await response.json();
+  if (!response.ok || !envelope.success) {
+    throw new Error(envelope.message || `API error: ${response.status}`);
+  }
+  return {
+    data: envelope.data,
+    page: envelope.page,
+    page_size: envelope.page_size,
+    total: envelope.total,
+    total_pages: envelope.total_pages,
+  };
+}
+
+export { apiFetch, handleApiResponseUnwrapped, handlePaginatedResponse };
+```
+
+### Layer 3: React Query Hooks (`lib/queries/use*.ts`)
+
+#### Query Key Factory
+
+```typescript
+// lib/queries/keys.ts
+
+export const qk = {
+  // Claims
+  claims: {
+    all: ["claims"] as const,
+    list: (params: Record<string, unknown>) => ["claims", "list", params] as const,
+    detail: (id: string) => ["claims", "detail", id] as const,
+    slaBreached: (params: Record<string, unknown>) => ["claims", "sla-breached", params] as const,
+    documents: (claimId: string) => ["claims", "documents", claimId] as const,
+    timeline: (claimId: string) => ["claims", "timeline", claimId] as const,
+  },
+  // Policies
+  policies: {
+    all: ["policies"] as const,
+    list: (params: Record<string, unknown>) => ["policies", "list", params] as const,
+    detail: (id: string) => ["policies", "detail", id] as const,
+    members: (policyId: string) => ["policies", "members", policyId] as const,
+    endorsements: (policyId: string) => ["policies", "endorsements", policyId] as const,
+    renewals: (policyId: string) => ["policies", "renewals", policyId] as const,
+    documents: (policyId: string) => ["policies", "documents", policyId] as const,
+    installments: (policyId: string) => ["policies", "installments", policyId] as const,
+    underwritingFlags: (policyId: string) => ["policies", "uw-flags", policyId] as const,
+    creditNotes: (policyId: string) => ["policies", "credit-notes", policyId] as const,
+  },
+  // Providers
+  providers: {
+    all: ["providers"] as const,
+    list: (params: Record<string, unknown>) => ["providers", "list", params] as const,
+    detail: (id: string) => ["providers", "detail", id] as const,
+    contracts: (providerId: string) => ["providers", "contracts", providerId] as const,
+    rateCards: (providerId: string) => ["providers", "rate-cards", providerId] as const,
+    statements: (providerId: string) => ["providers", "statements", providerId] as const,
+  },
+  // Plans
+  plans: {
+    all: ["plans"] as const,
+    list: (params: Record<string, unknown>) => ["plans", "list", params] as const,
+    detail: (id: string) => ["plans", "detail", id] as const,
+    benefits: (planId: string) => ["plans", "benefits", planId] as const,
+    exclusions: (planId: string) => ["plans", "exclusions", planId] as const,
+    premiumRules: (planId: string) => ["plans", "premium-rules", planId] as const,
+    providerNetworks: (planId: string) => ["plans", "provider-networks", planId] as const,
+  },
+  // Billing
+  billing: {
+    invoices: {
+      all: ["invoices"] as const,
+      list: (params: Record<string, unknown>) => ["invoices", "list", params] as const,
+      detail: (id: string) => ["invoices", "detail", id] as const,
+    },
+    payments: {
+      all: ["payments"] as const,
+      list: (params: Record<string, unknown>) => ["payments", "list", params] as const,
+      detail: (id: string) => ["payments", "detail", id] as const,
+    },
+    remittances: {
+      all: ["remittances"] as const,
+      list: (params: Record<string, unknown>) => ["remittances", "list", params] as const,
+      detail: (id: string) => ["remittances", "detail", id] as const,
+    },
+    commissions: {
+      rules: ["commissions", "rules"] as const,
+      payments: (params: Record<string, unknown>) => ["commissions", "payments", params] as const,
+    },
+    refunds: {
+      all: ["refunds"] as const,
+      list: (params: Record<string, unknown>) => ["refunds", "list", params] as const,
+      detail: (id: string) => ["refunds", "detail", id] as const,
+    },
+    premiumLedger: {
+      all: ["premium-ledger"] as const,
+      byPolicy: (policyId: string) => ["premium-ledger", "policy", policyId] as const,
+      balance: (policyId: string) => ["premium-ledger", "balance", policyId] as const,
+    },
+  },
+  // Sales
+  sales: {
+    leads: {
+      all: ["leads"] as const,
+      list: (params: Record<string, unknown>) => ["leads", "list", params] as const,
+      detail: (id: string) => ["leads", "detail", id] as const,
+      activities: (leadId: string) => ["leads", "activities", leadId] as const,
+    },
+    quotations: {
+      all: ["quotations"] as const,
+      list: (params: Record<string, unknown>) => ["quotations", "list", params] as const,
+      detail: (id: string) => ["quotations", "detail", id] as const,
+      versions: (quotationId: string) => ["quotations", "versions", quotationId] as const,
+      documents: (quotationId: string) => ["quotations", "documents", quotationId] as const,
+    },
+    approvalLimits: ["approval-limits"] as const,
+  },
+  // Pre-Auth & Cases
+  preauths: {
+    all: ["preauths"] as const,
+    list: (params: Record<string, unknown>) => ["preauths", "list", params] as const,
+    detail: (id: string) => ["preauths", "detail", id] as const,
+  },
+  cases: {
+    all: ["cases"] as const,
+    list: (params: Record<string, unknown>) => ["cases", "list", params] as const,
+    detail: (id: string) => ["cases", "detail", id] as const,
+  },
+  // Members
+  members: {
+    all: ["members"] as const,
+    list: (params: Record<string, unknown>) => ["members", "list", params] as const,
+    detail: (id: string) => ["members", "detail", id] as const,
+    eligibility: (memberId: string) => ["members", "eligibility", memberId] as const,
+  },
+  // Underwriting
+  underwriting: {
+    all: ["underwriting"] as const,
+    detail: (id: string) => ["underwriting", "detail", id] as const,
+    flags: {
+      all: ["underwriting-flags"] as const,
+      detail: (id: string) => ["underwriting-flags", "detail", id] as const,
+    },
+  },
+  // Reinsurance
+  reinsurance: {
+    treaties: {
+      all: ["treaties"] as const,
+      detail: (id: string) => ["treaties", "detail", id] as const,
+    },
+    cessions: { all: ["cessions"] as const },
+    recoveries: { all: ["recoveries"] as const },
+    bordereaux: { all: ["bordereaux"] as const },
+  },
+  // Reports
+  reports: {
+    definitions: ["reports", "definitions"] as const,
+    generated: (params: Record<string, unknown>) => ["reports", "generated", params] as const,
+    schedules: ["reports", "schedules"] as const,
+    managementDashboard: ["reports", "management-dashboard"] as const,
+  },
+  // Analytics
+  analytics: {
+    kpis: (period: string) => ["analytics", "kpis", period] as const,
+    claimsTrend: (period: string) => ["analytics", "claims-trend", period] as const,
+    financialSummary: (period: string) => ["analytics", "financial-summary", period] as const,
+    portfolio: (period: string) => ["analytics", "portfolio", period] as const,
+    reinsurance: ["analytics", "reinsurance"] as const,
+  },
+  // Misc
+  notifications: {
+    all: ["notifications"] as const,
+    unreadCount: ["notifications", "unread-count"] as const,
+  },
+  users: {
+    all: ["users"] as const,
+    detail: (id: string) => ["users", "detail", id] as const,
+  },
+  audit: {
+    entity: (type: string, id: string) => ["audit", "entity", type, id] as const,
+    user: (userId: string) => ["audit", "user", userId] as const,
+  },
+  adjudicationRules: ["adjudication-rules"] as const,
+  escalationRules: ["escalation-rules"] as const,
+} as const;
+```
+
+#### Hook Pattern (Example: Claims)
+
+```typescript
+// lib/queries/useClaims.ts
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { claimsApi } from "@/lib/api/claimsApi";
+import { qk } from "./keys";
+
+export function useClaims(params: { page: number; page_size: number; status?: string }) {
+  return useQuery({
+    queryKey: qk.claims.list(params),
+    queryFn: () => claimsApi.list(params),
+  });
+}
+
+export function useClaim(id: string) {
+  return useQuery({
+    queryKey: qk.claims.detail(id),
+    queryFn: () => claimsApi.get(id),
+    enabled: !!id,
+  });
+}
+
+export function useVetClaim() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { vetted_amount: number; notes?: string } }) =>
+      claimsApi.vet(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: qk.claims.detail(id) });
+      queryClient.invalidateQueries({ queryKey: qk.claims.all });
+    },
+  });
+}
+
+export function useApproveClaim() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { decision: string; reason?: string } }) =>
+      claimsApi.approve(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: qk.claims.detail(id) });
+      queryClient.invalidateQueries({ queryKey: qk.claims.all });
+    },
+  });
+}
+```
+
+### Layer 4: Query Client (`lib/queries/client.ts` + `QueryProvider.tsx`)
+
+```typescript
+// lib/queries/client.ts
+
+import { QueryClient } from "@tanstack/react-query";
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000,       // 60 seconds
+      gcTime: 10 * 60 * 1000,     // 10 minutes
+      retry: (failureCount, error) => {
+        // No retry on 4xx client errors
+        if (error instanceof Error && error.message.includes("4")) return false;
+        return failureCount < 2;   // Max 2 retries on server errors
+      },
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+```
+
+```typescript
+// lib/queries/QueryProvider.tsx
+
+"use client";
+
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+import { queryClient } from "./client";
+
+const persister = createSyncStoragePersister({
+  storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
+});
+
+export function QueryProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+      {children}
+      <ReactQueryDevtools initialIsOpen={false} />
+    </PersistQueryClientProvider>
+  );
+}
+```
+
+### Architecture Best Practices
+
+| Practice | Implementation |
+|----------|---------------|
+| Proxy pattern | All requests same-origin via Next.js API routes — no CORS, secure cookies |
+| Query key factory | `qk` object with hierarchical, type-safe keys — consistent invalidation |
+| Envelope unwrapping | `handleApiResponseUnwrapped()` — standardized error handling at Layer 2 |
+| Session persistence | Selective sessionStorage caching for instant reload UX |
+| Mutex token refresh | Single concurrent refresh, all pending requests wait and retry |
+| Granular invalidation | Mutations invalidate both `detail(id)` and parent `all` keys |
+
+### Domain API Modules
+
+Each domain gets its own API module in `lib/api/`. All modules follow the same pattern — call `apiFetch()` and unwrap with `handleApiResponseUnwrapped()`.
+
+#### Claims API (`lib/api/claimsApi.ts`)
+
+```typescript
+export const claimsApi = {
+  list: async (params: { page: number; page_size: number; status?: string }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await apiFetch(`/claims?${query}`);
+    return handlePaginatedResponse<ClaimResponse>(res);
+  },
+  get: async (id: string) => {
+    const res = await apiFetch(`/claims/${id}`);
+    return handleApiResponseUnwrapped<ClaimResponse>(res);
+  },
+  submit: async (data: SubmitClaimRequest) => {
+    const res = await apiFetch("/claims", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<ClaimResponse>(res);
+  },
+  vet: async (id: string, data: { vetted_amount: number; notes?: string }) => {
+    const res = await apiFetch(`/claims/${id}/vet`, { method: "PUT", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<ClaimResponse>(res);
+  },
+  approve: async (id: string, data: { decision: string; reason?: string }) => {
+    const res = await apiFetch(`/claims/${id}/approve`, { method: "PUT", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<ClaimResponse>(res);
+  },
+  reject: async (id: string, data: { decision: string; reason?: string }) => {
+    const res = await apiFetch(`/claims/${id}/reject`, { method: "PUT", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<ClaimResponse>(res);
+  },
+  markReadyForPayment: async (id: string) => {
+    const res = await apiFetch(`/claims/${id}/ready-for-payment`, { method: "PUT" });
+    return handleApiResponseUnwrapped<ClaimResponse>(res);
+  },
+  markPaid: async (id: string) => {
+    const res = await apiFetch(`/claims/${id}/mark-paid`, { method: "PUT" });
+    return handleApiResponseUnwrapped<ClaimResponse>(res);
+  },
+  listSLABreached: async (params: { page: number; page_size: number }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await apiFetch(`/claims/sla-breached?${query}`);
+    return handlePaginatedResponse<ClaimResponse>(res);
+  },
+  bulkSubmit: async (data: { claims: SubmitClaimRequest[] }) => {
+    const res = await apiFetch("/claims/bulk", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<BulkClaimResultResponse>(res);
+  },
+  importCsv: async (formData: FormData) => {
+    const res = await apiFetch("/claims/import-csv", {
+      method: "POST",
+      body: formData,
+      headers: {}, // Let browser set Content-Type with boundary
+    });
+    return handleApiResponseUnwrapped<BulkClaimResultResponse>(res);
+  },
+};
+```
+
+#### Commissions API (`lib/api/commissionsApi.ts`)
+
+```typescript
+export const commissionsApi = {
+  listRules: async (params: { page: number; page_size: number }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await apiFetch(`/commissions/rules?${query}`);
+    return handlePaginatedResponse<CommissionRuleResponse>(res);
+  },
+  createRule: async (data: CreateCommissionRuleRequest) => {
+    const res = await apiFetch("/commissions/rules", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<CommissionRuleResponse>(res);
+  },
+  updateRule: async (id: string, data: UpdateCommissionRuleRequest) => {
+    const res = await apiFetch(`/commissions/rules/${id}`, { method: "PUT", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<CommissionRuleResponse>(res);
+  },
+  deleteRule: async (id: string) => {
+    const res = await apiFetch(`/commissions/rules/${id}`, { method: "DELETE" });
+    return handleApiResponseUnwrapped<void>(res);
+  },
+  listPayments: async (params: { page: number; page_size: number }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await apiFetch(`/commissions/payments?${query}`);
+    return handlePaginatedResponse<CommissionPaymentResponse>(res);
+  },
+  calculate: async (policyId: string) => {
+    const res = await apiFetch(`/commissions/calculate/${policyId}`, { method: "POST" });
+    return handleApiResponseUnwrapped<CalculateCommissionResponse>(res);
+  },
+};
+```
+
+#### Refunds API (`lib/api/refundsApi.ts`)
+
+```typescript
+export const refundsApi = {
+  list: async (params: { page: number; page_size: number; status?: string }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await apiFetch(`/refunds?${query}`);
+    return handlePaginatedResponse<RefundResponse>(res);
+  },
+  get: async (id: string) => {
+    const res = await apiFetch(`/refunds/${id}`);
+    return handleApiResponseUnwrapped<RefundResponse>(res);
+  },
+  create: async (data: CreateRefundRequest) => {
+    const res = await apiFetch("/refunds", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<RefundResponse>(res);
+  },
+  approve: async (id: string) => {
+    const res = await apiFetch(`/refunds/${id}/approve`, { method: "PUT" });
+    return handleApiResponseUnwrapped<RefundResponse>(res);
+  },
+  process: async (id: string) => {
+    const res = await apiFetch(`/refunds/${id}/process`, { method: "PUT" });
+    return handleApiResponseUnwrapped<RefundResponse>(res);
+  },
+};
+```
+
+#### Premium Ledger API (`lib/api/premiumLedgerApi.ts`)
+
+```typescript
+export const premiumLedgerApi = {
+  listEntries: async (params: { page: number; page_size: number; policy_id?: string }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await apiFetch(`/premium-ledger?${query}`);
+    return handlePaginatedResponse<PremiumLedgerResponse>(res);
+  },
+  getByPolicy: async (policyId: string) => {
+    const res = await apiFetch(`/premium-ledger/policy/${policyId}`);
+    return handlePaginatedResponse<PremiumLedgerResponse>(res);
+  },
+  getBalance: async (policyId: string) => {
+    const res = await apiFetch(`/premium-ledger/policy/${policyId}/balance`);
+    return handleApiResponseUnwrapped<PremiumBalanceResponse>(res);
+  },
+  createEntry: async (data: CreatePremiumLedgerEntryRequest) => {
+    const res = await apiFetch("/premium-ledger", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<PremiumLedgerResponse>(res);
+  },
+};
+```
+
+#### Reports API (`lib/api/reportsApi.ts`)
+
+```typescript
+export const reportsApi = {
+  listDefinitions: async () => {
+    const res = await apiFetch("/reports/definitions");
+    return handleApiResponseUnwrapped<ReportDefinitionResponse[]>(res);
+  },
+  generate: async (data: GenerateReportRequest) => {
+    const res = await apiFetch("/reports/generate", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<GeneratedReportResponse>(res);
+  },
+  preview: async (data: PreviewReportRequest) => {
+    const res = await apiFetch("/reports/preview", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<ReportPreviewResponse>(res);
+  },
+  drillDown: async (data: DrillDownRequest) => {
+    const res = await apiFetch("/reports/drill-down", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<ReportPreviewResponse>(res);
+  },
+  listGenerated: async (params: { page: number; page_size: number }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await apiFetch(`/reports/generated?${query}`);
+    return handlePaginatedResponse<GeneratedReportResponse>(res);
+  },
+  getGenerated: async (id: string) => {
+    const res = await apiFetch(`/reports/generated/${id}`);
+    return handleApiResponseUnwrapped<GeneratedReportResponse>(res);
+  },
+  download: async (id: string) => {
+    const res = await apiFetch(`/reports/generated/${id}/download`);
+    return res.blob();
+  },
+  createAdHoc: async (data: CreateAdHocReportRequest) => {
+    const res = await apiFetch("/reports/ad-hoc", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<GeneratedReportResponse>(res);
+  },
+  listSchedules: async () => {
+    const res = await apiFetch("/reports/schedules");
+    return handleApiResponseUnwrapped<ReportScheduleResponse[]>(res);
+  },
+  createSchedule: async (data: CreateScheduleRequest) => {
+    const res = await apiFetch("/reports/schedules", { method: "POST", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<ReportScheduleResponse>(res);
+  },
+  updateSchedule: async (id: string, data: CreateScheduleRequest) => {
+    const res = await apiFetch(`/reports/schedules/${id}`, { method: "PUT", body: JSON.stringify(data) });
+    return handleApiResponseUnwrapped<ReportScheduleResponse>(res);
+  },
+  deleteSchedule: async (id: string) => {
+    const res = await apiFetch(`/reports/schedules/${id}`, { method: "DELETE" });
+    return handleApiResponseUnwrapped<void>(res);
+  },
+  managementDashboard: async () => {
+    const res = await apiFetch("/reports/management-dashboard");
+    return handleApiResponseUnwrapped<ManagementDashboardResponse>(res);
+  },
+};
+```
 
 ```typescript
 // lib/api/claims.ts (example)
@@ -2839,6 +3887,122 @@ export const claimsApi = {
 
   bulkSubmit: (data: { claims: SubmitClaimRequest[] }) =>
     apiClient.post<ApiResponse<BulkClaimResultResponse>>("/claims/bulk", data),
+};
+```
+
+### Commissions API
+
+```typescript
+// lib/api/commissions.ts
+
+export const commissionsApi = {
+  listRules: (params: { page: number; page_size: number }) =>
+    apiClient.get<PaginatedResponse<CommissionRuleResponse>>("/commissions/rules", { params }),
+
+  createRule: (data: CreateCommissionRuleRequest) =>
+    apiClient.post<ApiResponse<CommissionRuleResponse>>("/commissions/rules", data),
+
+  updateRule: (id: string, data: UpdateCommissionRuleRequest) =>
+    apiClient.put<ApiResponse<CommissionRuleResponse>>(`/commissions/rules/${id}`, data),
+
+  deleteRule: (id: string) =>
+    apiClient.delete(`/commissions/rules/${id}`),
+
+  listPayments: (params: { page: number; page_size: number }) =>
+    apiClient.get<PaginatedResponse<CommissionPaymentResponse>>("/commissions/payments", { params }),
+
+  calculate: (policyId: string) =>
+    apiClient.post<ApiResponse<CalculateCommissionResponse>>(`/commissions/calculate/${policyId}`),
+};
+```
+
+### Refunds API
+
+```typescript
+// lib/api/refunds.ts
+
+export const refundsApi = {
+  list: (params: { page: number; page_size: number; status?: string }) =>
+    apiClient.get<PaginatedResponse<RefundResponse>>("/refunds", { params }),
+
+  get: (id: string) =>
+    apiClient.get<ApiResponse<RefundResponse>>(`/refunds/${id}`),
+
+  create: (data: CreateRefundRequest) =>
+    apiClient.post<ApiResponse<RefundResponse>>("/refunds", data),
+
+  approve: (id: string) =>
+    apiClient.put<ApiResponse<RefundResponse>>(`/refunds/${id}/approve`),
+
+  process: (id: string) =>
+    apiClient.put<ApiResponse<RefundResponse>>(`/refunds/${id}/process`),
+};
+```
+
+### Premium Ledger API
+
+```typescript
+// lib/api/premium-ledger.ts
+
+export const premiumLedgerApi = {
+  listEntries: (params: { page: number; page_size: number; policy_id?: string }) =>
+    apiClient.get<PaginatedResponse<PremiumLedgerResponse>>("/premium-ledger", { params }),
+
+  getByPolicy: (policyId: string) =>
+    apiClient.get<PaginatedResponse<PremiumLedgerResponse>>(`/premium-ledger/policy/${policyId}`),
+
+  getBalance: (policyId: string) =>
+    apiClient.get<ApiResponse<PremiumBalanceResponse>>(`/premium-ledger/policy/${policyId}/balance`),
+
+  createEntry: (data: CreatePremiumLedgerEntryRequest) =>
+    apiClient.post<ApiResponse<PremiumLedgerResponse>>("/premium-ledger", data),
+};
+```
+
+### Reports API
+
+```typescript
+// lib/api/reports.ts
+
+export const reportsApi = {
+  listDefinitions: () =>
+    apiClient.get<ApiResponse<ReportDefinitionResponse[]>>("/reports/definitions"),
+
+  generate: (data: GenerateReportRequest) =>
+    apiClient.post<ApiResponse<GeneratedReportResponse>>("/reports/generate", data),
+
+  preview: (data: PreviewReportRequest) =>
+    apiClient.post<ApiResponse<ReportPreviewResponse>>("/reports/preview", data),
+
+  drillDown: (data: DrillDownRequest) =>
+    apiClient.post<ApiResponse<ReportPreviewResponse>>("/reports/drill-down", data),
+
+  listGenerated: (params: { page: number; page_size: number }) =>
+    apiClient.get<PaginatedResponse<GeneratedReportResponse>>("/reports/generated", { params }),
+
+  getGenerated: (id: string) =>
+    apiClient.get<ApiResponse<GeneratedReportResponse>>(`/reports/generated/${id}`),
+
+  download: (id: string) =>
+    apiClient.get(`/reports/generated/${id}/download`, { responseType: "blob" }),
+
+  createAdHoc: (data: CreateAdHocReportRequest) =>
+    apiClient.post<ApiResponse<GeneratedReportResponse>>("/reports/ad-hoc", data),
+
+  listSchedules: () =>
+    apiClient.get<ApiResponse<ReportScheduleResponse[]>>("/reports/schedules"),
+
+  createSchedule: (data: CreateScheduleRequest) =>
+    apiClient.post<ApiResponse<ReportScheduleResponse>>("/reports/schedules", data),
+
+  updateSchedule: (id: string, data: CreateScheduleRequest) =>
+    apiClient.put<ApiResponse<ReportScheduleResponse>>(`/reports/schedules/${id}`, data),
+
+  deleteSchedule: (id: string) =>
+    apiClient.delete(`/reports/schedules/${id}`),
+
+  managementDashboard: () =>
+    apiClient.get<ApiResponse<ManagementDashboardResponse>>("/reports/management-dashboard"),
 };
 ```
 
@@ -2918,6 +4082,10 @@ See **Section 5 → "Status Badge Color Mapping (Complete)"** for the comprehens
 | Remittances | Y | - | - | - | Y | - | - | - |
 | Reinsurance | Y | Y | - | - | Y | - | - | - |
 | Providers | Y | Y | Y | - | - | - | Y | - |
+| Commissions | Y | Y | - | - | Y | - | - | - |
+| Refunds | Y | Y | - | - | Y | - | - | - |
+| Premium Ledger | Y | Y | - | - | Y | - | - | - |
+| Reports | Y | Y | Y | Y | Y | - | - | - |
 | Users | Y | - | - | - | - | - | - | - |
 | Audit Trail | Y | Y | - | - | - | - | - | - |
 | Analytics | Y | Y | Y | Y | Y | Y | - | - |
@@ -2941,6 +4109,10 @@ See **Section 5 → "Status Badge Color Mapping (Complete)"** for the comprehens
 | Credit Note: Approve/Apply | Admin |
 | Approval Limits: CRUD | Admin |
 | Users: CRUD | Admin |
+| Commissions: Manage Rules | Admin, Finance |
+| Commissions: Trigger Payment | Admin, Finance |
+| Refunds: Approve/Process | Admin, Finance |
+| Reports: Generate/Schedule | Admin, Manager, Finance |
 
 ### Implementation
 
@@ -2949,10 +4121,10 @@ See **Section 5 → "Status Badge Color Mapping (Complete)"** for the comprehens
 
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
   Admin: ["*"],
-  Manager: ["claims.approve", "quotations.approve", "endorsements.approve", "renewals.approve"],
+  Manager: ["claims.approve", "quotations.approve", "endorsements.approve", "renewals.approve", "reports.generate", "reports.schedule"],
   Underwriter: ["underwriting.review", "quotations.approve", "flags.resolve"],
   ClaimsOfficer: ["claims.vet", "claims.import"],
-  Finance: ["claims.pay", "payments.manage", "remittances.manage"],
+  Finance: ["claims.pay", "payments.manage", "remittances.manage", "commissions.manage", "refunds.manage", "premium-ledger.view", "reports.generate", "reports.schedule"],
   SalesAgent: ["leads.manage", "quotations.manage"],
   Provider: ["claims.view", "preauths.view", "cases.view"],
   Member: ["claims.view"],
@@ -2975,6 +4147,8 @@ export function canPerform(userRole: string, action: string): boolean {
 - Server-side pagination (send `page` and `page_size` to API)
 - Sortable column headers
 - Filter toolbar with dropdowns and search input
+- **Search**: `search` query param — ILIKE search on key fields (see Section 4.10 for per-entity fields)
+- **Date range**: `date_from` / `date_to` query params — filter by `created_at` (supported on claims, policies, invoices)
 - Row click → navigate to detail page
 - Checkbox selection for bulk actions
 - Empty state with message
@@ -3539,7 +4713,10 @@ The claim form should make clear that setting an admission date switches the cla
 ## 11. Environment Variables
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8080
+# Server-side only (used by API proxy route, never exposed to browser)
+API_BASE_URL=http://localhost:8080
+
+# Public (available in browser)
 NEXT_PUBLIC_APP_NAME=HIAS Core
 NEXT_PUBLIC_DEFAULT_PAGE_SIZE=20
 ```

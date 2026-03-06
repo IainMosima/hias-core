@@ -25,3 +25,15 @@ SELECT COUNT(*) FROM invoices;
 
 -- name: UpdateInvoiceStatus :one
 UPDATE invoices SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: ListInvoicesFiltered :many
+SELECT * FROM invoices
+WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'))
+ORDER BY created_at DESC
+LIMIT sqlc.arg('query_limit') OFFSET sqlc.arg('query_offset');
+
+-- name: CountInvoicesFiltered :one
+SELECT COUNT(*) FROM invoices
+WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'));

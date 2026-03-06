@@ -1,0 +1,516 @@
+# SPRINT 3: Infrastructure Wiring, Scheduler Tasks & Swagger — HIAS Core
+
+You are working on a Go insurance backend (DDD + Clean Architecture). This sprint wires up the infrastructure layer — scheduler tasks, queue consumers, audit middleware, event publishing, Swagger annotations, and one reinsurance calculation fix. The frameworks and interfaces are already built; you're filling in the implementations and registering them in `main.go`.
+
+**Rules:**
+- Follow existing code conventions (see CLAUDE.md)
+- Money is BIGINT (cents), int64 in Go
+- All service methods return `*schema.ServiceResponse[T]`
+- Do NOT change interfaces unless explicitly stated
+- Run `go build ./...` after each task to verify compilation
+- Read the referenced files BEFORE editing — understand existing patterns
+- All scheduler tasks follow the same pattern: `Name()`, `Schedule()`, `Execute(ctx)`
+- All worker handlers follow the same pattern: `GetName()`, `HandleMessage(ctx, payload)`
+
+**What is ALREADY working (do NOT touch):**
+- Queue infrastructure: QueueManager, WatermillPublisher, WatermillQueueManager — fully built
+- Consumer infrastructure: ConsumerManager interface, WatermillConsumerManager — fully built
+- Scheduler infrastructure: SchedulerManager with RegisterTask/Start/Stop — fully built
+- All 38+ handlers wired in main.go DI container
+- PASETO auth + RBAC middleware fully implemented
+- Docker Compose (PostgreSQL 16, Redis 7, LocalStack) fully configured
+- Config system (Viper + SSM) with all 58+ config parameters
+- Graceful shutdown in server.go
+- Health/ready/metrics endpoints in routes.go
+- CI/CD workflow (.github/workflows/ci.yml) — basic but functional
+- Reinsurance: cession, recovery, bordereau, treaty alerts — all fully implemented
+- Profit commission CRUD (Add/List/Remove rules) — fully implemented
+- CalculateProfitCommission method — fully implemented with loss ratio tiers and carry forward
+- Notification service already publishes to queue (the only service that does)
+
+---
+
+## TASK 1: Register Audit Middleware in Server
+
+**Problem:** `AuditMiddleware` exists at `services/api-gateway/middleware/audit_middleware.go` (fully implemented, 56 lines) but is NOT registered in `server.go`. Mutating API calls (POST/PUT/DELETE) are not logged to the audit trail.
+
+**Files to modify:**
+- `services/api-gateway/server.go` (line 24-37)
+- `services/api-gateway/main.go` (pass auditSvc to NewServer)
+
+**Implementation:**
+
+1. Update the `NewServer` function signature to accept `auditSvc`:
+```go
+func NewServer(tokenMaker auth.TokenMaker, allowedOrigins string, auditSvc auditService.AuditService) *Server {
+```
+
+Add import: `auditService "github.com/bitbiz/hias-core/domains/audit/service"`
+
+2. Add `AuditMiddleware` to the middleware stack in `NewServer` (after line 32, after MetricsMiddleware):
+```go
+router.Use(middleware.AuditMiddleware(auditSvc))
+```
+
+3. In `main.go`, update the `NewServer` call (line 369) to pass the audit service:
+```go
+// The auditSvc already exists — find where it's created (search for NewAuditService)
+server := NewServer(tokenMaker, cfg.AllowedOrigins, auditSvc)
+```
+
+---
+
+## TASK 2: Implement 8 Stub Scheduler Tasks
+
+**Problem:** 8 of 10 scheduler tasks are stubs that only log a message. Each has a service that already implements the required business logic — the tasks just need to call them. The pattern is identical: inject the service, call it in `Execute()`.
+
+**Files to modify:**
+- `infrastructures/scheduler/tasks/billing_cycle_task.go`
+- `infrastructures/scheduler/tasks/remittance_cycle_task.go`
+- `infrastructures/scheduler/tasks/payment_reminder_task.go`
+- `infrastructures/scheduler/tasks/payment_retry_task.go`
+- `infrastructures/scheduler/tasks/policy_lapse_task.go`
+- `infrastructures/scheduler/tasks/preauth_expiry_task.go`
+- `infrastructures/scheduler/tasks/reconciliation_task.go`
+- `infrastructures/scheduler/tasks/notification_retry_task.go`
+
+**Implementation — apply this pattern to each task:**
+
+### 2a. BillingCycleTask (`billing_cycle_task.go`)
+Inject `billingService.InvoiceService`, call `RunBillingCycle`:
+```go
+package tasks
+
+import (
+    "context"
+    "log"
+
+    billingService "github.com/bitbiz/hias-core/domains/billing/service"
+)
+
+type BillingCycleTask struct {
+    schedule       string
+    invoiceService billingService.InvoiceService
+}
+
+func NewBillingCycleTask(schedule string, invoiceService billingService.InvoiceService) *BillingCycleTask {
+    return &BillingCycleTask{schedule: schedule, invoiceService: invoiceService}
+}
+
+func (t *BillingCycleTask) Name() string    { return "billing-cycle" }
+func (t *BillingCycleTask) Schedule() string { return t.schedule }
+
+func (t *BillingCycleTask) Execute(ctx context.Context) error {
+    log.Println("Running billing cycle — generating invoices for active policies")
+    resp := t.invoiceService.RunBillingCycle(ctx)
+    if resp.Error != nil {
+        log.Printf("Billing cycle failed: %v", resp.Error)
+        return resp.Error
+    }
+    log.Printf("Billing cycle complete: %d invoices generated", resp.Data)
+    return nil
+}
+```
+
+### 2b. RemittanceCycleTask (`remittance_cycle_task.go`)
+Inject `billingService.RemittanceService`, call `RunRemittanceCycle`:
+```go
+type RemittanceCycleTask struct {
+    schedule          string
+    remittanceService billingService.RemittanceService
+}
+
+func NewRemittanceCycleTask(schedule string, remittanceService billingService.RemittanceService) *RemittanceCycleTask {
+    return &RemittanceCycleTask{schedule: schedule, remittanceService: remittanceService}
+}
+// Name() and Schedule() same pattern
+func (t *RemittanceCycleTask) Execute(ctx context.Context) error {
+    log.Println("Running weekly remittance cycle")
+    resp := t.remittanceService.RunRemittanceCycle(ctx)
+    if resp.Error != nil {
+        return resp.Error
+    }
+    log.Printf("Remittance cycle complete: %d remittances created", resp.Data)
+    return nil
+}
+```
+
+### 2c. PaymentReminderTask (`payment_reminder_task.go`)
+Inject `billingService.InvoiceService` and `notificationService.NotificationService`. Call `invoiceService.ListOverdue(ctx)` to get overdue invoices, then for each, send a notification. If `ListOverdue` doesn't exist, create a simpler version: log the intent and return nil (the invoice service can be extended later).
+
+### 2d. PaymentRetryTask (`payment_retry_task.go`)
+Inject `billingService.PaymentService`. Call `paymentService.ListFailedPayments(ctx)` to get failed payments where `retry_count < max_retries`, then for each call `paymentService.RetryPayment(ctx, paymentID)`. If `ListFailedPayments` doesn't exist on the service interface, check the payment repository for a `ListFailed` method and use it. If neither exists, log and return nil.
+
+### 2e. PolicyLapseTask (`policy_lapse_task.go`)
+Inject `policyService.PolicyService`. Check if `LapseOverduePolicies(ctx)` or similar method exists. If it does, call it. If not, log "Policy lapse task: service method not yet available" and return nil. Do NOT create new service methods — just wire what exists.
+
+### 2f. PreAuthExpiryTask (`preauth_expiry_task.go`)
+Inject `preauthService.PreAuthService`. Check if `ExpireOldPreAuths(ctx)` or similar exists. If it does, call it. If not, log and return nil.
+
+### 2g. ReconciliationTask (`reconciliation_task.go`)
+Inject `billingService.PaymentService`. Check if a reconciliation method exists. If not, log and return nil.
+
+### 2h. NotificationRetryTask (`notification_retry_task.go`)
+Inject `notificationService.NotificationService`. Call `RetryFailed(ctx)` if it exists. Check the notification service interface first.
+
+**Key principle for all tasks:** Read each service interface to see what methods exist. Wire the ones that do. For methods that don't exist yet, log a message and return nil — do NOT create stub service methods.
+
+---
+
+## TASK 3: Register All Scheduler Tasks in main.go
+
+**Problem:** Only 2 tasks (report distribution, report cleanup) are registered in main.go (lines 338-366). The other 8 tasks need to be registered with their injected services.
+
+**Files to modify:**
+- `services/api-gateway/main.go` (lines 338-366, the scheduler block)
+
+**Implementation:**
+
+After the existing report task registrations (line 352), add each newly-implemented task. Use the config schedule values that are already defined:
+
+```go
+// After reportCleanupTask registration...
+
+// Billing cycle — 1st of each month at midnight
+billingCycleSchedule := cfg.BillingCycleSchedule
+if billingCycleSchedule == "" {
+    billingCycleSchedule = "0 0 1 * *"
+}
+billingCycleTask := schedulerTasks.NewBillingCycleTask(billingCycleSchedule, invoiceSvc)
+if err := schedulerMgr.RegisterTask(billingCycleTask); err != nil {
+    log.Printf("Warning: Failed to register billing cycle task: %v", err)
+}
+
+// Remittance cycle — every Monday at midnight
+remittanceCycleSchedule := cfg.RemittanceCycleSchedule
+if remittanceCycleSchedule == "" {
+    remittanceCycleSchedule = "0 0 * * 1"
+}
+remittanceCycleTask := schedulerTasks.NewRemittanceCycleTask(remittanceCycleSchedule, remittanceSvc)
+if err := schedulerMgr.RegisterTask(remittanceCycleTask); err != nil {
+    log.Printf("Warning: Failed to register remittance cycle task: %v", err)
+}
+
+// Payment reminder — daily at 8am
+paymentReminderSchedule := cfg.PaymentReminderSchedule
+if paymentReminderSchedule == "" {
+    paymentReminderSchedule = "0 8 * * *"
+}
+paymentReminderTask := schedulerTasks.NewPaymentReminderTask(paymentReminderSchedule, invoiceSvc, notificationSvc)
+if err := schedulerMgr.RegisterTask(paymentReminderTask); err != nil {
+    log.Printf("Warning: Failed to register payment reminder task: %v", err)
+}
+
+// Payment retry — every 4 hours
+paymentRetrySchedule := cfg.PaymentRetrySchedule
+if paymentRetrySchedule == "" {
+    paymentRetrySchedule = "0 */4 * * *"
+}
+paymentRetryTask := schedulerTasks.NewPaymentRetryTask(paymentRetrySchedule, paymentSvc)
+if err := schedulerMgr.RegisterTask(paymentRetryTask); err != nil {
+    log.Printf("Warning: Failed to register payment retry task: %v", err)
+}
+
+// Policy lapse — daily at 1am
+policyLapseSchedule := cfg.PolicyLapseSchedule
+if policyLapseSchedule == "" {
+    policyLapseSchedule = "0 1 * * *"
+}
+policyLapseTask := schedulerTasks.NewPolicyLapseTask(policyLapseSchedule, policySvc)
+if err := schedulerMgr.RegisterTask(policyLapseTask); err != nil {
+    log.Printf("Warning: Failed to register policy lapse task: %v", err)
+}
+
+// Pre-auth expiry — daily at 2am
+preauthExpirySchedule := cfg.PreAuthExpirySchedule
+if preauthExpirySchedule == "" {
+    preauthExpirySchedule = "0 2 * * *"
+}
+preauthExpiryTask := schedulerTasks.NewPreAuthExpiryTask(preauthExpirySchedule, preauthSvc)
+if err := schedulerMgr.RegisterTask(preauthExpiryTask); err != nil {
+    log.Printf("Warning: Failed to register pre-auth expiry task: %v", err)
+}
+
+// Reconciliation — daily at 2am
+reconciliationSchedule := cfg.ReconciliationSchedule
+if reconciliationSchedule == "" {
+    reconciliationSchedule = "0 2 * * *"
+}
+reconciliationTask := schedulerTasks.NewReconciliationTask(reconciliationSchedule, paymentSvc)
+if err := schedulerMgr.RegisterTask(reconciliationTask); err != nil {
+    log.Printf("Warning: Failed to register reconciliation task: %v", err)
+}
+
+// Notification retry — every 30 minutes
+notificationRetrySchedule := cfg.NotificationRetrySchedule
+if notificationRetrySchedule == "" {
+    notificationRetrySchedule = "*/30 * * * *"
+}
+notificationRetryTask := schedulerTasks.NewNotificationRetryTask(notificationRetrySchedule, notificationSvc)
+if err := schedulerMgr.RegisterTask(notificationRetryTask); err != nil {
+    log.Printf("Warning: Failed to register notification retry task: %v", err)
+}
+```
+
+**Important:** The service variable names (invoiceSvc, remittanceSvc, paymentSvc, etc.) must match what's already used in main.go. Read main.go to verify the exact variable names before using them.
+
+---
+
+## TASK 4: Wire Queue Consumer Manager in main.go
+
+**Problem:** The QueueManager is created (main.go lines 76-102) but never used to start consumers. The ConsumerManager (`infrastructures/workers/watermill_consumer_impl.go`) is fully implemented but never instantiated. Six message handlers exist as stubs in `infrastructures/workers/` — they parse messages and log, which is sufficient for demo.
+
+**Files to modify:**
+- `services/api-gateway/main.go` (after queue manager creation, around line 102)
+
+**Implementation:**
+
+After the queueManager is successfully created (inside the `else` block at line 96), add consumer registration:
+
+```go
+// After line 101 (after queueManager creation succeeds):
+if queueManager != nil {
+    consumerMgr := workers.NewWatermillConsumerManager(queueManager, workers.DefaultConsumerConfig())
+
+    // Register all handlers
+    consumerMgr.RegisterHandler(workers.QueueHandler{
+        Topic:   "claim-processing",
+        Handler: workers.NewClaimSubmittedHandler(),
+    })
+    consumerMgr.RegisterHandler(workers.QueueHandler{
+        Topic:   "claim-processing",
+        Handler: workers.NewClaimApprovedHandler(),
+    })
+    consumerMgr.RegisterHandler(workers.QueueHandler{
+        Topic:   "extraction-results",
+        Handler: workers.NewExtractionResultHandler(),
+    })
+    consumerMgr.RegisterHandler(workers.QueueHandler{
+        Topic:   "payment-events",
+        Handler: workers.NewPaymentWebhookHandler(),
+    })
+    consumerMgr.RegisterHandler(workers.QueueHandler{
+        Topic:   "notification-events",
+        Handler: workers.NewNotificationDispatchHandler(),
+    })
+
+    // Start consumer in background goroutine
+    go func() {
+        if err := consumerMgr.Start(context.Background()); err != nil {
+            log.Printf("Warning: Consumer manager stopped: %v", err)
+        }
+    }()
+    log.Println("Queue consumer manager started with 5 handlers")
+}
+```
+
+Add import: `"github.com/bitbiz/hias-core/infrastructures/workers"`
+
+**Note:** Check if `DefaultConsumerConfig()` exists in `infrastructures/workers/consumer_config.go`. If not, look for how ConsumerConfig is constructed and use that pattern.
+
+---
+
+## TASK 5: Wire Profit Commission into Reinsurer Statement Generation
+
+**Problem:** `ReinsurerStatementService.GenerateStatement()` at `services/reinsurance/reinsurer_statement_service_impl.go:73` hardcodes `ProfitCommission: 0` even though `CalculateProfitCommission()` is fully implemented in the same service (line 172). The statement should auto-calculate profit commission using the existing method.
+
+**Files to modify:**
+- `services/reinsurance/reinsurer_statement_service_impl.go` (around line 60-77)
+
+**Implementation:**
+
+In the `GenerateStatement` method, before building the statement entity (around line 63), call the profit commission calculation:
+
+```go
+// After calculating premiumCeded, claimsRecovered, commissionDue, netBalance...
+// Calculate profit commission using existing method
+var profitCommission int64
+profitCommCalcReq := reinsuranceSchema.CalculateProfitCommissionRequest{
+    TreatyID:    req.TreatyID,
+    PeriodStart: req.PeriodStart,
+    PeriodEnd:   req.PeriodEnd,
+}
+profitCommResp := s.CalculateProfitCommission(ctx, profitCommCalcReq)
+if profitCommResp.Error == nil {
+    profitCommission = profitCommResp.Data.CommissionAmount
+}
+
+// Then use profitCommission in the statement entity instead of 0:
+// ProfitCommission: profitCommission,
+// Also adjust net balance: netBalance = premiumCeded - claimsRecovered - commissionDue - profitCommission
+```
+
+Read the full `GenerateStatement` method first to understand the exact variable names and flow before editing. The `CalculateProfitCommissionRequest` struct requires `TreatyID` as string — check the schema to verify the field types.
+
+---
+
+## TASK 6: Add Event Publishing to Claims Service
+
+**Problem:** When claims are submitted or approved, no events are published to the queue. The notification service is the ONLY service that publishes events. Claims, payments, and pre-auth should publish events so workers can process them asynchronously.
+
+**Files to modify:**
+- `services/claims/claim_service_impl.go` (SubmitClaim and approve/adjudicate methods)
+- `services/api-gateway/main.go` (pass queueManager to claims service)
+
+**Implementation:**
+
+1. Add `queueManager` as an optional dependency to `claimServiceImpl`:
+```go
+type claimServiceImpl struct {
+    // ... existing fields ...
+    queueManager queue.QueueManager  // optional — nil-safe
+}
+```
+
+Add import: `"github.com/bitbiz/hias-core/infrastructures/queue"`
+
+2. Update the constructor to accept `queueManager queue.QueueManager` and assign it.
+
+3. In `SubmitClaim`, after the claim is successfully created in DB, publish an event:
+```go
+// After claim creation succeeds...
+if s.queueManager != nil {
+    go func() {
+        payload, _ := json.Marshal(map[string]interface{}{
+            "claim_id":     created.ID.String(),
+            "claim_number": created.ClaimNumber,
+            "policy_id":    created.PolicyID.String(),
+            "member_id":    created.MemberID.String(),
+            "total_amount": created.TotalAmount,
+        })
+        if pubErr := s.queueManager.Publish(context.Background(), "claim-processing", payload); pubErr != nil {
+            log.Printf("Failed to publish claim submitted event: %v", pubErr)
+        }
+    }()
+}
+```
+
+4. Similarly, after a claim is approved (status changes to APPROVED), publish:
+```go
+if s.queueManager != nil {
+    go func() {
+        payload, _ := json.Marshal(map[string]interface{}{
+            "claim_id":        claim.ID.String(),
+            "claim_number":    claim.ClaimNumber,
+            "provider_id":     claim.ProviderID.String(),
+            "approved_amount": claim.ApprovedAmount,
+        })
+        if pubErr := s.queueManager.Publish(context.Background(), "claim-processing", payload); pubErr != nil {
+            log.Printf("Failed to publish claim approved event: %v", pubErr)
+        }
+    }()
+}
+```
+
+5. In `main.go`, update the `NewClaimService` call to pass `queueManager`.
+
+**Important:** Read `claim_service_impl.go` first to find the exact constructor signature and where claims are created/approved. The `queueManager` may be nil (queue is optional) — always nil-check before publishing.
+
+---
+
+## TASK 7: Add Swagger Annotations to All Handlers
+
+**Problem:** The Dockerfile runs `swag init` to generate Swagger docs, but NO handler has Swagger annotations. This means `make swagger` produces empty documentation.
+
+**Files to modify:**
+- `services/api-gateway/main.go` (add top-level Swagger meta comments)
+- All handler files in `services/api-gateway/handlers/` (add method-level annotations)
+- `services/api-gateway/routes/routes.go` (add Swagger UI route)
+
+**Implementation:**
+
+### 7a. Add Swagger meta to main.go
+
+Add these comments ABOVE the `main()` function:
+```go
+// @title           HIAS Core API
+// @version         1.0
+// @description     Health Insurance Administration System API
+// @host            localhost:8080
+// @BasePath        /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description PASETO bearer token
+func main() {
+```
+
+### 7b. Add Swagger route
+
+In `routes/routes.go`, add the Swagger UI route:
+```go
+import (
+    swaggerFiles "github.com/swaggo/files"
+    ginSwagger "github.com/swaggo/gin-swagger"
+    _ "github.com/bitbiz/hias-core/docs/swagger" // generated docs
+)
+
+// In RegisterRoutes, add:
+router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+```
+
+Run `go get github.com/swaggo/gin-swagger github.com/swaggo/files` if not already in go.mod.
+
+### 7c. Add annotations to handler methods
+
+Add Swagger annotations to each handler's exported methods. Here's the pattern — apply to ALL handlers:
+
+**Example for ClaimHandler:**
+```go
+// SubmitClaim godoc
+// @Summary      Submit a new claim
+// @Description  Submit a claim for processing through validation and adjudication
+// @Tags         Claims
+// @Accept       json
+// @Produce      json
+// @Param        request body billingSchema.SubmitClaimRequest true "Claim submission"
+// @Success      201 {object} schema.ServiceResponse[billingSchema.ClaimResponse]
+// @Failure      400 {object} schema.ServiceResponse[billingSchema.ClaimResponse]
+// @Security     BearerAuth
+// @Router       /claims [post]
+func (h *ClaimHandler) SubmitClaim(ctx *gin.Context) {
+```
+
+**Do this for every public handler method.** Use the route definitions in `routes/routes.go` to determine the correct `@Router` path and HTTP method for each handler. Group tags by domain: Claims, Policies, Billing, Payments, Invoices, Remittances, Pre-Auth, Providers, Members, Plans, Benefits, Quotations, Endorsements, Renewals, Underwriting, Reinsurance, Reports, Analytics, Notifications, Audit, Users, Auth.
+
+**For request/response types:** Use the actual schema types from the imports. If the handler reads a path param like `:id`, annotate it as `@Param id path string true "Resource ID"`.
+
+**Priority:** Start with the most demo-critical handlers — Claims (6 methods), Policies (8 methods), Billing/Payments (5 methods), Pre-Auth (4 methods), Quotations (6 methods). Then do the rest.
+
+---
+
+## TASK 8: Add ClaimSLA Task to Scheduler Registration
+
+**Problem:** The `ClaimSLATask` at `infrastructures/scheduler/tasks/claim_sla_task.go` is FULLY IMPLEMENTED (queries SLA-breached claims and sends notifications) but is NOT registered in main.go's scheduler block.
+
+**Files to modify:**
+- `services/api-gateway/main.go` (scheduler block, lines 338-366)
+
+**Implementation:**
+
+Read `claim_sla_task.go` to check its constructor signature — it needs `claimRepo` and `notificationSvc`. Add after the other task registrations:
+
+```go
+// Claim SLA monitoring — every 15 minutes
+claimSLATask := schedulerTasks.NewClaimSLATask("*/15 * * * *", claimRepo, notificationSvc)
+if err := schedulerMgr.RegisterTask(claimSLATask); err != nil {
+    log.Printf("Warning: Failed to register claim SLA task: %v", err)
+}
+```
+
+Verify the exact constructor by reading the file. The variable names `claimRepo` and `notificationSvc` must match what's already in main.go.
+
+---
+
+## Verification Checklist
+
+After completing all tasks, verify:
+
+1. `go build ./...` compiles without errors
+2. Scheduler block registers 10+ tasks (2 existing + 8 new + ClaimSLA)
+3. Consumer manager is started with 5 registered handlers
+4. Audit middleware is in the middleware chain in `server.go`
+5. Claims service publishes events on submit/approve
+6. Reinsurer statement includes calculated profit commission (not 0)
+7. `swag init -g services/api-gateway/main.go -o docs/swagger --parseDependency --parseInternal` generates Swagger docs
+8. Swagger UI accessible at `/swagger/index.html`

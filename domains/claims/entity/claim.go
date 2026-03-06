@@ -29,6 +29,7 @@ type Claim struct {
 	VettedAt             *time.Time      `json:"vetted_at,omitempty"`
 	SLABreachAt          *time.Time      `json:"sla_breach_at,omitempty"`
 	RejectionReason      string          `json:"rejection_reason,omitempty"`
+	EscalatedTo          string          `json:"escalated_to,omitempty"`
 	CreatedBy            uuid.UUID       `json:"created_by"`
 	CreatedAt            time.Time       `json:"created_at"`
 	UpdatedAt            time.Time       `json:"updated_at"`

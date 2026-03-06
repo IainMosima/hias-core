@@ -19,23 +19,30 @@ import (
 	claimsSchema "github.com/bitbiz/hias-core/domains/claims/schema"
 	"github.com/bitbiz/hias-core/domains/claims/service"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
+	notifService "github.com/bitbiz/hias-core/domains/notification/service"
 	preauthRepo "github.com/bitbiz/hias-core/domains/preauth/repository"
+	salesRepo "github.com/bitbiz/hias-core/domains/sales/repository"
+	"github.com/bitbiz/hias-core/infrastructures/queue"
 	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
 )
 
 type claimServiceImpl struct {
-	claimRepo      claimRepo.ClaimRepository
-	lineItemRepo   claimRepo.ClaimLineItemRepository
-	adjudicatorSvc service.AdjudicatorService
-	validatorSvc   service.ValidatorService
-	fraudSvc       service.FraudService
-	adjRepo        claimRepo.AdjudicationRepository
-	fraudFlagRepo  claimRepo.FraudFlagRepository
-	claimDocRepo   claimRepo.ClaimDocumentRepository
-	preauthRepo    preauthRepo.PreAuthRepository
-	auditSvc       auditService.AuditService
+	claimRepo          claimRepo.ClaimRepository
+	lineItemRepo       claimRepo.ClaimLineItemRepository
+	adjudicatorSvc     service.AdjudicatorService
+	validatorSvc       service.ValidatorService
+	fraudSvc           service.FraudService
+	adjRepo            claimRepo.AdjudicationRepository
+	fraudFlagRepo      claimRepo.FraudFlagRepository
+	claimDocRepo       claimRepo.ClaimDocumentRepository
+	preauthRepo        preauthRepo.PreAuthRepository
+	auditSvc           auditService.AuditService
+	notifSvc           notifService.NotificationService
+	approvalLimitRepo  salesRepo.ApprovalLimitRepository
+	escalationRuleRepo claimRepo.EscalationRuleRepository
+	queueManager       queue.QueueManager
 }
 
 func NewClaimService(
@@ -49,18 +56,26 @@ func NewClaimService(
 	claimDocRepo claimRepo.ClaimDocumentRepository,
 	preauthRepo preauthRepo.PreAuthRepository,
 	auditSvc auditService.AuditService,
+	notifSvc notifService.NotificationService,
+	approvalLimitRepo salesRepo.ApprovalLimitRepository,
+	escalationRuleRepo claimRepo.EscalationRuleRepository,
+	queueManager queue.QueueManager,
 ) service.ClaimService {
 	return &claimServiceImpl{
-		claimRepo:      claimRepo,
-		lineItemRepo:   lineItemRepo,
-		adjudicatorSvc: adjudicatorSvc,
-		validatorSvc:   validatorSvc,
-		fraudSvc:       fraudSvc,
-		adjRepo:        adjRepo,
-		fraudFlagRepo:  fraudFlagRepo,
-		claimDocRepo:   claimDocRepo,
-		preauthRepo:    preauthRepo,
-		auditSvc:       auditSvc,
+		claimRepo:          claimRepo,
+		lineItemRepo:       lineItemRepo,
+		adjudicatorSvc:     adjudicatorSvc,
+		validatorSvc:       validatorSvc,
+		fraudSvc:           fraudSvc,
+		adjRepo:            adjRepo,
+		fraudFlagRepo:      fraudFlagRepo,
+		claimDocRepo:       claimDocRepo,
+		preauthRepo:        preauthRepo,
+		auditSvc:           auditSvc,
+		notifSvc:           notifSvc,
+		approvalLimitRepo:  approvalLimitRepo,
+		escalationRuleRepo: escalationRuleRepo,
+		queueManager:       queueManager,
 	}
 }
 
@@ -113,6 +128,8 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to create claim", err)
 	}
 
+	s.recordTimeline(ctx, created.ID, "", string(shared.ClaimStatusReceived), "Claim Submitted", "", createdBy)
+
 	// Create line items
 	for _, li := range req.LineItems {
 		lineItem := &entity.ClaimLineItem{
@@ -158,73 +175,7 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 		created = validated
 	}
 
-	// Step 3: Adjudicate claim
-	result, adjErr := s.adjudicatorSvc.Adjudicate(ctx, created, lineItems)
-	if adjErr != nil {
-		log.Printf("Adjudication error: %v", adjErr)
-		s.logAudit(ctx, createdBy, string(shared.AuditEntityTypeClaim), created.ID, string(shared.AuditActionCreate))
-		return schema.NewServiceResponse(claimsSchema.ToClaimResponse(created), http.StatusCreated, "Claim submitted, adjudication failed")
-	}
-
-	// Step 4: Store adjudication decision
-	reasonsJSON, _ := json.Marshal(result.Reasons)
-	decision := &entity.AdjudicationDecision{
-		ClaimID:              created.ID,
-		Decision:             result.Decision,
-		PayableAmount:        result.PayableAmount,
-		MemberResponsibility: result.MemberResponsibility,
-		Reasons:              reasonsJSON,
-		RuleResults:          reasonsJSON,
-		AdjudicatedAt:        time.Now(),
-	}
-	_, decisionErr := s.adjRepo.Create(ctx, decision)
-	if decisionErr != nil {
-		log.Printf("Failed to store adjudication decision: %v", decisionErr)
-	}
-
-	// Step 5: Map decision to claim status
-	var newStatus string
-	switch result.Decision {
-	case string(shared.AdjudicationDecisionApprove):
-		newStatus = string(shared.ClaimStatusAdjudicated)
-	case string(shared.AdjudicationDecisionReject):
-		newStatus = string(shared.ClaimStatusRejected)
-	case string(shared.AdjudicationDecisionManualReview):
-		newStatus = string(shared.ClaimStatusManualReview)
-	default:
-		newStatus = string(shared.ClaimStatusAdjudicated)
-	}
-
-	// Step 6: Update claim amounts
-	coPayAmount := created.TotalAmount - result.PayableAmount - result.MemberResponsibility
-	if coPayAmount < 0 {
-		coPayAmount = 0
-	}
-	_, amtErr := s.claimRepo.UpdateAmounts(ctx, created.ID, result.PayableAmount, coPayAmount, result.MemberResponsibility)
-	if amtErr != nil {
-		log.Printf("Failed to update claim amounts: %v", amtErr)
-	}
-
-	// Step 7: Update claim status
-	if newStatus == string(shared.ClaimStatusRejected) {
-		rejReason := "Adjudication rejected"
-		if len(result.Reasons) > 0 {
-			var failReasons []string
-			for _, r := range result.Reasons {
-				if r.Result == string(shared.RuleResultFail) {
-					failReasons = append(failReasons, r.Details)
-				}
-			}
-			if len(failReasons) > 0 {
-				rejReason = strings.Join(failReasons, "; ")
-			}
-		}
-		s.claimRepo.Reject(ctx, created.ID, rejReason)
-	} else {
-		s.claimRepo.UpdateStatus(ctx, created.ID, newStatus)
-	}
-
-	// Step 8: Run additional fraud checks and store flags
+	// Step 3: Run fraud checks BEFORE adjudication so flags can influence the decision
 	if len(lineItems) > 0 {
 		firstItem := lineItems[0]
 
@@ -254,7 +205,6 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 			}
 		}
 
-		// Enhanced fraud checks
 		isExpired, _ := s.fraudSvc.CheckExpiredContract(ctx, providerID, req.ServiceDate)
 		if isExpired {
 			flag := &entity.FraudFlag{
@@ -300,7 +250,116 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 		}
 	}
 
-	// Step 9: Update PreAuth status to CLAIMED if preauth_id was provided
+	// Step 3b: Check for critical fraud flags that should override adjudication
+	hasCriticalFraud := false
+	fraudFlags, _ := s.fraudFlagRepo.ListByClaim(ctx, created.ID)
+	for _, f := range fraudFlags {
+		if f.Severity == string(shared.FraudSeverityHigh) || f.Severity == string(shared.FraudSeverityCritical) {
+			hasCriticalFraud = true
+			break
+		}
+	}
+
+	// Step 4: Adjudicate claim
+	result, adjErr := s.adjudicatorSvc.Adjudicate(ctx, created, lineItems)
+	if adjErr != nil {
+		log.Printf("Adjudication error: %v", adjErr)
+		s.logAudit(ctx, createdBy, string(shared.AuditEntityTypeClaim), created.ID, string(shared.AuditActionCreate))
+		return schema.NewServiceResponse(claimsSchema.ToClaimResponse(created), http.StatusCreated, "Claim submitted, adjudication failed")
+	}
+
+	// Step 4b: Override to MANUAL_REVIEW if critical fraud detected on an approved claim
+	if hasCriticalFraud && result.Decision == string(shared.AdjudicationDecisionApprove) {
+		result.Decision = string(shared.AdjudicationDecisionManualReview)
+		result.Reasons = append(result.Reasons, entity.RuleResult{
+			Category: string(shared.RuleCategoryFraud),
+			Rule:     "critical_fraud_override",
+			Result:   string(shared.RuleResultFlag),
+			Details:  "Adjudication overridden to MANUAL_REVIEW due to HIGH/CRITICAL fraud flags",
+		})
+	}
+
+	// Step 5: Store adjudication decision
+	reasonsJSON, _ := json.Marshal(result.Reasons)
+	decision := &entity.AdjudicationDecision{
+		ClaimID:              created.ID,
+		Decision:             result.Decision,
+		PayableAmount:        result.PayableAmount,
+		MemberResponsibility: result.MemberResponsibility,
+		Reasons:              reasonsJSON,
+		RuleResults:          reasonsJSON,
+		AdjudicatedAt:        time.Now(),
+	}
+	_, decisionErr := s.adjRepo.Create(ctx, decision)
+	if decisionErr != nil {
+		log.Printf("Failed to store adjudication decision: %v", decisionErr)
+	}
+
+	// Step 6: Map decision to claim status
+	var newStatus string
+	switch result.Decision {
+	case string(shared.AdjudicationDecisionApprove):
+		newStatus = string(shared.ClaimStatusAdjudicated)
+	case string(shared.AdjudicationDecisionReject):
+		newStatus = string(shared.ClaimStatusRejected)
+	case string(shared.AdjudicationDecisionManualReview):
+		newStatus = string(shared.ClaimStatusManualReview)
+	default:
+		newStatus = string(shared.ClaimStatusAdjudicated)
+	}
+
+	// Step 7: Update claim amounts
+	coPayAmount := created.TotalAmount - result.PayableAmount - result.MemberResponsibility
+	if coPayAmount < 0 {
+		coPayAmount = 0
+	}
+	_, amtErr := s.claimRepo.UpdateAmounts(ctx, created.ID, result.PayableAmount, coPayAmount, result.MemberResponsibility)
+	if amtErr != nil {
+		log.Printf("Failed to update claim amounts: %v", amtErr)
+	}
+
+	// Step 8: Update claim status
+	if newStatus == string(shared.ClaimStatusRejected) {
+		rejReason := "Adjudication rejected"
+		if len(result.Reasons) > 0 {
+			var failReasons []string
+			for _, r := range result.Reasons {
+				if r.Result == string(shared.RuleResultFail) {
+					failReasons = append(failReasons, r.Details)
+				}
+			}
+			if len(failReasons) > 0 {
+				rejReason = strings.Join(failReasons, "; ")
+			}
+		}
+		s.claimRepo.Reject(ctx, created.ID, rejReason)
+	} else {
+		s.claimRepo.UpdateStatus(ctx, created.ID, newStatus)
+	}
+
+	// Step 9: Evaluate escalation rules
+	if s.escalationRuleRepo != nil && newStatus != string(shared.ClaimStatusRejected) {
+		s.evaluateEscalationRules(ctx, created, fraudFlags, newStatus)
+	}
+
+	// Step 10: Publish ClaimSubmittedEvent
+	go func() {
+		if s.queueManager != nil {
+			event := map[string]interface{}{
+				"event":        "ClaimSubmitted",
+				"claim_id":     created.ID.String(),
+				"claim_number": created.ClaimNumber,
+				"status":       newStatus,
+				"amount":       created.TotalAmount,
+			}
+			eventJSON, _ := json.Marshal(event)
+			if err := s.queueManager.Publish(context.Background(), queue.TopicClaimProcessing, eventJSON); err != nil {
+				log.Printf("Failed to publish ClaimSubmittedEvent: %v", err)
+			}
+		}
+	}()
+
+	// Step 11: Update PreAuth status to CLAIMED if preauth_id was provided
 	if claim.PreAuthID != uuid.Nil && s.preauthRepo != nil {
 		s.preauthRepo.UpdateStatus(ctx, claim.PreAuthID, string(shared.PreAuthStatusClaimed))
 	}
@@ -413,19 +472,33 @@ func (s *claimServiceImpl) ListClaimsByProvider(ctx context.Context, providerID 
 	return schema.NewServiceResponse(responses, http.StatusOK, "Claims retrieved")
 }
 
-func (s *claimServiceImpl) ApproveClaim(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse] {
+func (s *claimServiceImpl) ApproveClaim(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID, approverRole string) *schema.ServiceResponse[claimsSchema.ClaimResponse] {
 	// Fetch claim and validate status
 	claim, err := s.claimRepo.GetByID(ctx, id)
 	if err != nil {
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusNotFound, "Claim not found", err)
 	}
 
-	if claim.Status != string(shared.ClaimStatusAdjudicated) && claim.Status != string(shared.ClaimStatusManualReview) {
+	if claim.Status != string(shared.ClaimStatusAdjudicated) && claim.Status != string(shared.ClaimStatusManualReview) && claim.Status != string(shared.ClaimStatusEscalated) {
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
 			http.StatusBadRequest,
-			fmt.Sprintf("Cannot approve claim in %s status; must be ADJUDICATED or MANUAL_REVIEW", claim.Status),
+			fmt.Sprintf("Cannot approve claim in %s status; must be ADJUDICATED, MANUAL_REVIEW, or ESCALATED", claim.Status),
 			nil,
 		)
+	}
+
+	// Check approval limits if approverRole is provided
+	if s.approvalLimitRepo != nil && approverRole != "" {
+		limit, limErr := s.approvalLimitRepo.GetByRole(ctx, approverRole)
+		if limErr == nil && limit != nil && limit.MaxClaimAmount > 0 {
+			if claim.TotalAmount > limit.MaxClaimAmount {
+				return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+					http.StatusForbidden,
+					fmt.Sprintf("Claim amount %d exceeds your approval limit of %d; escalate to %s", claim.TotalAmount, limit.MaxClaimAmount, limit.EscalationRole),
+					nil,
+				)
+			}
+		}
 	}
 
 	// Fetch adjudication decision and use its amounts
@@ -449,7 +522,23 @@ func (s *claimServiceImpl) ApproveClaim(ctx context.Context, id uuid.UUID, appro
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to approve claim", err)
 	}
 
+	s.recordTimeline(ctx, id, claim.Status, string(shared.ClaimStatusApproved), "Claim Approved", "", approvedBy)
 	s.logAudit(ctx, approvedBy, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
+	s.notifyClaim(ctx, claim.MemberID, claim.ClaimNumber, "APPROVED")
+
+	go func() {
+		if s.queueManager != nil {
+			event := map[string]interface{}{
+				"event":    "ClaimApproved",
+				"claim_id": id.String(),
+				"amount":   claim.TotalAmount,
+			}
+			eventJSON, _ := json.Marshal(event)
+			if err := s.queueManager.Publish(context.Background(), queue.TopicClaimProcessing, eventJSON); err != nil {
+				log.Printf("Failed to publish ClaimApprovedEvent: %v", err)
+			}
+		}
+	}()
 
 	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim approved")
 }
@@ -480,7 +569,9 @@ func (s *claimServiceImpl) RejectClaim(ctx context.Context, id uuid.UUID, reason
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to reject claim", err)
 	}
 
+	s.recordTimeline(ctx, id, claim.Status, string(shared.ClaimStatusRejected), "Claim Rejected", reason, rejectedBy)
 	s.logAudit(ctx, rejectedBy, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
+	s.notifyClaim(ctx, claim.MemberID, claim.ClaimNumber, "REJECTED")
 
 	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim rejected")
 }
@@ -550,6 +641,7 @@ func (s *claimServiceImpl) VetClaim(ctx context.Context, id uuid.UUID, req claim
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to vet claim", err)
 	}
 
+	s.recordTimeline(ctx, id, claim.Status, vetStatus, "Claim Vetted", "", vettedBy)
 	s.logAudit(ctx, vettedBy, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
 	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim vetted")
 }
@@ -573,6 +665,7 @@ func (s *claimServiceImpl) MarkReadyForPayment(ctx context.Context, id uuid.UUID
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to mark claim ready for payment", err)
 	}
 
+	s.recordTimeline(ctx, id, claim.Status, string(shared.ClaimStatusReadyForPayment), "Marked Ready for Payment", "", userID)
 	s.logAudit(ctx, userID, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
 	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim marked ready for payment")
 }
@@ -596,7 +689,9 @@ func (s *claimServiceImpl) MarkPaid(ctx context.Context, id uuid.UUID, userID uu
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to mark claim as paid", err)
 	}
 
+	s.recordTimeline(ctx, id, claim.Status, string(shared.ClaimStatusPaid), "Claim Paid", "", userID)
 	s.logAudit(ctx, userID, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
+	s.notifyClaim(ctx, claim.MemberID, claim.ClaimNumber, "PAID")
 	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim marked as paid")
 }
 
@@ -619,6 +714,7 @@ func (s *claimServiceImpl) MarkPartPaid(ctx context.Context, id uuid.UUID, userI
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to mark claim as part paid", err)
 	}
 
+	s.recordTimeline(ctx, id, claim.Status, string(shared.ClaimStatusPartPaid), "Claim Partially Paid", "", userID)
 	s.logAudit(ctx, userID, string(shared.AuditEntityTypeClaim), id, string(shared.AuditActionStateChange))
 	return schema.NewServiceResponse(claimsSchema.ToClaimResponse(updated), http.StatusOK, "Claim marked as part paid")
 }
@@ -803,11 +899,109 @@ func (s *claimServiceImpl) ImportClaimsCSV(ctx context.Context, csvData []byte, 
 	return schema.NewServiceResponse(result, http.StatusOK, fmt.Sprintf("CSV import: %d succeeded, %d failed", result.Succeeded, result.Failed))
 }
 
+func (s *claimServiceImpl) notifyClaim(ctx context.Context, memberID uuid.UUID, claimNumber, newStatus string) {
+	if s.notifSvc == nil {
+		return
+	}
+	subject := fmt.Sprintf("Claim %s — %s", claimNumber, newStatus)
+	body := fmt.Sprintf("Your claim %s has been updated to status: %s", claimNumber, newStatus)
+	resp := s.notifSvc.Send(ctx, memberID, string(shared.NotificationChannelInApp), string(shared.NotificationTypeClaim), subject, body)
+	if resp.Error != nil {
+		log.Printf("Failed to send claim notification: %v", resp.Error)
+	}
+}
+
 func (s *claimServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
 	if s.auditSvc != nil {
 		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")
 		if resp.Error != nil {
 			log.Printf("Failed to log audit: %v", resp.Error)
 		}
+	}
+}
+
+func (s *claimServiceImpl) evaluateEscalationRules(ctx context.Context, claim *entity.Claim, fraudFlags []*entity.FraudFlag, currentStatus string) {
+	rules, err := s.escalationRuleRepo.ListActive(ctx)
+	if err != nil || len(rules) == 0 {
+		return
+	}
+
+	for _, rule := range rules {
+		shouldEscalate := false
+
+		switch shared.EscalationConditionType(rule.ConditionType) {
+		case shared.EscalationConditionAmountExceeds:
+			shouldEscalate = claim.TotalAmount > rule.ThresholdAmount
+
+		case shared.EscalationConditionFraudFlag:
+			for _, f := range fraudFlags {
+				if f.Severity == string(shared.FraudSeverityHigh) || f.Severity == string(shared.FraudSeverityCritical) {
+					shouldEscalate = true
+					break
+				}
+			}
+
+		case shared.EscalationConditionManualReview:
+			shouldEscalate = currentStatus == string(shared.ClaimStatusManualReview)
+		}
+
+		if shouldEscalate {
+			s.claimRepo.UpdateStatus(ctx, claim.ID, string(shared.ClaimStatusEscalated))
+			s.claimRepo.SetEscalatedTo(ctx, claim.ID, rule.EscalationRole)
+			log.Printf("Claim %s escalated to %s (rule: %s)", claim.ClaimNumber, rule.EscalationRole, rule.Name)
+			return
+		}
+	}
+}
+
+func (s *claimServiceImpl) GetClaimTimeline(ctx context.Context, claimID uuid.UUID) *schema.ServiceResponse[[]claimsSchema.ClaimTimelineEntry] {
+	entries, err := s.claimRepo.ListTimeline(ctx, claimID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]claimsSchema.ClaimTimelineEntry](http.StatusInternalServerError, "Failed to get claim timeline", err)
+	}
+
+	result := make([]claimsSchema.ClaimTimelineEntry, len(entries))
+	for i, e := range entries {
+		result[i] = claimsSchema.ClaimTimelineEntry{
+			ID:              e.ID,
+			Action:          e.Action,
+			FromStatus:      e.FromStatus,
+			ToStatus:        e.ToStatus,
+			PerformedBy:     e.PerformedBy,
+			PerformedByName: e.PerformedByName,
+			Notes:           e.Notes,
+			CreatedAt:       e.CreatedAt,
+		}
+	}
+
+	return schema.NewServiceResponse(result, http.StatusOK, "Claim timeline retrieved")
+}
+
+func (s *claimServiceImpl) ListClaimsFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string, page, pageSize int) *schema.ServiceResponse[[]claimsSchema.ClaimResponse] {
+	offset := (page - 1) * pageSize
+	claims, err := s.claimRepo.ListFiltered(ctx, status, dateFrom, dateTo, search, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to list claims", err)
+	}
+
+	responses := make([]claimsSchema.ClaimResponse, len(claims))
+	for i, c := range claims {
+		responses[i] = claimsSchema.ToClaimResponse(c)
+	}
+
+	return schema.NewServiceResponse(responses, http.StatusOK, "Claims retrieved")
+}
+
+func (s *claimServiceImpl) CountClaimsFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string) *schema.ServiceResponse[int64] {
+	count, err := s.claimRepo.CountFiltered(ctx, status, dateFrom, dateTo, search)
+	if err != nil {
+		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to count claims", err)
+	}
+	return schema.NewServiceResponse(count, http.StatusOK, "Claims counted")
+}
+
+func (s *claimServiceImpl) recordTimeline(ctx context.Context, claimID uuid.UUID, fromStatus, toStatus, action, notes string, performedBy uuid.UUID) {
+	if err := s.claimRepo.CreateStatusHistory(ctx, claimID, fromStatus, toStatus, action, notes, performedBy); err != nil {
+		log.Printf("Failed to record timeline for claim %s: %v", claimID, err)
 	}
 }

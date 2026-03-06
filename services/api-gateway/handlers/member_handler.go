@@ -7,6 +7,7 @@ import (
 
 	policySchema "github.com/bitbiz/hias-core/domains/policy/schema"
 	"github.com/bitbiz/hias-core/domains/policy/service"
+	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -20,6 +21,18 @@ func NewMemberHandler(memberSvc service.MemberService) *MemberHandler {
 	return &MemberHandler{memberSvc: memberSvc}
 }
 
+// EnrollMember godoc
+// @Summary      Enroll a new member in a policy
+// @Description  Enrolls a new member under the specified policy
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Policy ID"
+// @Param        request body policySchema.EnrollMemberRequest true "Enroll member request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/members [post]
 func (h *MemberHandler) EnrollMember(ctx *gin.Context) {
 	policyID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -41,6 +54,17 @@ func (h *MemberHandler) EnrollMember(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// VerifyMember godoc
+// @Summary      Verify a member
+// @Description  Marks the specified member as verified
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Member ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members/{id}/verify [put]
 func (h *MemberHandler) VerifyMember(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -56,6 +80,17 @@ func (h *MemberHandler) VerifyMember(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// GetMemberEligibility godoc
+// @Summary      Get member eligibility
+// @Description  Retrieves the eligibility status and details for a specific member
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Member ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members/{id}/eligibility [get]
 func (h *MemberHandler) GetMemberEligibility(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -71,6 +106,17 @@ func (h *MemberHandler) GetMemberEligibility(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ListMembers godoc
+// @Summary      List members of a policy
+// @Description  Returns all members enrolled under the specified policy
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Policy ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/members [get]
 func (h *MemberHandler) ListMembers(ctx *gin.Context) {
 	policyID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -83,9 +129,28 @@ func (h *MemberHandler) ListMembers(ctx *gin.Context) {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return
 	}
+
+	role, _ := ctx.Get("role")
+	if roleStr, ok := role.(string); ok && roleStr != string(shared.UserRoleAdmin) {
+		for i := range resp.Data {
+			maskMemberPII(&resp.Data[i])
+		}
+	}
+
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// GetMember godoc
+// @Summary      Get a member by ID
+// @Description  Retrieves the details of a specific member
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Member ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members/{id} [get]
 func (h *MemberHandler) GetMember(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -98,9 +163,27 @@ func (h *MemberHandler) GetMember(ctx *gin.Context) {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return
 	}
+
+	role, _ := ctx.Get("role")
+	if roleStr, ok := role.(string); ok && roleStr != string(shared.UserRoleAdmin) {
+		maskMemberPII(&resp.Data)
+	}
+
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// UpdateMember godoc
+// @Summary      Update a member
+// @Description  Updates the details of an existing member
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Member ID"
+// @Param        request body policySchema.UpdateMemberRequest true "Update member request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members/{id} [put]
 func (h *MemberHandler) UpdateMember(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -122,6 +205,17 @@ func (h *MemberHandler) UpdateMember(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// RemoveMember godoc
+// @Summary      Remove a member
+// @Description  Removes a member from their policy
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Member ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members/{id} [delete]
 func (h *MemberHandler) RemoveMember(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -140,6 +234,17 @@ func (h *MemberHandler) RemoveMember(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// SuspendMember godoc
+// @Summary      Suspend a member
+// @Description  Suspends the specified member
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Member ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members/{id}/suspend [put]
 func (h *MemberHandler) SuspendMember(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -155,6 +260,17 @@ func (h *MemberHandler) SuspendMember(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ReactivateMember godoc
+// @Summary      Reactivate a member
+// @Description  Reactivates a previously suspended member
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Member ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members/{id}/reactivate [put]
 func (h *MemberHandler) ReactivateMember(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -170,6 +286,18 @@ func (h *MemberHandler) ReactivateMember(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// BulkEnrollMembers godoc
+// @Summary      Bulk enroll members
+// @Description  Enrolls multiple members under the specified policy in a single request
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Policy ID"
+// @Param        request body policySchema.BulkEnrollRequest true "Bulk enroll request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/members/bulk [post]
 func (h *MemberHandler) BulkEnrollMembers(ctx *gin.Context) {
 	policyID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -191,6 +319,18 @@ func (h *MemberHandler) BulkEnrollMembers(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// BulkRemoveMembers godoc
+// @Summary      Bulk remove members
+// @Description  Removes multiple members from the specified policy in a single request
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Policy ID"
+// @Param        request body policySchema.BulkRemoveRequest true "Bulk remove request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/members/bulk-remove [post]
 func (h *MemberHandler) BulkRemoveMembers(ctx *gin.Context) {
 	policyID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -222,6 +362,18 @@ func (h *MemberHandler) BulkRemoveMembers(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ImportMembersCSV godoc
+// @Summary      Import members from CSV
+// @Description  Imports members into the specified policy from an uploaded CSV file
+// @Tags         Members
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        id path string true "Policy ID"
+// @Param        file formData file true "CSV file with member data"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/members/import [post]
 func (h *MemberHandler) ImportMembersCSV(ctx *gin.Context) {
 	policyID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -248,4 +400,43 @@ func (h *MemberHandler) ImportMembersCSV(ctx *gin.Context) {
 		return
 	}
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+// ListAllMembers godoc
+// @Summary      List all members across all policies
+// @Description  Returns a paginated list of all members with optional search
+// @Tags         Members
+// @Produce      json
+// @Param        search query string false "Search by name, national ID, email, or phone"
+// @Param        page query int false "Page number"
+// @Param        page_size query int false "Page size"
+// @Success      200 {object} map[string]interface{}
+// @Failure      500 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members [get]
+func (h *MemberHandler) ListAllMembers(ctx *gin.Context) {
+	pagination := utils.GetPaginationParams(ctx)
+	search := ctx.Query("search")
+
+	resp := h.memberSvc.ListMembersFiltered(ctx.Request.Context(), search, pagination.Page, pagination.PageSize)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+
+	role, _ := ctx.Get("role")
+	if roleStr, ok := role.(string); ok && roleStr != string(shared.UserRoleAdmin) {
+		for i := range resp.Data {
+			maskMemberPII(&resp.Data[i])
+		}
+	}
+
+	countResp := h.memberSvc.CountMembersFiltered(ctx.Request.Context(), search)
+	utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
+}
+
+func maskMemberPII(m *policySchema.MemberResponse) {
+	m.NationalID = utils.MaskNationalID(m.NationalID)
+	m.Email = utils.MaskEmail(m.Email)
+	m.Phone = utils.MaskPhone(m.Phone)
 }

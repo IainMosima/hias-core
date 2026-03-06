@@ -223,3 +223,27 @@ func sqlcProviderToDomain(p db.Provider) *entity.Provider {
 		UpdatedAt:           p.UpdatedAt,
 	}
 }
+
+func (r *providerRepository) ListFiltered(ctx context.Context, search string, limit, offset int) ([]*entity.Provider, error) {
+	dbProviders, err := r.store.ListProvidersFiltered(ctx, db.ListProvidersFilteredParams{
+		Column1: search,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list providers filtered: %w", err)
+	}
+	providers := make([]*entity.Provider, len(dbProviders))
+	for i, p := range dbProviders {
+		providers[i] = sqlcProviderToDomain(p)
+	}
+	return providers, nil
+}
+
+func (r *providerRepository) CountFiltered(ctx context.Context, search string) (int64, error) {
+	count, err := r.store.CountProvidersFiltered(ctx, search)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count providers filtered: %w", err)
+	}
+	return count, nil
+}

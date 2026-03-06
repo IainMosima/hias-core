@@ -20,4 +20,6 @@ type MemberService interface {
 	BulkEnrollMembers(ctx context.Context, policyID uuid.UUID, reqs []policySchema.EnrollMemberRequest) *schema.ServiceResponse[policySchema.BulkMemberResultResponse]
 	BulkRemoveMembers(ctx context.Context, policyID uuid.UUID, memberIDs []uuid.UUID, reason string) *schema.ServiceResponse[policySchema.BulkMemberResultResponse]
 	ImportMembersCSV(ctx context.Context, policyID uuid.UUID, csvData []byte) *schema.ServiceResponse[policySchema.BulkMemberResultResponse]
+	ListMembersFiltered(ctx context.Context, search string, page, pageSize int) *schema.ServiceResponse[[]policySchema.MemberResponse]
+	CountMembersFiltered(ctx context.Context, search string) *schema.ServiceResponse[int64]
 }

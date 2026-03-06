@@ -35,6 +35,26 @@ func (q *Queries) CountPoliciesByStatus(ctx context.Context, status string) (int
 	return count, err
 }
 
+const countPoliciesFiltered = `-- name: CountPoliciesFiltered :one
+SELECT COUNT(*) FROM policies
+WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+  AND ($2::timestamptz IS NULL OR created_at <= $2)
+  AND ($3::text = '' OR (policy_number ILIKE '%' || $3 || '%' OR policyholder_name ILIKE '%' || $3 || '%' OR policyholder_email ILIKE '%' || $3 || '%'))
+`
+
+type CountPoliciesFilteredParams struct {
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
+	Search   string             `json:"search"`
+}
+
+func (q *Queries) CountPoliciesFiltered(ctx context.Context, arg CountPoliciesFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPoliciesFiltered, arg.DateFrom, arg.DateTo, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createPolicy = `-- name: CreatePolicy :one
 INSERT INTO policies (plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id
@@ -428,6 +448,65 @@ SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, p
 
 func (q *Queries) ListPoliciesExpiringSoon(ctx context.Context, days int32) ([]Policy, error) {
 	rows, err := q.db.Query(ctx, listPoliciesExpiringSoon, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Policy{}
+	for rows.Next() {
+		var i Policy
+		if err := rows.Scan(
+			&i.ID,
+			&i.PlanID,
+			&i.PolicyholderName,
+			&i.PolicyholderEmail,
+			&i.PolicyholderPhone,
+			&i.PolicyNumber,
+			&i.Status,
+			&i.StartDate,
+			&i.EndDate,
+			&i.PremiumAmount,
+			&i.Currency,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.RenewedFromID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPoliciesFiltered = `-- name: ListPoliciesFiltered :many
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies
+WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+  AND ($2::timestamptz IS NULL OR created_at <= $2)
+  AND ($3::text = '' OR (policy_number ILIKE '%' || $3 || '%' OR policyholder_name ILIKE '%' || $3 || '%' OR policyholder_email ILIKE '%' || $3 || '%'))
+ORDER BY created_at DESC
+LIMIT $5 OFFSET $4
+`
+
+type ListPoliciesFilteredParams struct {
+	DateFrom    pgtype.Timestamptz `json:"date_from"`
+	DateTo      pgtype.Timestamptz `json:"date_to"`
+	Search      string             `json:"search"`
+	QueryOffset int32              `json:"query_offset"`
+	QueryLimit  int32              `json:"query_limit"`
+}
+
+func (q *Queries) ListPoliciesFiltered(ctx context.Context, arg ListPoliciesFilteredParams) ([]Policy, error) {
+	rows, err := q.db.Query(ctx, listPoliciesFiltered,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.Search,
+		arg.QueryOffset,
+		arg.QueryLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -96,7 +96,11 @@ hias-core/
 │   │   └── schema/
 │   ├── analytics/         # Dashboard, KPIs
 │   │   └── schema/
-│   └── reinsurance/       # Treaties, cessions, recoveries, bordereaux, statements, alerts
+│   ├── reinsurance/       # Treaties, cessions, recoveries, bordereaux, statements, alerts
+│   │   └── schema/
+│   ├── reporting/         # Reports, schedules, generated reports
+│   │   └── schema/
+│   └── document/          # Standalone document schemas
 │       └── schema/
 ├── infrastructures/
 │   ├── db/                # SQLC generated code, migrations
@@ -132,7 +136,7 @@ hias-core/
 
 ## 3. Domain Map
 
-### 12 Domains and Their Entities
+### 14 Domains and Their Entities
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐
@@ -184,6 +188,14 @@ hias-core/
 │ Notification │     │ AuditEvent   │     │ Dashboard    │
 │              │     │              │     │ KPIs         │
 └──────────────┘     └──────────────┘     └──────────────┘
+
+┌──────────────┐     ┌──────────────┐
+│  Reporting   │     │   Document   │
+│ ───────────  │     │ ───────────  │
+│ ReportDefn   │     │ StandaloneDoc│
+│ GeneratedRpt │     │ Response     │
+│ ReportSched  │     │ DownloadURL  │
+└──────────────┘     └──────────────┘
 ```
 
 ### Key Relationships
@@ -406,6 +418,8 @@ Background cron jobs run on predefined schedules:
 | **Payment Retry** | `0 */4 * * *` | Every 4 hours | Retries failed payments up to MaxNotificationRetries (3). |
 | **Reconciliation** | `0 2 * * *` | Daily at 2am | Matches confirmed payments to bank statements. |
 | **Notification Retry** | `*/30 * * * *` | Every 30 minutes | Retries failed SMS/email notifications up to max retries. |
+| **Report Distribution** | `*/5 * * * *` (default) | Every 5 minutes | Execute due report schedules, distribute to recipients |
+| **Report Cleanup** | `0 2 * * *` (default) | Daily at 2am | Delete expired generated reports |
 
 ### Key Constants
 
@@ -967,18 +981,16 @@ totalRiskScore = SUM(rule.RiskScoreWeight) for all triggered rules
 ### 10.21 Claim Submission Pipeline Details
 
 When a claim is submitted (POST /claims), the full pipeline runs synchronously:
-1. Calculate TotalAmount = SUM(lineItem.UnitPrice × lineItem.Quantity)
-2. Set SLA breach: sla_breach_at = now + 48 hours
-3. Default claim_type to "DIRECT" if empty
-4. Generate claim number: CLM-{YEAR}-{COUNTER:06d}
-5. Run 8-rule validator (all errors collected, not short-circuit)
-6. If validator fails: claim is REJECTED (HTTP 201 returned, NOT 4xx)
-7. Update status → VALIDATED
-8. Run 9-step adjudicator
-9. Store adjudication decision
-10. If REJECTED: set rejection_reason from FAIL rule details
-11. Run 6 fraud checks (create FraudFlag entities, non-blocking)
-12. If pre-auth referenced: set pre-auth status → CLAIMED
+1. Create claim + line items (calculate TotalAmount, set SLA breach, generate claim number)
+2. Validate (8-rule validator, all errors collected — if fails: REJECTED, HTTP 201 returned)
+3. Run fraud checks — 7 check types (BEFORE adjudication: duplicate, frequency, amount threshold, expired contract, suspended provider, rate card overcharge, repeat visit)
+4. Critical fraud override check (critical-severity fraud flags can force MANUAL_REVIEW)
+5. Adjudicate (hardcoded rules + configurable DB rules from adjudication_rules table)
+6. Store adjudication decision + update amounts (approved, payable, member responsibility)
+7. Evaluate escalation rules (configurable from DB via escalation_rules table)
+8. Publish ClaimSubmittedEvent to claim-processing queue
+9. Record timeline entry in claim_status_history
+10. Return response (HTTP 201 even if auto-rejected)
 
 **Critical: claim submission returns HTTP 201 even if auto-rejected.** The frontend must check the response `message` field for "Claim submitted but rejected:" to detect auto-rejection.
 
@@ -1088,6 +1100,8 @@ When activating a treaty (DRAFT → ACTIVE):
 | Reconciliation | Daily 02:00 | Match payments to bank statements |
 | Notification Retry | Every 30 min | Retry failed notifications (max 50/run) |
 | Remittance Cycle | Monday midnight | Pay approved claims to providers |
+| Report Distribution | Every 5 min (default) | Execute due report schedules, distribute to recipients |
+| Report Cleanup | Daily 02:00 (default) | Delete expired generated reports |
 
 **Manual expiry endpoints (NOT scheduled — must be called via API):**
 - `POST /treaties/expire` — expire overdue treaties
@@ -1244,26 +1258,45 @@ This means a 12.5% share is truncated to 12%. Fractional percentages lose precis
 
 ### 10.47 Event Topics
 
-The system defines domain event topics (published via Watermill) but most are not yet wired to consumers:
+The system defines domain event topics (published via Watermill). Claims and Payments now actively publish events to queues with registered consumers:
 
-| Topic | Events |
-|---|---|
-| Claims | `claim.submitted`, `claim.approved`, `claim.rejected`, `claim.paid` |
-| Policies | `policy.activated`, `policy.lapsed`, `policy.terminated`, `policy.reinstated`, `policy.suspended`, `policy.renewed`, `policy.upgraded`, `policy.downgraded` |
-| Members | `member.enrolled`, `member.removed`, `member.suspended` |
-| Endorsements | `endorsement.created`, `endorsement.approved`, `endorsement.applied` |
-| Renewals | `renewal.initiated`, `renewal.completed` |
-| Pre-Auth | `preauth.submitted`, `preauth.approved`, `preauth.denied` |
-| Sales | `lead.created`, `lead.status_changed`, `quotation.created`, `quotation.issued`, `quotation.accepted`, `quotation.converted` |
-| Approvals | `approval.requested`, `approval.granted`, `approval.rejected` |
-| Payments | `payment.initiated`, `payment.confirmed`, `payment.failed` |
-| Documents | `document.uploaded`, `extraction.completed`, `document.generated` |
+| Topic | Events | Queue |
+|---|---|---|
+| Claims | `claim.submitted`, `claim.approved`, `claim.rejected`, `claim.paid` | `claim-processing` |
+| Payments | `payment.initiated`, `payment.confirmed`, `payment.failed` | `payment-events` |
+| Policies | `policy.activated`, `policy.lapsed`, `policy.terminated`, `policy.reinstated`, `policy.suspended`, `policy.renewed`, `policy.upgraded`, `policy.downgraded` | — |
+| Members | `member.enrolled`, `member.removed`, `member.suspended` | — |
+| Endorsements | `endorsement.created`, `endorsement.approved`, `endorsement.applied` | — |
+| Renewals | `renewal.initiated`, `renewal.completed` | — |
+| Pre-Auth | `preauth.submitted`, `preauth.approved`, `preauth.denied` | — |
+| Sales | `lead.created`, `lead.status_changed`, `quotation.created`, `quotation.issued`, `quotation.accepted`, `quotation.converted` | — |
+| Approvals | `approval.requested`, `approval.granted`, `approval.rejected` | — |
+| Documents | `document.uploaded`, `extraction.completed`, `document.generated` | — |
 
-### 10.48 ExpireOverdue Treaty Behavior
+**Actively published events with consumers:**
+- `ClaimSubmittedEvent` → `claim-processing` queue
+- `ClaimApprovedEvent` → `claim-processing` queue
+- `PaymentConfirmedEvent` → `payment-events` queue
+- `PaymentFailedEvent` → `payment-events` queue
+
+### 10.48 Consumer Manager
+
+Six queue consumer handlers are registered and started by the consumer manager:
+
+| # | Handler | Queue/Topic |
+|---|---|---|
+| 1 | `ClaimSubmittedHandler` | claim-processing |
+| 2 | `ClaimApprovedHandler` | claim-processing |
+| 3 | `ExtractionResultHandler` | document events |
+| 4 | `PaymentWebhookHandler` | payment-events |
+| 5 | `NotificationDispatchHandler` | notification-events |
+| 6 | `PreAuthSubmittedHandler` | pre-auth events |
+
+### 10.49 ExpireOverdue Treaty Behavior
 
 `POST /treaties/expire` fetches up to **1000** ACTIVE treaties and the expiry filter condition checks `t.ExpiryDate.Before(t.CreatedAt) || t.Status == "ACTIVE"`. Since all fetched treaties are ACTIVE, the second condition always passes — effectively **all fetched active treaties are expired** regardless of their actual expiry date. Use this endpoint with caution; it is intended to be called manually by Admin users.
 
-### 10.49 Co-Pay Has No Floor Check (Payable Can Go Negative)
+### 10.50 Co-Pay Has No Floor Check (Payable Can Go Negative)
 
 In the amount calculation (Section 10.5, Step 4), after co-pay subtraction, `payableAmount` is **NOT** floored at 0. Unlike the deductible step (which has `if payableAmount < 0: payableAmount = 0`), the co-pay step simply does:
 ```
@@ -1271,7 +1304,7 @@ payableAmount -= coPayAmount
 ```
 This means `payableAmount` can theoretically become negative if the co-pay exceeds the post-deductible payable amount. The frontend should guard against displaying negative payable amounts.
 
-### 10.50 Fraud Pipeline — Only CheckDuplicate Affects Adjudication
+### 10.51 Fraud Pipeline — Only CheckDuplicate Affects Adjudication
 
 The claim submission pipeline has **two distinct fraud phases**:
 
@@ -1287,7 +1320,7 @@ The claim submission pipeline has **two distinct fraud phases**:
 
 These 6 checks **only create FraudFlag records** for manual investigation. They do NOT change the claim status, adjudication decision, or payable amount. They are informational flags.
 
-### 10.51 Waiting Period & Age Checks Against ALL Benefits
+### 10.52 Waiting Period & Age Checks Against ALL Benefits
 
 During adjudication steps 5 and 5b, the checks iterate over **ALL** plan benefits — not just the matched benefit for the claim's category:
 
@@ -1301,7 +1334,7 @@ for _, benefit := range allPlanBenefits:
 
 **Implication**: A claim can be rejected due to a waiting period or age restriction defined on a benefit category that is **not relevant** to the claim. For example, an outpatient claim could be rejected because an inpatient benefit has a 90-day waiting period that hasn't elapsed yet.
 
-### 10.52 Provider Statement Reconciliation Algorithm
+### 10.53 Provider Statement Reconciliation Algorithm
 
 `ReconcileStatement` uses a two-phase matching algorithm:
 
@@ -1332,7 +1365,7 @@ if abs(discrepancy) <= tolerance: discrepancy = 0
 - If `discrepancy <= 0` (provider claimed ≤ approved): claim status → `PAID`
 - If `discrepancy > 0` (provider claimed > approved): claim status → `PART_PAID`
 
-### 10.53 Case Management Transition Preconditions
+### 10.54 Case Management Transition Preconditions
 
 Each case state transition has specific preconditions enforced by the service:
 
@@ -1346,7 +1379,7 @@ Each case state transition has specific preconditions enforced by the service:
 
 **Note**: Discharge is allowed from both `ADMITTED` and `IN_TREATMENT` states (e.g., early discharge before treatment starts). The close-case endpoint does NOT verify that all linked claims are in terminal status — it only checks the case is `DISCHARGED`.
 
-### 10.54 Authentication Implementation Details
+### 10.55 Authentication Implementation Details
 
 **Register** (`POST /auth/register`):
 - Default role: `Member` (if `role_name` not provided)
@@ -1367,7 +1400,7 @@ Each case state transition has specific preconditions enforced by the service:
 - **WARNING**: Does NOT hash the password. The password is stored as provided. Only `Register` hashes passwords via bcrypt.
 - Admin-created users must have their password manually hashed or use the Register endpoint instead.
 
-### 10.55 RequirePermission Middleware Is Unused
+### 10.56 RequirePermission Middleware Is Unused
 
 `RequirePermission(resource, action)` middleware is defined but is **NOT wired to any route** in `routes.go`. All route-level RBAC is enforced exclusively via `RequireRole(roles...)`.
 
@@ -1376,7 +1409,7 @@ Each case state transition has specific preconditions enforced by the service:
 - Admin must be **explicitly listed** in every `RequireRole()` call — there is no automatic Admin bypass for role checks
 - Roles `Provider`, `Member`, and `SalesAgent` are never used in any `RequireRole()` call, meaning these roles have access to all non-role-restricted endpoints (authenticated-only)
 
-### 10.56 Backend Route-to-Role Mapping
+### 10.57 Backend Route-to-Role Mapping
 
 Complete mapping of which routes have `RequireRole` restrictions. Routes NOT listed here are accessible to **any authenticated user** (all 8 roles):
 
@@ -1402,7 +1435,7 @@ Complete mapping of which routes have `RequireRole` restrictions. Routes NOT lis
 
 **All other endpoints** (plans, benefits, policies, members, providers, leads, pre-auth, billing, reinsurance, analytics, notifications, audit, etc.) require only authentication — any role can access them.
 
-### 10.57 Benefit CheckCoverage — procedureCode Ignored
+### 10.58 Benefit CheckCoverage — procedureCode Ignored
 
 The `CheckCoverage(planID, procedureCode)` method accepts a `procedureCode` parameter but **ignores it entirely**. Coverage lookup is performed solely by:
 1. Fetching all active benefits for the plan
@@ -1413,7 +1446,7 @@ The `procedureCode` parameter is dead code. The frontend should NOT rely on proc
 
 **CheckCoverage returns sub-benefits**: When a benefit is matched, its child sub-benefits (linked via `parent_benefit_id`) are included in the response. Sub-benefits provide granular breakdown (e.g., Outpatient → Lab Tests, Consultation, Pharmacy) but are NOT independently evaluated during adjudication coverage decisions.
 
-### 10.58 Analytics Implementation Details
+### 10.59 Analytics Implementation Details
 
 **parsePeriod helper** — maps period query parameter to day ranges:
 
@@ -1435,7 +1468,7 @@ The `procedureCode` parameter is dead code. The frontend should NOT rely on proc
 - The period cannot be overridden via query parameters
 - Always returns data for the trailing 365-day window
 
-### 10.59 Notification Fire-and-Forget Pattern
+### 10.60 Notification Fire-and-Forget Pattern
 
 Notification dispatch uses a **fire-and-forget goroutine** pattern:
 ```go
@@ -1451,3 +1484,15 @@ go func() {
 - The caller always receives a successful response even if notification dispatch fails
 - There is no backpressure mechanism — a burst of requests creates unbounded goroutines
 - The frontend should NOT assume notifications are delivered just because the triggering API call succeeded
+
+### 10.61 Sprint 4 Features
+
+The following capabilities were added in Sprint 4:
+
+- **Standalone document listing**: UNION query across policy, claim, and quotation documents, enabling a single endpoint to list all documents regardless of parent entity type
+- **Claim timeline**: Dedicated `claim_status_history` table tracks every status transition with timestamp, actor, and notes — exposed via a claim timeline endpoint
+- **User profile self-service**: `GET /profile` and `PUT /profile` endpoints allow authenticated users to view and update their own profile
+- **Change password**: `PUT /auth/change-password` endpoint for authenticated password changes
+- **Date range filtering**: `date_from` and `date_to` query parameters supported on claims, policies, and invoices list endpoints
+- **Text search**: `search` query parameter supported on claims, policies, members, and providers list endpoints (partial match)
+- **Document download**: Presigned S3 URLs for secure, time-limited document downloads

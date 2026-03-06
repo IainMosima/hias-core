@@ -16,4 +16,5 @@ type PremiumRuleService interface {
 	CalculatePremium(ctx context.Context, planID uuid.UUID, memberCount int, relationships []string) *schema.ServiceResponse[int64]
 	CalculatePremiumWithMembers(ctx context.Context, planID uuid.UUID, memberCount int, proposedMembers json.RawMessage) *schema.ServiceResponse[int64]
 	GetRateSheet(ctx context.Context, planID uuid.UUID) *schema.ServiceResponse[[]productSchema.PremiumRuleResponse]
+	CalculatePremiumBreakdown(ctx context.Context, planID uuid.UUID, proposedMembers json.RawMessage) *schema.ServiceResponse[productSchema.PremiumBreakdownResponse]
 }

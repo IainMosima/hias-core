@@ -23,4 +23,6 @@ type ProviderRepository interface {
 	UpdateAccreditation(ctx context.Context, id uuid.UUID, status string, expiry *time.Time, body string) (*entity.Provider, error)
 	ListByAccreditationStatus(ctx context.Context, status string, limit, offset int) ([]*entity.Provider, error)
 	ListExpiringAccreditations(ctx context.Context, days, limit, offset int) ([]*entity.Provider, error)
+	ListFiltered(ctx context.Context, search string, limit, offset int) ([]*entity.Provider, error)
+	CountFiltered(ctx context.Context, search string) (int64, error)
 }

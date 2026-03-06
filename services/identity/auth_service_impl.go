@@ -173,6 +173,33 @@ func (s *authServiceImpl) Logout(ctx context.Context, userID string) *schema.Ser
 	return schema.NewServiceResponse("Logged out", http.StatusOK, "Logout successful")
 }
 
+func (s *authServiceImpl) ChangePassword(ctx context.Context, userID string, req schema.ChangePasswordRequest) *schema.ServiceResponse[string] {
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[string](http.StatusBadRequest, "Invalid user ID", err)
+	}
+
+	user, err := s.userRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[string](http.StatusNotFound, "User not found", err)
+	}
+
+	if err := utils.CheckPassword(req.CurrentPassword, user.PasswordHash); err != nil {
+		return schema.NewServiceErrorResponse[string](http.StatusUnauthorized, "Current password is incorrect", err)
+	}
+
+	newHash, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		return schema.NewServiceErrorResponse[string](http.StatusInternalServerError, "Failed to hash password", err)
+	}
+
+	if err := s.userRepo.UpdatePassword(ctx, id, newHash); err != nil {
+		return schema.NewServiceErrorResponse[string](http.StatusInternalServerError, "Failed to update password", err)
+	}
+
+	return schema.NewServiceResponse("Password changed successfully", http.StatusOK, "Password changed")
+}
+
 func (s *authServiceImpl) getPermissionStrings(ctx context.Context, roleID uuid.UUID) []string {
 	if roleID == uuid.Nil {
 		return []string{}

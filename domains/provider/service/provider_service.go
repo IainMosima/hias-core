@@ -22,4 +22,6 @@ type ProviderService interface {
 	UpdateAccreditation(ctx context.Context, id uuid.UUID, req providerSchema.UpdateAccreditationRequest, userID uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse]
 	ListByAccreditationStatus(ctx context.Context, status string, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse]
 	ListExpiringAccreditations(ctx context.Context, days, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse]
+	ListProvidersFiltered(ctx context.Context, search string, page, pageSize int) *schema.ServiceResponse[[]providerSchema.ProviderResponse]
+	CountProvidersFiltered(ctx context.Context, search string) *schema.ServiceResponse[int64]
 }

@@ -20,6 +20,18 @@ func NewContractHandler(contractRepo repository.ContractRepository) *ContractHan
 	return &ContractHandler{contractRepo: contractRepo}
 }
 
+// CreateContract godoc
+// @Summary      Create a provider contract
+// @Description  Create a new contract for a specific healthcare provider
+// @Tags         Contracts
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Provider ID"
+// @Param        request body providerSchema.CreateContractRequest true "Contract creation request"
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/providers/{id}/contracts [post]
 func (h *ContractHandler) CreateContract(ctx *gin.Context) {
 	providerID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -50,6 +62,17 @@ func (h *ContractHandler) CreateContract(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, http.StatusCreated, "Contract created", providerSchema.ToContractResponse(created))
 }
 
+// ListContracts godoc
+// @Summary      List provider contracts
+// @Description  Retrieve all contracts for a specific healthcare provider
+// @Tags         Contracts
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Provider ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/providers/{id}/contracts [get]
 func (h *ContractHandler) ListContracts(ctx *gin.Context) {
 	providerID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

@@ -20,6 +20,7 @@ import (
 	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
+	cronParser "github.com/robfig/cron/v3"
 )
 
 type reportServiceImpl struct {
@@ -689,9 +690,13 @@ func periodToDateRange(period string) (time.Time, time.Time) {
 }
 
 func computeNextRun(cronExpr string) time.Time {
-	// Simple next-run computation — default to 1 hour from now
-	// In production, use a cron parser library
-	return time.Now().Add(1 * time.Hour)
+	parser := cronParser.NewParser(cronParser.Minute | cronParser.Hour | cronParser.Dom | cronParser.Month | cronParser.Dow)
+	sched, err := parser.Parse(cronExpr)
+	if err != nil {
+		log.Printf("computeNextRun: failed to parse cron expression %q: %v, defaulting to 1 hour", cronExpr, err)
+		return time.Now().Add(1 * time.Hour)
+	}
+	return sched.Next(time.Now())
 }
 
 func hasRole(allowedRoles []string, role string) bool {

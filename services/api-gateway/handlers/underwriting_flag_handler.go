@@ -19,6 +19,17 @@ func NewUnderwritingFlagHandler(flagSvc service.UnderwritingFlagService) *Underw
 	return &UnderwritingFlagHandler{flagSvc: flagSvc}
 }
 
+// ListByPolicy godoc
+// @Summary      List underwriting flags by policy
+// @Description  List all underwriting flags associated with a policy
+// @Tags         UnderwritingFlags
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Policy ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/underwriting-flags [get]
 func (h *UnderwritingFlagHandler) ListByPolicy(ctx *gin.Context) {
 	policyID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -33,6 +44,17 @@ func (h *UnderwritingFlagHandler) ListByPolicy(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ListByMember godoc
+// @Summary      List underwriting flags by member
+// @Description  List all underwriting flags associated with a member
+// @Tags         UnderwritingFlags
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Member ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members/{id}/underwriting-flags [get]
 func (h *UnderwritingFlagHandler) ListByMember(ctx *gin.Context) {
 	memberID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -47,6 +69,17 @@ func (h *UnderwritingFlagHandler) ListByMember(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// GetFlag godoc
+// @Summary      Get an underwriting flag
+// @Description  Get underwriting flag details by ID
+// @Tags         UnderwritingFlags
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Flag ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/underwriting-flags/{id} [get]
 func (h *UnderwritingFlagHandler) GetFlag(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -61,6 +94,18 @@ func (h *UnderwritingFlagHandler) GetFlag(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ListOpen godoc
+// @Summary      List open underwriting flags
+// @Description  List all open/unresolved underwriting flags with pagination
+// @Tags         UnderwritingFlags
+// @Accept       json
+// @Produce      json
+// @Param        limit query int false "Limit" default(50)
+// @Param        offset query int false "Offset" default(0)
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/underwriting-flags [get]
 func (h *UnderwritingFlagHandler) ListOpen(ctx *gin.Context) {
 	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(ctx.DefaultQuery("offset", "0"))
@@ -72,6 +117,16 @@ func (h *UnderwritingFlagHandler) ListOpen(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// CountOpen godoc
+// @Summary      Count open underwriting flags
+// @Description  Get the count of all open/unresolved underwriting flags
+// @Tags         UnderwritingFlags
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/underwriting-flags/count [get]
 func (h *UnderwritingFlagHandler) CountOpen(ctx *gin.Context) {
 	resp := h.flagSvc.CountOpen(ctx.Request.Context())
 	if resp.Error != nil {
@@ -81,6 +136,18 @@ func (h *UnderwritingFlagHandler) CountOpen(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// ResolveFlag godoc
+// @Summary      Resolve an underwriting flag
+// @Description  Resolve an open underwriting flag with resolution details
+// @Tags         UnderwritingFlags
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Flag ID"
+// @Param        request body policySchema.ResolveFlagRequest true "Resolution details"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/underwriting-flags/{id}/resolve [put]
 func (h *UnderwritingFlagHandler) ResolveFlag(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -100,6 +167,18 @@ func (h *UnderwritingFlagHandler) ResolveFlag(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// OverrideFlag godoc
+// @Summary      Override an underwriting flag
+// @Description  Override an underwriting flag with justification
+// @Tags         UnderwritingFlags
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Flag ID"
+// @Param        request body policySchema.OverrideFlagRequest true "Override details"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/underwriting-flags/{id}/override [put]
 func (h *UnderwritingFlagHandler) OverrideFlag(ctx *gin.Context) {
 	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {

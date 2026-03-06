@@ -14,6 +14,7 @@ import (
 	"github.com/bitbiz/hias-core/domains/policy/repository"
 	policySchema "github.com/bitbiz/hias-core/domains/policy/schema"
 	"github.com/bitbiz/hias-core/domains/policy/service"
+	productService "github.com/bitbiz/hias-core/domains/product/service"
 	"github.com/bitbiz/hias-core/shared"
 	"github.com/google/uuid"
 )
@@ -21,23 +22,29 @@ import (
 type endorsementServiceImpl struct {
 	endorsementRepo repository.EndorsementRepository
 	policyRepo      repository.PolicyRepository
+	memberRepo      repository.MemberRepository
 	memberSvc       service.MemberService
 	policySvc       service.PolicyService
+	premiumRuleSvc  productService.PremiumRuleService
 	auditSvc        auditService.AuditService
 }
 
 func NewEndorsementService(
 	endorsementRepo repository.EndorsementRepository,
 	policyRepo repository.PolicyRepository,
+	memberRepo repository.MemberRepository,
 	memberSvc service.MemberService,
 	policySvc service.PolicyService,
+	premiumRuleSvc productService.PremiumRuleService,
 	auditSvc auditService.AuditService,
 ) service.EndorsementService {
 	return &endorsementServiceImpl{
 		endorsementRepo: endorsementRepo,
 		policyRepo:      policyRepo,
+		memberRepo:      memberRepo,
 		memberSvc:       memberSvc,
 		policySvc:       policySvc,
+		premiumRuleSvc:  premiumRuleSvc,
 		auditSvc:        auditSvc,
 	}
 }
@@ -73,13 +80,14 @@ func (s *endorsementServiceImpl) CreateEndorsement(ctx context.Context, req poli
 	}
 
 	endorsement := &entity.Endorsement{
-		PolicyID:        policyID,
-		EndorsementType: req.EndorsementType,
-		Status:          string(shared.EndorsementStatusPending),
-		EffectiveDate:   effectiveDate,
-		Changes:         req.Changes,
-		Reason:          req.Reason,
-		RequestedBy:     requestedBy,
+		PolicyID:          policyID,
+		EndorsementType:   req.EndorsementType,
+		Status:            string(shared.EndorsementStatusPending),
+		EffectiveDate:     effectiveDate,
+		Changes:           req.Changes,
+		Reason:            req.Reason,
+		PremiumAdjustment: req.PremiumAdjustment,
+		RequestedBy:       requestedBy,
 	}
 
 	created, err := s.endorsementRepo.Create(ctx, endorsement)
@@ -169,6 +177,43 @@ func (s *endorsementServiceImpl) ApplyEndorsement(ctx context.Context, id uuid.U
 
 	if endorsement.Status != string(shared.EndorsementStatusApproved) {
 		return schema.NewServiceErrorResponse[policySchema.EndorsementResponse](http.StatusBadRequest, "Only approved endorsements can be applied", nil)
+	}
+
+	// Calculate premium adjustment if not manually set
+	if endorsement.PremiumAdjustment == 0 && s.premiumRuleSvc != nil && s.memberRepo != nil {
+		pol, polErr := s.policyRepo.GetByID(ctx, endorsement.PolicyID)
+		if polErr == nil {
+			currentCount, countErr := s.memberRepo.CountActiveByPolicy(ctx, endorsement.PolicyID)
+			if countErr == nil {
+				var newCount int
+				switch endorsement.EndorsementType {
+				case string(shared.EndorsementTypeAddMember):
+					newCount = int(currentCount) + 1
+				case string(shared.EndorsementTypeRemoveMember):
+					newCount = int(currentCount) - 1
+					if newCount < 0 {
+						newCount = 0
+					}
+				}
+				if newCount > 0 && newCount != int(currentCount) {
+					premResp := s.premiumRuleSvc.CalculatePremiumWithMembers(ctx, pol.PlanID, newCount, nil)
+					if premResp.Error == nil && premResp.Data > 0 {
+						fullDelta := premResp.Data - pol.PremiumAmount
+						// Pro-rate for remaining days in policy period
+						if pol.EndDate.After(time.Now()) && pol.StartDate.Before(pol.EndDate) {
+							totalDays := pol.EndDate.Sub(pol.StartDate).Hours() / 24
+							remainingDays := pol.EndDate.Sub(time.Now()).Hours() / 24
+							if totalDays > 0 {
+								endorsement.PremiumAdjustment = int64(float64(fullDelta) * remainingDays / totalDays)
+							}
+						} else {
+							endorsement.PremiumAdjustment = fullDelta
+						}
+						log.Printf("Endorsement premium adjustment calculated: %d (full delta: %d)", endorsement.PremiumAdjustment, fullDelta)
+					}
+				}
+			}
+		}
 	}
 
 	// Dispatch action based on endorsement type

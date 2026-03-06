@@ -26,8 +26,8 @@ func (q *Queries) CountRemittances(ctx context.Context) (int64, error) {
 }
 
 const createRemittance = `-- name: CreateRemittance :one
-INSERT INTO remittances (provider_id, claim_ids, total_amount, currency, status, period_start, period_end, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at
+INSERT INTO remittances (provider_id, claim_ids, total_amount, currency, status, period_start, period_end, wht_rate, wht_amount, net_amount, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at, wht_rate, wht_amount, net_amount
 `
 
 type CreateRemittanceParams struct {
@@ -38,6 +38,9 @@ type CreateRemittanceParams struct {
 	Status      string          `json:"status"`
 	PeriodStart time.Time       `json:"period_start"`
 	PeriodEnd   time.Time       `json:"period_end"`
+	WhtRate     pgtype.Numeric  `json:"wht_rate"`
+	WhtAmount   int64           `json:"wht_amount"`
+	NetAmount   int64           `json:"net_amount"`
 	CreatedBy   pgtype.UUID     `json:"created_by"`
 }
 
@@ -50,6 +53,9 @@ func (q *Queries) CreateRemittance(ctx context.Context, arg CreateRemittancePara
 		arg.Status,
 		arg.PeriodStart,
 		arg.PeriodEnd,
+		arg.WhtRate,
+		arg.WhtAmount,
+		arg.NetAmount,
 		arg.CreatedBy,
 	)
 	var i Remittance
@@ -67,12 +73,15 @@ func (q *Queries) CreateRemittance(ctx context.Context, arg CreateRemittancePara
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WhtRate,
+		&i.WhtAmount,
+		&i.NetAmount,
 	)
 	return i, err
 }
 
 const getRemittanceByID = `-- name: GetRemittanceByID :one
-SELECT id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at FROM remittances WHERE id = $1
+SELECT id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at, wht_rate, wht_amount, net_amount FROM remittances WHERE id = $1
 `
 
 func (q *Queries) GetRemittanceByID(ctx context.Context, id uuid.UUID) (Remittance, error) {
@@ -92,12 +101,15 @@ func (q *Queries) GetRemittanceByID(ctx context.Context, id uuid.UUID) (Remittan
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WhtRate,
+		&i.WhtAmount,
+		&i.NetAmount,
 	)
 	return i, err
 }
 
 const listRemittances = `-- name: ListRemittances :many
-SELECT id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at FROM remittances ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at, wht_rate, wht_amount, net_amount FROM remittances ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListRemittancesParams struct {
@@ -128,6 +140,9 @@ func (q *Queries) ListRemittances(ctx context.Context, arg ListRemittancesParams
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WhtRate,
+			&i.WhtAmount,
+			&i.NetAmount,
 		); err != nil {
 			return nil, err
 		}
@@ -140,7 +155,7 @@ func (q *Queries) ListRemittances(ctx context.Context, arg ListRemittancesParams
 }
 
 const listRemittancesByProvider = `-- name: ListRemittancesByProvider :many
-SELECT id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at FROM remittances WHERE provider_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at, wht_rate, wht_amount, net_amount FROM remittances WHERE provider_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListRemittancesByProviderParams struct {
@@ -172,6 +187,9 @@ func (q *Queries) ListRemittancesByProvider(ctx context.Context, arg ListRemitta
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WhtRate,
+			&i.WhtAmount,
+			&i.NetAmount,
 		); err != nil {
 			return nil, err
 		}
@@ -184,7 +202,7 @@ func (q *Queries) ListRemittancesByProvider(ctx context.Context, arg ListRemitta
 }
 
 const listRemittancesByStatus = `-- name: ListRemittancesByStatus :many
-SELECT id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at FROM remittances WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at, wht_rate, wht_amount, net_amount FROM remittances WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListRemittancesByStatusParams struct {
@@ -216,6 +234,9 @@ func (q *Queries) ListRemittancesByStatus(ctx context.Context, arg ListRemittanc
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WhtRate,
+			&i.WhtAmount,
+			&i.NetAmount,
 		); err != nil {
 			return nil, err
 		}
@@ -228,7 +249,7 @@ func (q *Queries) ListRemittancesByStatus(ctx context.Context, arg ListRemittanc
 }
 
 const markRemittanceAdviceSent = `-- name: MarkRemittanceAdviceSent :one
-UPDATE remittances SET remittance_advice_sent = TRUE, updated_at = NOW() WHERE id = $1 RETURNING id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at
+UPDATE remittances SET remittance_advice_sent = TRUE, updated_at = NOW() WHERE id = $1 RETURNING id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at, wht_rate, wht_amount, net_amount
 `
 
 func (q *Queries) MarkRemittanceAdviceSent(ctx context.Context, id uuid.UUID) (Remittance, error) {
@@ -248,12 +269,15 @@ func (q *Queries) MarkRemittanceAdviceSent(ctx context.Context, id uuid.UUID) (R
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WhtRate,
+		&i.WhtAmount,
+		&i.NetAmount,
 	)
 	return i, err
 }
 
 const setRemittancePayment = `-- name: SetRemittancePayment :one
-UPDATE remittances SET payment_id = $2, updated_at = NOW() WHERE id = $1 RETURNING id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at
+UPDATE remittances SET payment_id = $2, updated_at = NOW() WHERE id = $1 RETURNING id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at, wht_rate, wht_amount, net_amount
 `
 
 type SetRemittancePaymentParams struct {
@@ -278,12 +302,15 @@ func (q *Queries) SetRemittancePayment(ctx context.Context, arg SetRemittancePay
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WhtRate,
+		&i.WhtAmount,
+		&i.NetAmount,
 	)
 	return i, err
 }
 
 const updateRemittanceStatus = `-- name: UpdateRemittanceStatus :one
-UPDATE remittances SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at
+UPDATE remittances SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, created_by, created_at, updated_at, wht_rate, wht_amount, net_amount
 `
 
 type UpdateRemittanceStatusParams struct {
@@ -308,6 +335,9 @@ func (q *Queries) UpdateRemittanceStatus(ctx context.Context, arg UpdateRemittan
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WhtRate,
+		&i.WhtAmount,
+		&i.NetAmount,
 	)
 	return i, err
 }

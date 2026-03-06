@@ -3,6 +3,7 @@ package product
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
 	"net/http"
@@ -317,6 +318,108 @@ func (s *premiumRuleServiceImpl) GetRateSheet(ctx context.Context, planID uuid.U
 		responses[i] = productSchema.ToPremiumRuleResponse(r)
 	}
 	return schema.NewServiceResponse(responses, http.StatusOK, "Rate sheet retrieved")
+}
+
+func (s *premiumRuleServiceImpl) CalculatePremiumBreakdown(ctx context.Context, planID uuid.UUID, proposedMembers json.RawMessage) *schema.ServiceResponse[productSchema.PremiumBreakdownResponse] {
+	plan, err := s.planRepo.GetByID(ctx, planID)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.PremiumBreakdownResponse](http.StatusNotFound, "Plan not found", err)
+	}
+
+	rules, err := s.ruleRepo.ListByPlan(ctx, planID)
+	if err != nil || len(rules) == 0 {
+		return schema.NewServiceResponse(productSchema.PremiumBreakdownResponse{
+			TotalPremium:    plan.BasePremium,
+			MemberBreakdown: []productSchema.MemberPremiumBreakdown{},
+			CalculationType: "base",
+		}, http.StatusOK, "Premium breakdown (base only)")
+	}
+
+	// Check for per_family calculation
+	for _, r := range rules {
+		if r.CalculationType == string(shared.PremiumCalculationTypePerFamily) {
+			var members []struct {
+				Relationship string `json:"relationship"`
+				DateOfBirth  string `json:"date_of_birth"`
+			}
+			json.Unmarshal(proposedMembers, &members)
+
+			matchedRule := findFamilyRule(rules, len(members))
+			amount := plan.BasePremium
+			if matchedRule != nil {
+				amount = matchedRule.RateAmount
+			}
+			return schema.NewServiceResponse(productSchema.PremiumBreakdownResponse{
+				TotalPremium: amount,
+				MemberBreakdown: []productSchema.MemberPremiumBreakdown{{
+					Relationship: "family",
+					RateAmount:   amount,
+					RuleName:     "per_family",
+				}},
+				CalculationType: "per_family",
+			}, http.StatusOK, "Premium breakdown (per_family)")
+		}
+	}
+
+	// Per-member calculation with breakdown
+	var members []struct {
+		Relationship string `json:"relationship"`
+		DateOfBirth  string `json:"date_of_birth"`
+	}
+	if err := json.Unmarshal(proposedMembers, &members); err != nil || len(members) == 0 {
+		return schema.NewServiceErrorResponse[productSchema.PremiumBreakdownResponse](http.StatusBadRequest, "Invalid or empty proposed_members", err)
+	}
+
+	var totalPremium int64
+	breakdowns := make([]productSchema.MemberPremiumBreakdown, 0, len(members))
+
+	for _, m := range members {
+		age := calculateAge(m.DateOfBirth)
+		matchedRule := findMatchingRule(rules, m.Relationship, age)
+
+		bd := productSchema.MemberPremiumBreakdown{
+			Relationship: m.Relationship,
+			Age:          age,
+		}
+
+		if matchedRule != nil {
+			bd.RateAmount = matchedRule.RateAmount
+			bd.RuleName = matchedRule.ID.String()
+			bd.AgeBand = fmt.Sprintf("%d-%d", matchedRule.MinAge, matchedRule.MaxAge)
+			totalPremium += matchedRule.RateAmount
+		} else {
+			bd.RateAmount = plan.BasePremium
+			bd.RuleName = "base"
+			totalPremium += plan.BasePremium
+		}
+
+		breakdowns = append(breakdowns, bd)
+	}
+
+	// Apply group discount
+	var discountApplied int64
+	for _, r := range rules {
+		if r.DiscountType != "" && r.MinMembers > 0 && len(members) >= r.MinMembers {
+			if r.DiscountType == string(shared.DiscountTypePercentage) {
+				discountApplied = totalPremium * r.DiscountValue / 10000
+			} else if r.DiscountType == string(shared.DiscountTypeFixed) {
+				discountApplied = r.DiscountValue
+			}
+			totalPremium -= discountApplied
+			break
+		}
+	}
+
+	if totalPremium < 0 {
+		totalPremium = 0
+	}
+
+	return schema.NewServiceResponse(productSchema.PremiumBreakdownResponse{
+		TotalPremium:    totalPremium,
+		MemberBreakdown: breakdowns,
+		DiscountApplied: discountApplied,
+		CalculationType: "per_member",
+	}, http.StatusOK, "Premium breakdown calculated")
 }
 
 func (s *premiumRuleServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {

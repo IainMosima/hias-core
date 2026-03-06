@@ -34,6 +34,18 @@ func (q *Queries) CountMembersByPolicy(ctx context.Context, policyID uuid.UUID) 
 	return count, err
 }
 
+const countMembersFiltered = `-- name: CountMembersFiltered :one
+SELECT COUNT(*) FROM members
+WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR national_id ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'))
+`
+
+func (q *Queries) CountMembersFiltered(ctx context.Context, dollar_1 string) (int64, error) {
+	row := q.db.QueryRow(ctx, countMembersFiltered, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createMember = `-- name: CreateMember :one
 INSERT INTO members (policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
@@ -241,6 +253,58 @@ SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, me
 
 func (q *Queries) ListMembersByPolicy(ctx context.Context, policyID uuid.UUID) ([]Member, error) {
 	rows, err := q.db.Query(ctx, listMembersByPolicy, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Member{}
+	for rows.Next() {
+		var i Member
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.NationalID,
+			&i.Name,
+			&i.DateOfBirth,
+			&i.Gender,
+			&i.Relationship,
+			&i.MemberNumber,
+			&i.Phone,
+			&i.Email,
+			&i.KraPin,
+			&i.County,
+			&i.Address,
+			&i.Verified,
+			&i.VerifiedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMembersFiltered = `-- name: ListMembersFiltered :many
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members
+WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR national_id ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'))
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListMembersFilteredParams struct {
+	Column1 string `json:"column_1"`
+	Limit   int32  `json:"limit"`
+	Offset  int32  `json:"offset"`
+}
+
+func (q *Queries) ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]Member, error) {
+	rows, err := q.db.Query(ctx, listMembersFiltered, arg.Column1, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

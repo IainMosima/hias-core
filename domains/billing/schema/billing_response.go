@@ -41,6 +41,9 @@ type RemittanceResponse struct {
 	RemittanceAdviceSent bool      `json:"remittance_advice_sent"`
 	PeriodStart          time.Time `json:"period_start"`
 	PeriodEnd            time.Time `json:"period_end"`
+	WHTRate              float64   `json:"wht_rate"`
+	WHTAmount            int64     `json:"wht_amount"`
+	NetAmount            int64     `json:"net_amount"`
 	CreatedAt            time.Time `json:"created_at"`
 }
 
@@ -65,7 +68,9 @@ func ToRemittanceResponse(r *entity.Remittance) RemittanceResponse {
 	return RemittanceResponse{
 		ID: r.ID, ProviderID: r.ProviderID, TotalAmount: r.TotalAmount,
 		Currency: r.Currency, Status: r.Status, RemittanceAdviceSent: r.RemittanceAdviceSent,
-		PeriodStart: r.PeriodStart, PeriodEnd: r.PeriodEnd, CreatedAt: r.CreatedAt,
+		PeriodStart: r.PeriodStart, PeriodEnd: r.PeriodEnd,
+		WHTRate: r.WHTRate, WHTAmount: r.WHTAmount, NetAmount: r.NetAmount,
+		CreatedAt: r.CreatedAt,
 	}
 }
 
@@ -148,14 +153,15 @@ type StatementLineItemInput struct {
 }
 
 type PaymentExportResponse struct {
-	RemittanceID uuid.UUID            `json:"remittance_id"`
-	ProviderID   uuid.UUID            `json:"provider_id"`
-	ProviderName string               `json:"provider_name"`
-	TotalAmount  int64                `json:"total_amount"`
-	Currency     string               `json:"currency"`
-	PeriodStart  time.Time            `json:"period_start"`
-	PeriodEnd    time.Time            `json:"period_end"`
-	Claims       []PaymentExportClaim `json:"claims"`
+	RemittanceID   uuid.UUID            `json:"remittance_id"`
+	ProviderID     uuid.UUID            `json:"provider_id"`
+	ProviderName   string               `json:"provider_name"`
+	TotalAmount    int64                `json:"total_amount"`
+	Currency       string               `json:"currency"`
+	PeriodStart    time.Time            `json:"period_start"`
+	PeriodEnd      time.Time            `json:"period_end"`
+	Claims         []PaymentExportClaim `json:"claims"`
+	PaymentFileCSV string               `json:"payment_file_csv,omitempty"`
 }
 
 type PaymentExportClaim struct {

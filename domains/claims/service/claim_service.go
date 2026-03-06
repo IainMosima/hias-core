@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"time"
+
 	claimsSchema "github.com/bitbiz/hias-core/domains/claims/schema"
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/google/uuid"
@@ -13,7 +15,7 @@ type ClaimService interface {
 	ListClaims(ctx context.Context, page, pageSize int) *schema.ServiceResponse[[]claimsSchema.ClaimResponse]
 	ListClaimsByStatus(ctx context.Context, status string, page, pageSize int) *schema.ServiceResponse[[]claimsSchema.ClaimResponse]
 	ListClaimsByProvider(ctx context.Context, providerID uuid.UUID, page, pageSize int) *schema.ServiceResponse[[]claimsSchema.ClaimResponse]
-	ApproveClaim(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse]
+	ApproveClaim(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID, approverRole string) *schema.ServiceResponse[claimsSchema.ClaimResponse]
 	RejectClaim(ctx context.Context, id uuid.UUID, reason string, rejectedBy uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse]
 	VetClaim(ctx context.Context, id uuid.UUID, req claimsSchema.VetClaimRequest, vettedBy uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse]
 	MarkReadyForPayment(ctx context.Context, id uuid.UUID, userID uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse]
@@ -26,4 +28,7 @@ type ClaimService interface {
 	DeleteClaimDocument(ctx context.Context, docID uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimDocumentResponse]
 	GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64]
 	ImportClaimsCSV(ctx context.Context, csvData []byte, createdBy uuid.UUID) *schema.ServiceResponse[claimsSchema.BulkClaimResultResponse]
+	GetClaimTimeline(ctx context.Context, claimID uuid.UUID) *schema.ServiceResponse[[]claimsSchema.ClaimTimelineEntry]
+	ListClaimsFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string, page, pageSize int) *schema.ServiceResponse[[]claimsSchema.ClaimResponse]
+	CountClaimsFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string) *schema.ServiceResponse[int64]
 }

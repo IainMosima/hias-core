@@ -6,6 +6,9 @@ import (
 	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/auth"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 type Handlers struct {
@@ -44,6 +47,15 @@ type Handlers struct {
 	Case             *handlers.CaseHandler
 	Statement        *handlers.StatementHandler
 
+	// Adjudication & Escalation Rules
+	AdjudicationRule *handlers.AdjudicationRuleHandler
+	EscalationRule   *handlers.EscalationRuleHandler
+
+	// Billing — new
+	PremiumLedger *handlers.PremiumLedgerHandler
+	Commission    *handlers.CommissionHandler
+	Refund        *handlers.RefundHandler
+
 	// Reinsurance
 	Treaty               *handlers.TreatyHandler
 	Cession              *handlers.CessionHandler
@@ -55,12 +67,19 @@ type Handlers struct {
 
 	// Reporting
 	Report *handlers.ReportHandler
+
+	// Documents (standalone)
+	Document *handlers.DocumentHandler
 }
 
 func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) {
+	// Swagger
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	// Public routes
 	router.GET("/health", h.Health.Health)
 	router.GET("/ready", h.Health.Ready)
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Public auth routes
 	authPublic := router.Group("/api/v1/auth")
@@ -79,6 +98,11 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 	{
 		// Auth (authenticated)
 		authenticated.POST("/auth/logout", h.Auth.Logout)
+		authenticated.PUT("/auth/change-password", h.Auth.ChangePassword)
+
+		// Profile
+		authenticated.GET("/profile", h.Auth.GetProfile)
+		authenticated.PUT("/profile", h.Auth.UpdateProfile)
 
 		// Users
 		users := authenticated.Group("/users")
@@ -111,6 +135,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			plans.GET("/:id/premium-rules", h.PremiumRule.ListPremiumRules)
 			plans.POST("/:id/premium-rules", h.PremiumRule.CreatePremiumRule)
 			plans.POST("/:id/calculate-premium", h.PremiumRule.CalculatePremium)
+			plans.POST("/:id/premium-breakdown", h.PremiumRule.CalculatePremiumBreakdown)
 			plans.GET("/:id/rate-sheet", h.PremiumRule.GetRateSheet)
 
 			// Provider Networks (nested under plans)
@@ -211,6 +236,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 		// Members
 		members := authenticated.Group("/members")
 		{
+			members.GET("", h.Member.ListAllMembers)
 			members.GET("/:id", h.Member.GetMember)
 			members.PUT("/:id", h.Member.UpdateMember)
 			members.PUT("/:id/verify", h.Member.VerifyMember)
@@ -373,6 +399,9 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 				string(shared.UserRoleFinance),
 			), h.Claim.MarkPartPaid)
 
+			// Claim Timeline
+			claims.GET("/:id/timeline", h.Claim.GetTimeline)
+
 			// Claim Documents (nested under claims)
 			claims.GET("/:id/documents", h.Claim.ListClaimDocuments)
 			claims.POST("/:id/documents", h.Claim.UploadClaimDocument)
@@ -523,6 +552,59 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			approvalLimits.PUT("/:id", h.ApprovalLimit.UpdateLimit)
 		}
 
+		// Adjudication Rules (admin-only)
+		adjRules := authenticated.Group("/adjudication-rules")
+		adjRules.Use(middleware.RequireRole(string(shared.UserRoleAdmin)))
+		{
+			adjRules.GET("", h.AdjudicationRule.ListRules)
+			adjRules.POST("", h.AdjudicationRule.CreateRule)
+			adjRules.GET("/:id", h.AdjudicationRule.GetRule)
+			adjRules.PUT("/:id", h.AdjudicationRule.UpdateRule)
+			adjRules.DELETE("/:id", h.AdjudicationRule.DeleteRule)
+		}
+
+		// Escalation Rules (admin-only)
+		escRules := authenticated.Group("/escalation-rules")
+		escRules.Use(middleware.RequireRole(string(shared.UserRoleAdmin)))
+		{
+			escRules.GET("", h.EscalationRule.ListRules)
+			escRules.POST("", h.EscalationRule.CreateRule)
+			escRules.GET("/:id", h.EscalationRule.GetRule)
+			escRules.PUT("/:id", h.EscalationRule.UpdateRule)
+			escRules.DELETE("/:id", h.EscalationRule.DeleteRule)
+		}
+
+		// Premium Ledger
+		premiumLedger := authenticated.Group("/premium-ledger")
+		{
+			premiumLedger.POST("", h.PremiumLedger.CreateEntry)
+		}
+		policies.GET("/:id/premium-register", h.PremiumLedger.GetRegister)
+		policies.GET("/:id/premium-balance", h.PremiumLedger.GetBalance)
+
+		// Commission Management
+		commissions := authenticated.Group("/commissions")
+		{
+			commissions.POST("/rules", h.Commission.CreateRule)
+			commissions.GET("/rules/plan/:id", h.Commission.ListRulesByPlan)
+			commissions.POST("/calculate", h.Commission.CalculateCommission)
+			commissions.GET("/payments", h.Commission.ListPayments)
+			commissions.POST("/payments/process", h.Commission.ProcessPayments)
+		}
+
+		// Refund Processing
+		refunds := authenticated.Group("/refunds")
+		{
+			refunds.POST("", h.Refund.RequestRefund)
+			refunds.PUT("/:id/approve", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleManager),
+			), h.Refund.ApproveRefund)
+			refunds.PUT("/:id/process", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleFinance),
+			), h.Refund.ProcessRefund)
+		}
+		policies.GET("/:id/refunds", h.Refund.ListRefunds)
+
 		// ===== Reinsurance =====
 
 		// Treaties
@@ -625,6 +707,13 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 		reinsuranceAnalytics := authenticated.Group("/analytics/reinsurance")
 		{
 			reinsuranceAnalytics.GET("", h.ReinsuranceAnalytics.GetReinsuranceDashboard)
+		}
+
+		// Standalone Documents
+		documents := authenticated.Group("/documents")
+		{
+			documents.GET("/standalone", h.Document.ListStandaloneDocuments)
+			documents.GET("/:id/download", h.Document.DownloadDocument)
 		}
 
 		// ===== Reporting =====

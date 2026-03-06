@@ -45,4 +45,7 @@ const (
 	// Reinsurance thresholds
 	CatastropheThresholdCents int64 = 500_000_000 // 5,000,000 KES
 	AggregateWarningPercent         = 80
+
+	// Withholding Tax
+	DefaultWHTRate = 0.05 // 5% WHT on provider remittances
 )

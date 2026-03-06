@@ -23,6 +23,18 @@ func (q *Queries) CountProviders(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countProvidersFiltered = `-- name: CountProvidersFiltered :one
+SELECT COUNT(*) FROM providers
+WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR license_number ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%'))
+`
+
+func (q *Queries) CountProvidersFiltered(ctx context.Context, dollar_1 string) (int64, error) {
+	row := q.db.QueryRow(ctx, countProvidersFiltered, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createProvider = `-- name: CreateProvider :one
 INSERT INTO providers (name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body
@@ -379,6 +391,58 @@ type ListProvidersByTierParams struct {
 
 func (q *Queries) ListProvidersByTier(ctx context.Context, arg ListProvidersByTierParams) ([]Provider, error) {
 	rows, err := q.db.Query(ctx, listProvidersByTier, arg.Tier, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Provider{}
+	for rows.Next() {
+		var i Provider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.LicenseNumber,
+			&i.Status,
+			&i.County,
+			&i.Address,
+			&i.Phone,
+			&i.Email,
+			&i.ContactPerson,
+			&i.UserID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Tier,
+			&i.AccreditationStatus,
+			&i.AccreditationExpiry,
+			&i.AccreditationBody,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProvidersFiltered = `-- name: ListProvidersFiltered :many
+SELECT id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body FROM providers
+WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR license_number ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%'))
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListProvidersFilteredParams struct {
+	Column1 string `json:"column_1"`
+	Limit   int32  `json:"limit"`
+	Offset  int32  `json:"offset"`
+}
+
+func (q *Queries) ListProvidersFiltered(ctx context.Context, arg ListProvidersFilteredParams) ([]Provider, error) {
+	rows, err := q.db.Query(ctx, listProvidersFiltered, arg.Column1, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

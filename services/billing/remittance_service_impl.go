@@ -1,7 +1,10 @@
 package billing
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -56,6 +59,11 @@ func (s *remittanceServiceImpl) CreateRemittance(ctx context.Context, providerID
 	claimIDsJSON, _ := json.Marshal(claimIDs)
 	now := time.Now()
 
+	// Calculate Withholding Tax
+	whtRate := shared.DefaultWHTRate
+	whtAmount := int64(float64(totalAmount) * whtRate)
+	netAmount := totalAmount - whtAmount
+
 	remittance := &entity.Remittance{
 		ProviderID:  providerID,
 		ClaimIDs:    claimIDsJSON,
@@ -64,6 +72,9 @@ func (s *remittanceServiceImpl) CreateRemittance(ctx context.Context, providerID
 		Status:      string(shared.RemittanceStatusPending),
 		PeriodStart: now.AddDate(0, -1, 0),
 		PeriodEnd:   now,
+		WHTRate:     whtRate,
+		WHTAmount:   whtAmount,
+		NetAmount:   netAmount,
 	}
 
 	created, err := s.remittanceRepo.Create(ctx, remittance)
@@ -160,15 +171,46 @@ func (s *remittanceServiceImpl) ExportPaymentFile(ctx context.Context, remittanc
 		})
 	}
 
+	// Generate CSV payment file
+	var csvBuf bytes.Buffer
+	csvWriter := csv.NewWriter(&csvBuf)
+
+	// Header row
+	csvWriter.Write([]string{"Provider", "Amount (KES)", "Currency", "Reference", "WHT Amount", "Net Amount"})
+	// Summary row
+	csvWriter.Write([]string{
+		provider.Name,
+		fmt.Sprintf("%.2f", float64(remittance.TotalAmount)/100),
+		remittance.Currency,
+		remittance.ID.String(),
+		fmt.Sprintf("%.2f", float64(remittance.WHTAmount)/100),
+		fmt.Sprintf("%.2f", float64(remittance.NetAmount)/100),
+	})
+	// Blank separator
+	csvWriter.Write([]string{})
+	// Claim detail header
+	csvWriter.Write([]string{"Claim Number", "Amount (KES)", "Service Date"})
+	for _, c := range exportClaims {
+		csvWriter.Write([]string{
+			c.ClaimNumber,
+			fmt.Sprintf("%.2f", float64(c.Amount)/100),
+			c.ServiceDate.Format("2006-01-02"),
+		})
+	}
+	csvWriter.Flush()
+
+	paymentFileCSV := base64.StdEncoding.EncodeToString(csvBuf.Bytes())
+
 	export := billingSchema.PaymentExportResponse{
-		RemittanceID: remittance.ID,
-		ProviderID:   remittance.ProviderID,
-		ProviderName: provider.Name,
-		TotalAmount:  remittance.TotalAmount,
-		Currency:     remittance.Currency,
-		PeriodStart:  remittance.PeriodStart,
-		PeriodEnd:    remittance.PeriodEnd,
-		Claims:       exportClaims,
+		RemittanceID:   remittance.ID,
+		ProviderID:     remittance.ProviderID,
+		ProviderName:   provider.Name,
+		TotalAmount:    remittance.TotalAmount,
+		Currency:       remittance.Currency,
+		PeriodStart:    remittance.PeriodStart,
+		PeriodEnd:      remittance.PeriodEnd,
+		Claims:         exportClaims,
+		PaymentFileCSV: paymentFileCSV,
 	}
 
 	return schema.NewServiceResponse(export, http.StatusOK, "Payment file exported")

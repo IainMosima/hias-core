@@ -4,7 +4,7 @@
 CREATE TABLE case_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     case_number VARCHAR(50) NOT NULL UNIQUE,
-    preauth_id UUID NOT NULL REFERENCES pre_authorizations(id),
+    preauth_id UUID NOT NULL REFERENCES preauthorizations(id),
     policy_id UUID NOT NULL REFERENCES policies(id),
     member_id UUID NOT NULL REFERENCES members(id),
     provider_id UUID NOT NULL REFERENCES providers(id),

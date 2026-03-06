@@ -1,6 +1,6 @@
 -- name: CreateRemittance :one
-INSERT INTO remittances (provider_id, claim_ids, total_amount, currency, status, period_start, period_end, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+INSERT INTO remittances (provider_id, claim_ids, total_amount, currency, status, period_start, period_end, wht_rate, wht_amount, net_amount, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
 
 -- name: GetRemittanceByID :one
 SELECT * FROM remittances WHERE id = $1;

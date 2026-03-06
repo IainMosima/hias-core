@@ -30,6 +30,7 @@ type adjudicatorServiceImpl struct {
 	fraudSvc      service.FraudService
 	contractRepo  providerRepo.ContractRepository
 	preauthRepo   preauthRepo.PreAuthRepository
+	adjRuleRepo   claimRepo.AdjudicationRuleRepository
 }
 
 func NewAdjudicatorService(
@@ -43,6 +44,7 @@ func NewAdjudicatorService(
 	fraudSvc service.FraudService,
 	contractRepo providerRepo.ContractRepository,
 	preauthRepo preauthRepo.PreAuthRepository,
+	adjRuleRepo claimRepo.AdjudicationRuleRepository,
 ) service.AdjudicatorService {
 	return &adjudicatorServiceImpl{
 		claimRepo:     claimRepo,
@@ -55,6 +57,7 @@ func NewAdjudicatorService(
 		fraudSvc:      fraudSvc,
 		contractRepo:  contractRepo,
 		preauthRepo:   preauthRepo,
+		adjRuleRepo:   adjRuleRepo,
 	}
 }
 
@@ -483,6 +486,36 @@ func (s *adjudicatorServiceImpl) Adjudicate(ctx context.Context, claim *entity.C
 
 	memberResponsibility = coPayAmount + (claim.TotalAmount - payableAmount - coPayAmount)
 
+	// 9. Evaluate DB-configurable adjudication rules
+	if s.adjRuleRepo != nil {
+		activeRules, rulesErr := s.adjRuleRepo.ListActive(ctx)
+		if rulesErr == nil {
+			for _, rule := range activeRules {
+				ruleResult := s.evaluateAdjudicationRule(ctx, rule, claim)
+				if ruleResult != nil {
+					ruleResults = append(ruleResults, *ruleResult)
+					if ruleResult.Result == string(shared.RuleResultFail) {
+						return &entity.AdjudicationResult{
+							Decision: string(shared.AdjudicationDecisionReject), PayableAmount: 0,
+							MemberResponsibility: claim.TotalAmount, Reasons: ruleResults,
+						}, nil
+					}
+					if ruleResult.Result == string(shared.RuleResultFlag) {
+						return &entity.AdjudicationResult{
+							Decision:             string(shared.AdjudicationDecisionManualReview),
+							PayableAmount:        payableAmount,
+							MemberResponsibility: memberResponsibility,
+							DeductibleApplied:    deductibleAmount,
+							CoPayApplied:         coPayAmount,
+							BenefitCategory:      claimCategory,
+							Reasons:              ruleResults,
+						}, nil
+					}
+				}
+			}
+		}
+	}
+
 	return &entity.AdjudicationResult{
 		Decision:             string(shared.AdjudicationDecisionApprove),
 		PayableAmount:        payableAmount,
@@ -492,6 +525,53 @@ func (s *adjudicatorServiceImpl) Adjudicate(ctx context.Context, claim *entity.C
 		BenefitCategory:      claimCategory,
 		Reasons:              ruleResults,
 	}, nil
+}
+
+func (s *adjudicatorServiceImpl) evaluateAdjudicationRule(ctx context.Context, rule *entity.AdjudicationRule, claim *entity.Claim) *entity.RuleResult {
+	var params map[string]interface{}
+	if err := json.Unmarshal(rule.Parameters, &params); err != nil {
+		return nil
+	}
+
+	switch shared.AdjudicationRuleType(rule.RuleType) {
+	case shared.AdjudicationRuleTypeAmountThreshold:
+		maxAmount, ok := params["max_amount"].(float64)
+		if ok && claim.TotalAmount > int64(maxAmount) {
+			return &entity.RuleResult{
+				Category: "adjudication_rule",
+				Rule:     rule.Name,
+				Result:   string(shared.RuleResultFlag),
+				Details:  fmt.Sprintf("Claim amount %d exceeds rule threshold %d", claim.TotalAmount, int64(maxAmount)),
+			}
+		}
+
+	case shared.AdjudicationRuleTypeFrequencyLimit:
+		maxClaims, ok := params["max_claims_per_month"].(float64)
+		if ok {
+			count, err := s.claimRepo.CountByMemberThisMonth(ctx, claim.MemberID)
+			if err == nil && count >= int64(maxClaims) {
+				return &entity.RuleResult{
+					Category: "adjudication_rule",
+					Rule:     rule.Name,
+					Result:   string(shared.RuleResultFlag),
+					Details:  fmt.Sprintf("Member has %d claims this month (limit: %d)", count, int64(maxClaims)),
+				}
+			}
+		}
+
+	case shared.AdjudicationRuleTypeAutoApprove:
+		maxAmount, ok := params["max_amount"].(float64)
+		if ok && claim.TotalAmount <= int64(maxAmount) {
+			return &entity.RuleResult{
+				Category: "adjudication_rule",
+				Rule:     rule.Name,
+				Result:   string(shared.RuleResultPass),
+				Details:  fmt.Sprintf("Auto-approved: amount %d within limit %d", claim.TotalAmount, int64(maxAmount)),
+			}
+		}
+	}
+
+	return nil
 }
 
 func determineBenefitCategory(claim *entity.Claim) string {

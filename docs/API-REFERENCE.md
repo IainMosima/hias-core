@@ -6,6 +6,13 @@
 
 **Pagination defaults** (all paginated endpoints): `page=1` (min 1), `page_size=20` (min 1, max 100), `sort=created_at`, `order=desc`. Offset = `(page - 1) * page_size`.
 
+**Search & date filtering** (optional query params on list endpoints):
+- Claims: `?status=X&search=X&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
+- Policies: `?search=X&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
+- Members: `?search=X`
+- Providers: `?search=X`
+- Invoices: `?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD`
+
 **Validation patterns** (backend-enforced):
 - Phone: `^(?:\+254|254|0)?([17]\d{8})$` — Kenyan format, normalized to `+254XXXXXXXXX`
 - Email: `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
@@ -53,6 +60,15 @@
 36. [Bordereaux](#36-bordereaux)
 37. [Reinsurer Statements](#37-reinsurer-statements)
 38. [Treaty Alerts](#38-treaty-alerts)
+39. [Profile Management](#39-profile-management)
+40. [Claim Timeline](#40-claim-timeline)
+41. [Standalone Documents](#41-standalone-documents)
+42. [Adjudication Rules](#42-adjudication-rules)
+43. [Escalation Rules](#43-escalation-rules)
+44. [Premium Ledger](#44-premium-ledger)
+45. [Commissions](#45-commissions)
+46. [Refunds](#46-refunds)
+47. [Reports](#47-reports)
 
 ---
 
@@ -1329,6 +1345,12 @@
   }
   ```
 - **Business Rules:** Removes multiple members. For each, triggers pro-rata credit note if premium decreases.
+
+### GET /members
+- **Auth:** Required
+- **Query Params:** `search` (string, optional — searches name/member_number), `page`, `page_size`
+- **Response (200):** Paginated list of MemberResponse across all policies
+- **Business Rules:** Returns all members system-wide. Supports text search by name or member number.
 
 ### GET /members/:id
 - **Auth:** Required
@@ -3272,6 +3294,618 @@
 
 ---
 
+## 39. Profile Management
+
+### GET /profile
+- **Auth:** Required
+- **Response (200):** UserResponse (same shape as GET /users/:id — returns the authenticated user's own profile)
+- **Business Rules:** Uses user ID from the PASETO token payload. No path parameter needed.
+
+### PUT /profile
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "name": "string (optional)",
+    "phone": "string (optional)"
+  }
+  ```
+- **Response (200):** Updated UserResponse
+- **Business Rules:** Updates the authenticated user's name and/or phone. Both fields are optional (pointer types — omit to leave unchanged).
+- **Status Codes:** 200 success, 400 validation error, 401 unauthorized
+
+### PUT /auth/change-password
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "current_password": "string (required, min 8 chars)",
+    "new_password": "string (required, min 8 chars)"
+  }
+  ```
+- **Response (200):** `{"status":"success","message":"Password changed successfully"}`
+- **Business Rules:** Validates current password before updating. New password is hashed with bcrypt.
+- **Status Codes:** 200 success, 400 validation error, 401 incorrect current password
+
+---
+
+## 40. Claim Timeline
+
+### GET /claims/:id/timeline
+- **Auth:** Required
+- **Response (200):**
+  ```json
+  {
+    "status": "success",
+    "data": [
+      {
+        "id": "uuid",
+        "action": "string",
+        "from_status": "string",
+        "to_status": "string",
+        "performed_by": "uuid",
+        "performed_by_name": "string",
+        "notes": "string",
+        "created_at": "datetime"
+      }
+    ]
+  }
+  ```
+- **Business Rules:** Returns the full status change history for a claim, ordered chronologically. Each entry records who changed the status, from what to what, and any notes.
+
+---
+
+## 41. Standalone Documents
+
+### GET /documents/standalone
+- **Auth:** Required
+- **Query Params:** `limit` (int, default 10), `offset` (int, default 0)
+- **Response (200):**
+  ```json
+  {
+    "status": "success",
+    "data": {
+      "documents": [
+        {
+          "id": "uuid",
+          "source_type": "string",
+          "source_id": "uuid",
+          "document_type": "string",
+          "file_name": "string",
+          "file_size": 1024,
+          "s3_key": "string",
+          "created_by": "uuid",
+          "created_at": "datetime"
+        }
+      ],
+      "total": 100,
+      "limit": 10,
+      "offset": 0
+    }
+  }
+  ```
+- **Business Rules:** Lists all documents across all source types (claims, policies, etc.). Uses `limit`/`offset` pagination (NOT `page`/`page_size`).
+
+### GET /documents/:id/download
+- **Auth:** Required
+- **Response (200):**
+  ```json
+  {
+    "status": "success",
+    "data": {
+      "download_url": "string (presigned S3 URL)"
+    }
+  }
+  ```
+- **Business Rules:** Returns a presigned S3 download URL for the document. URL is time-limited.
+
+---
+
+## 42. Adjudication Rules
+
+**Auth:** All endpoints require Admin role.
+
+### GET /adjudication-rules
+- **Auth:** Required | Role: Admin
+- **Response (200):** List of AdjudicationRuleResponse
+  ```json
+  {
+    "id": "uuid",
+    "name": "string",
+    "rule_type": "string",
+    "parameters": {},
+    "priority": 0,
+    "is_active": true,
+    "created_at": "datetime",
+    "updated_at": "datetime"
+  }
+  ```
+
+### POST /adjudication-rules
+- **Auth:** Required | Role: Admin
+- **Request Body:**
+  ```json
+  {
+    "name": "string (required)",
+    "rule_type": "string (required)",
+    "parameters": {},
+    "priority": 0,
+    "is_active": true
+  }
+  ```
+- **Response (201):** AdjudicationRuleResponse
+
+### GET /adjudication-rules/:id
+- **Auth:** Required | Role: Admin
+- **Response (200):** Single AdjudicationRuleResponse
+
+### PUT /adjudication-rules/:id
+- **Auth:** Required | Role: Admin
+- **Request Body:**
+  ```json
+  {
+    "name": "string (optional)",
+    "rule_type": "string (optional)",
+    "parameters": {},
+    "priority": 0,
+    "is_active": true
+  }
+  ```
+- **Response (200):** Updated AdjudicationRuleResponse
+
+### DELETE /adjudication-rules/:id
+- **Auth:** Required | Role: Admin
+- **Response (200):** Success message
+
+---
+
+## 43. Escalation Rules
+
+**Auth:** All endpoints require Admin role.
+
+### GET /escalation-rules
+- **Auth:** Required | Role: Admin
+- **Response (200):** List of EscalationRuleResponse
+  ```json
+  {
+    "id": "uuid",
+    "name": "string",
+    "condition_type": "string",
+    "threshold_amount": 0,
+    "escalation_role": "string",
+    "is_active": true,
+    "created_at": "datetime",
+    "updated_at": "datetime"
+  }
+  ```
+
+### POST /escalation-rules
+- **Auth:** Required | Role: Admin
+- **Request Body:**
+  ```json
+  {
+    "name": "string (required)",
+    "condition_type": "string (required)",
+    "threshold_amount": 0,
+    "escalation_role": "string (required)",
+    "is_active": true
+  }
+  ```
+- **Response (201):** EscalationRuleResponse
+
+### GET /escalation-rules/:id
+- **Auth:** Required | Role: Admin
+- **Response (200):** Single EscalationRuleResponse
+
+### PUT /escalation-rules/:id
+- **Auth:** Required | Role: Admin
+- **Request Body:**
+  ```json
+  {
+    "name": "string (optional)",
+    "condition_type": "string (optional)",
+    "threshold_amount": 0,
+    "escalation_role": "string (optional)",
+    "is_active": true
+  }
+  ```
+- **Response (200):** Updated EscalationRuleResponse
+
+### DELETE /escalation-rules/:id
+- **Auth:** Required | Role: Admin
+- **Response (200):** Success message
+
+---
+
+## 44. Premium Ledger
+
+### POST /premium-ledger
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "policy_id": "uuid (required)",
+    "entry_type": "DEBIT|CREDIT (required)",
+    "amount": 800000,
+    "description": "string (optional)",
+    "reference_number": "string (required)",
+    "effective_date": "datetime (required)"
+  }
+  ```
+- **Response (201):** PremiumLedgerResponse
+  ```json
+  {
+    "id": "uuid",
+    "policy_id": "uuid",
+    "entry_type": "DEBIT|CREDIT",
+    "amount": 800000,
+    "description": "string",
+    "reference_number": "string",
+    "effective_date": "datetime",
+    "balance_after": 800000,
+    "created_at": "datetime"
+  }
+  ```
+- **Business Rules:** Creates a debit or credit entry against a policy's premium register. `amount` is in cents (min 1).
+
+### GET /policies/:id/premium-register
+- **Auth:** Required
+- **Response (200):** List of PremiumLedgerResponse entries for the policy, ordered by effective_date
+
+### GET /policies/:id/premium-balance
+- **Auth:** Required
+- **Response (200):**
+  ```json
+  {
+    "status": "success",
+    "data": {
+      "policy_id": "uuid",
+      "balance": 800000
+    }
+  }
+  ```
+- **Business Rules:** Returns the current net balance (sum of debits minus credits) for the policy.
+
+---
+
+## 45. Commissions
+
+### POST /commissions/rules
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "plan_id": "uuid (required)",
+    "intermediary_id": "uuid (required)",
+    "rate_pct": 10.0,
+    "flat_amount": 0,
+    "effective_from": "datetime (required)",
+    "effective_to": "datetime (optional)"
+  }
+  ```
+- **Response (201):** CommissionRuleResponse
+  ```json
+  {
+    "id": "uuid",
+    "plan_id": "uuid",
+    "intermediary_id": "uuid",
+    "rate_pct": 10.0,
+    "flat_amount": 0,
+    "effective_from": "datetime",
+    "effective_to": "datetime (optional)",
+    "created_at": "datetime"
+  }
+  ```
+- **Business Rules:** Defines a commission rule for an intermediary (agent/broker) on a specific plan. Either `rate_pct` (percentage of premium) or `flat_amount` (fixed cents) can be used.
+
+### GET /commissions/rules/plan/:id
+- **Auth:** Required
+- **Response (200):** List of CommissionRuleResponse for the given plan
+
+### POST /commissions/calculate
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "plan_id": "uuid (required)",
+    "intermediary_id": "uuid (required)",
+    "premium_amount": 800000
+  }
+  ```
+- **Response (200):**
+  ```json
+  {
+    "status": "success",
+    "data": {
+      "commission_amount": 80000,
+      "rate_pct": 10.0,
+      "flat_amount": 0,
+      "rule_id": "uuid"
+    }
+  }
+  ```
+- **Business Rules:** Calculates the commission for a given premium amount using the matching rule. `premium_amount` must be >= 1 (in cents).
+
+### GET /commissions/payments
+- **Auth:** Required
+- **Response (200):** List of CommissionPaymentResponse
+  ```json
+  {
+    "id": "uuid",
+    "policy_id": "uuid",
+    "intermediary_id": "uuid",
+    "commission_rule_id": "uuid",
+    "amount": 80000,
+    "currency": "KES",
+    "status": "string",
+    "period_start": "datetime",
+    "period_end": "datetime",
+    "paid_at": "datetime (optional)",
+    "created_at": "datetime"
+  }
+  ```
+
+### POST /commissions/payments/process
+- **Auth:** Required
+- **Response (200):** Result of batch commission payment processing
+- **Business Rules:** Processes pending commission payments for intermediaries.
+
+---
+
+## 46. Refunds
+
+### POST /refunds
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "policy_id": "uuid (required)",
+    "credit_note_id": "uuid (optional)",
+    "amount": 500000,
+    "reason": "string (required)"
+  }
+  ```
+- **Response (201):** RefundResponse
+  ```json
+  {
+    "id": "uuid",
+    "policy_id": "uuid",
+    "credit_note_id": "uuid (optional)",
+    "amount": 500000,
+    "currency": "KES",
+    "status": "string",
+    "reason": "string",
+    "approved_by": "uuid (optional)",
+    "approved_at": "datetime (optional)",
+    "processed_at": "datetime (optional)",
+    "created_at": "datetime"
+  }
+  ```
+- **Business Rules:** Creates a refund request. `amount` is in cents (min 1). Optionally linked to a credit note.
+
+### PUT /refunds/:id/approve
+- **Auth:** Required | Role: Admin, Manager
+- **Response (200):** Updated RefundResponse
+- **Business Rules:** Approves the refund request. Records approver and timestamp.
+
+### PUT /refunds/:id/process
+- **Auth:** Required | Role: Admin, Finance
+- **Response (200):** Updated RefundResponse
+- **Business Rules:** Processes the approved refund. Records processed_at timestamp.
+
+### GET /policies/:id/refunds
+- **Auth:** Required
+- **Response (200):** List of RefundResponse for the policy
+
+---
+
+## 47. Reports
+
+### GET /reports/definitions
+- **Auth:** Required
+- **Response (200):** List of ReportDefinitionResponse
+  ```json
+  {
+    "id": "uuid",
+    "code": "string",
+    "name": "string",
+    "description": "string",
+    "category": "string",
+    "report_type": "string",
+    "default_parameters": {},
+    "allowed_roles": ["Admin", "Manager"],
+    "columns": [],
+    "is_active": true,
+    "created_at": "datetime",
+    "updated_at": "datetime"
+  }
+  ```
+
+### GET /reports/definitions/:id
+- **Auth:** Required
+- **Response (200):** Single ReportDefinitionResponse
+
+### POST /reports/definitions/adhoc
+- **Auth:** Required | Role: Admin, Manager
+- **Request Body:**
+  ```json
+  {
+    "name": "string (required)",
+    "description": "string (optional)",
+    "category": "string (required)",
+    "columns": [],
+    "filters": [],
+    "allowed_roles": ["Admin", "Manager"]
+  }
+  ```
+- **Response (201):** ReportDefinitionResponse
+- **Business Rules:** Creates a custom ad-hoc report definition. `columns` and `filters` are JSON arrays defining the report structure. `allowed_roles` controls who can generate this report.
+
+### POST /reports/generate
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "report_code": "string (required)",
+    "parameters": {},
+    "format": "CSV|XLSX|PDF (required)"
+  }
+  ```
+- **Response (201):** GeneratedReportResponse
+  ```json
+  {
+    "id": "uuid",
+    "report_definition_id": "uuid",
+    "schedule_id": "uuid (optional)",
+    "report_number": "string",
+    "name": "string",
+    "parameters": {},
+    "format": "CSV|XLSX|PDF",
+    "status": "string",
+    "row_count": 100,
+    "file_size": 51200,
+    "error_message": "string (optional)",
+    "generated_by": "uuid",
+    "generated_at": "datetime",
+    "expires_at": "datetime (optional)",
+    "created_at": "datetime"
+  }
+  ```
+- **Business Rules:** Generates a report from a report definition code. Parameters are passed as JSON and vary by report type.
+
+### POST /reports/preview
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "report_code": "string (required)",
+    "parameters": {}
+  }
+  ```
+- **Response (200):**
+  ```json
+  {
+    "status": "success",
+    "data": {
+      "columns": [],
+      "data": [{}],
+      "row_count": 25,
+      "summary": {}
+    }
+  }
+  ```
+- **Business Rules:** Returns a preview of the report data without generating a file. Useful for previewing results before export.
+
+### POST /reports/drilldown
+- **Auth:** Required
+- **Request Body:**
+  ```json
+  {
+    "report_code": "string (required)",
+    "entity_id": "uuid (required)",
+    "start_date": "string (optional)",
+    "end_date": "string (optional)",
+    "format": "CSV|XLSX|PDF (required)"
+  }
+  ```
+- **Response (200):** GeneratedReportResponse
+- **Business Rules:** Drills down into a specific entity within a report. Generates a detailed sub-report for the given entity and optional date range.
+
+### GET /reports/generated
+- **Auth:** Required
+- **Response (200):** List of GeneratedReportResponse
+
+### GET /reports/generated/:id
+- **Auth:** Required
+- **Response (200):** Single GeneratedReportResponse
+
+### GET /reports/generated/:id/download
+- **Auth:** Required
+- **Response:** File download (CSV/XLSX/PDF based on the report's format)
+- **Business Rules:** Downloads the generated report file.
+
+### POST /reports/schedules
+- **Auth:** Required | Role: Admin, Manager
+- **Request Body:**
+  ```json
+  {
+    "report_definition_id": "uuid (required)",
+    "name": "string (required)",
+    "cron_expression": "string (required)",
+    "parameters": {},
+    "export_format": "CSV|XLSX|PDF (required)",
+    "recipients": ["uuid (required, min 1)"]
+  }
+  ```
+- **Response (201):** ReportScheduleResponse
+  ```json
+  {
+    "id": "uuid",
+    "report_definition_id": "uuid",
+    "definition_name": "string",
+    "name": "string",
+    "cron_expression": "string",
+    "parameters": {},
+    "export_format": "CSV|XLSX|PDF",
+    "recipients": ["uuid"],
+    "is_active": true,
+    "last_run_at": "datetime (optional)",
+    "next_run_at": "datetime (optional)",
+    "created_at": "datetime",
+    "updated_at": "datetime"
+  }
+  ```
+- **Business Rules:** Creates a scheduled report that runs automatically based on the cron expression. Recipients are user UUIDs who receive the generated report.
+
+### GET /reports/schedules
+- **Auth:** Required | Role: Admin, Manager
+- **Response (200):** List of ReportScheduleResponse
+
+### PUT /reports/schedules/:id
+- **Auth:** Required | Role: Admin, Manager
+- **Request Body:**
+  ```json
+  {
+    "name": "string (optional)",
+    "cron_expression": "string (optional)",
+    "parameters": {},
+    "export_format": "CSV|XLSX|PDF (optional)",
+    "recipients": ["uuid (optional)"],
+    "is_active": true
+  }
+  ```
+- **Response (200):** Updated ReportScheduleResponse
+
+### DELETE /reports/schedules/:id
+- **Auth:** Required | Role: Admin, Manager
+- **Response (200):** Success message
+
+### GET /reports/dashboard
+- **Auth:** Required | Role: Admin, Manager, Finance
+- **Response (200):**
+  ```json
+  {
+    "status": "success",
+    "data": {
+      "loss_ratio": 65.0,
+      "claims_volume": 500,
+      "approval_rate": 70.0,
+      "avg_tat_hours": 24.5,
+      "total_premium": 500000000,
+      "total_claims_paid": 325000000,
+      "active_policies": 150,
+      "total_members": 1200,
+      "renewal_rate": 85.0,
+      "premium_growth_pct": 12.5,
+      "outstanding_premium": 25000000,
+      "sla_breach_count": 3
+    }
+  }
+  ```
+- **Business Rules:** Returns a management dashboard with key metrics across the business. Only accessible to Admin, Manager, and Finance roles.
+
+---
+
 ## Endpoint Count Summary
 
 | Domain | Count |
@@ -3289,7 +3923,7 @@
 | Quotations | 18 |
 | Approval Limits | 3 |
 | Policies | 16 |
-| Members | 14 |
+| Members | 15 |
 | Endorsements | 4 |
 | Renewals | 8 |
 | Underwriting Assessments | 3 |
@@ -3298,6 +3932,7 @@
 | Credit Notes | 3 |
 | Pre-Authorization | 7 |
 | Claims | 16 |
+| Claim Timeline | 1 |
 | Cases | 11 |
 | Claim Documents | 3 |
 | Provider Statements | 4 |
@@ -3314,7 +3949,15 @@
 | Bordereaux | 6 |
 | Reinsurer Statements | 6 |
 | Treaty Alerts | 7 |
-| **TOTAL** | **~246** |
+| Profile Management | 3 |
+| Standalone Documents | 2 |
+| Adjudication Rules | 5 |
+| Escalation Rules | 5 |
+| Premium Ledger | 3 |
+| Commissions | 5 |
+| Refunds | 4 |
+| Reports | 14 |
+| **TOTAL** | **~293** |
 
 ---
 
@@ -3341,6 +3984,16 @@ Only the following routes have `RequireRole` middleware restrictions. **All othe
 | `POST /renewals/expire` | Admin |
 | `POST /quotations/expire` | Admin |
 | All `/approval-limits/*` routes | Admin |
+| All `/adjudication-rules/*` routes | Admin |
+| All `/escalation-rules/*` routes | Admin |
+| `PUT /refunds/:id/approve` | Admin, Manager |
+| `PUT /refunds/:id/process` | Admin, Finance |
+| `POST /reports/definitions/adhoc` | Admin, Manager |
+| `POST /reports/schedules` | Admin, Manager |
+| `GET /reports/schedules` | Admin, Manager |
+| `PUT /reports/schedules/:id` | Admin, Manager |
+| `DELETE /reports/schedules/:id` | Admin, Manager |
+| `GET /reports/dashboard` | Admin, Manager, Finance |
 
 **Notes:**
 - `RequirePermission` middleware is defined but **never wired to any route** — all RBAC is via `RequireRole` only

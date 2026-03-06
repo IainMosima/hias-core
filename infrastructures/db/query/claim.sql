@@ -87,6 +87,12 @@ WHERE sla_breach_at IS NOT NULL
 ORDER BY sla_breach_at ASC
 LIMIT $1 OFFSET $2;
 
+-- name: CountClaimsByMemberThisMonth :one
+SELECT COUNT(*) FROM claims WHERE member_id = $1 AND created_at >= date_trunc('month', CURRENT_DATE) AND deleted_at IS NULL;
+
+-- name: SetClaimEscalatedTo :exec
+UPDATE claims SET escalated_to = $2, updated_at = now() WHERE id = $1;
+
 -- name: GetApprovedAmountForBenefitThisYear :one
 SELECT COALESCE(SUM(c.approved_amount), 0)::bigint as total_approved
 FROM claims c
@@ -96,3 +102,19 @@ WHERE c.member_id = $1
   AND c.status IN ('APPROVED', 'PAID')
   AND b.category = $2
   AND EXTRACT(YEAR FROM c.service_date) = EXTRACT(YEAR FROM NOW());
+
+-- name: ListClaimsFiltered :many
+SELECT * FROM claims
+WHERE (sqlc.arg('status_filter')::text = '' OR status = sqlc.arg('status_filter'))
+  AND (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'))
+  AND (sqlc.arg('search')::text = '' OR (claim_number ILIKE '%' || sqlc.arg('search') || '%' OR status ILIKE '%' || sqlc.arg('search') || '%'))
+ORDER BY created_at DESC
+LIMIT sqlc.arg('query_limit') OFFSET sqlc.arg('query_offset');
+
+-- name: CountClaimsFiltered :one
+SELECT COUNT(*) FROM claims
+WHERE (sqlc.arg('status_filter')::text = '' OR status = sqlc.arg('status_filter'))
+  AND (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'))
+  AND (sqlc.arg('search')::text = '' OR (claim_number ILIKE '%' || sqlc.arg('search') || '%' OR status ILIKE '%' || sqlc.arg('search') || '%'));

@@ -389,6 +389,27 @@ func (s *policyServiceImpl) GetTotalCount(ctx context.Context) *schema.ServiceRe
 	return schema.NewServiceResponse(count, http.StatusOK, "Count retrieved")
 }
 
+func (s *policyServiceImpl) ListPoliciesFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string, page, pageSize int) *schema.ServiceResponse[[]policySchema.PolicyResponse] {
+	offset := (page - 1) * pageSize
+	policies, err := s.policyRepo.ListFiltered(ctx, dateFrom, dateTo, search, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]policySchema.PolicyResponse](http.StatusInternalServerError, "Failed to list policies", err)
+	}
+	responses := make([]policySchema.PolicyResponse, len(policies))
+	for i, p := range policies {
+		responses[i] = policySchema.ToPolicyResponse(p)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Policies retrieved")
+}
+
+func (s *policyServiceImpl) CountPoliciesFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string) *schema.ServiceResponse[int64] {
+	count, err := s.policyRepo.CountFiltered(ctx, dateFrom, dateTo, search)
+	if err != nil {
+		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to count policies", err)
+	}
+	return schema.NewServiceResponse(count, http.StatusOK, "Policies counted")
+}
+
 func (s *policyServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
 	if s.auditSvc != nil {
 		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")

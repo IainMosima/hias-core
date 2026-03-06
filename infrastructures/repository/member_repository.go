@@ -168,3 +168,27 @@ func sqlcMemberToDomain(m db.Member) *entity.Member {
 		UpdatedAt:    m.UpdatedAt,
 	}
 }
+
+func (r *memberRepository) ListFiltered(ctx context.Context, search string, limit, offset int) ([]*entity.Member, error) {
+	dbMembers, err := r.store.ListMembersFiltered(ctx, db.ListMembersFilteredParams{
+		Column1: search,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list members filtered: %w", err)
+	}
+	members := make([]*entity.Member, len(dbMembers))
+	for i, m := range dbMembers {
+		members[i] = sqlcMemberToDomain(m)
+	}
+	return members, nil
+}
+
+func (r *memberRepository) CountFiltered(ctx context.Context, search string) (int64, error) {
+	count, err := r.store.CountMembersFiltered(ctx, search)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count members filtered: %w", err)
+	}
+	return count, nil
+}

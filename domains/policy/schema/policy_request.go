@@ -71,11 +71,12 @@ type BulkRemoveRequest struct {
 }
 
 type CreateEndorsementRequest struct {
-	PolicyID        string          `json:"policy_id" binding:"required,uuid"`
-	EndorsementType string          `json:"endorsement_type" binding:"required"`
-	EffectiveDate   string          `json:"effective_date" binding:"required"`
-	Changes         json.RawMessage `json:"changes" binding:"required"`
-	Reason          string          `json:"reason"`
+	PolicyID          string          `json:"policy_id" binding:"required,uuid"`
+	EndorsementType   string          `json:"endorsement_type" binding:"required"`
+	EffectiveDate     string          `json:"effective_date" binding:"required"`
+	Changes           json.RawMessage `json:"changes" binding:"required"`
+	Reason            string          `json:"reason"`
+	PremiumAdjustment int64           `json:"premium_adjustment,omitempty"`
 }
 
 type RejectEndorsementRequest struct {

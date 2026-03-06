@@ -17,3 +17,13 @@ type RegisterRequest struct {
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required,min=8"`
+	NewPassword     string `json:"new_password" binding:"required,min=8"`
+}
+
+type UpdateProfileRequest struct {
+	Name  *string `json:"name"`
+	Phone *string `json:"phone"`
+}

@@ -535,6 +535,28 @@ func (s *memberServiceImpl) evaluateUnderwritingRules(ctx context.Context, polic
 	}
 }
 
+func (s *memberServiceImpl) ListMembersFiltered(ctx context.Context, search string, page, pageSize int) *schema.ServiceResponse[[]policySchema.MemberResponse] {
+	offset := (page - 1) * pageSize
+	members, err := s.memberRepo.ListFiltered(ctx, search, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]policySchema.MemberResponse](http.StatusInternalServerError, "Failed to list members", err)
+	}
+
+	responses := make([]policySchema.MemberResponse, len(members))
+	for i, m := range members {
+		responses[i] = policySchema.ToMemberResponse(m)
+	}
+	return schema.NewServiceResponse(responses, http.StatusOK, "Members retrieved")
+}
+
+func (s *memberServiceImpl) CountMembersFiltered(ctx context.Context, search string) *schema.ServiceResponse[int64] {
+	count, err := s.memberRepo.CountFiltered(ctx, search)
+	if err != nil {
+		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to count members", err)
+	}
+	return schema.NewServiceResponse(count, http.StatusOK, "Count retrieved")
+}
+
 func (s *memberServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {
 	if s.auditSvc != nil {
 		resp := s.auditSvc.LogEvent(ctx, userID, entityType, entityID, action, nil, nil, "", "")

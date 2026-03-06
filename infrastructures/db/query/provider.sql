@@ -55,3 +55,13 @@ SELECT * FROM providers WHERE accreditation_status = $1 ORDER BY name LIMIT $2 O
 SELECT * FROM providers WHERE accreditation_status = 'ACCREDITED'
 AND accreditation_expiry <= NOW() + make_interval(days => $1)
 ORDER BY accreditation_expiry LIMIT $2 OFFSET $3;
+
+-- name: ListProvidersFiltered :many
+SELECT * FROM providers
+WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR license_number ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%'))
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountProvidersFiltered :one
+SELECT COUNT(*) FROM providers
+WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR license_number ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%'));

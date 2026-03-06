@@ -26,6 +26,17 @@ type AdjudicationDecision struct {
 	UpdatedAt            time.Time       `json:"updated_at"`
 }
 
+type AdjudicationRule struct {
+	ID         uuid.UUID       `json:"id"`
+	Name       string          `json:"name"`
+	RuleType   string          `json:"rule_type"`
+	Parameters json.RawMessage `json:"parameters"`
+	Priority   int32           `json:"priority"`
+	IsActive   bool            `json:"is_active"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+}
+
 type ApprovalLimit struct {
 	ID                    uuid.UUID   `json:"id"`
 	RoleName              string      `json:"role_name"`
@@ -37,6 +48,8 @@ type ApprovalLimit struct {
 	IsActive              bool        `json:"is_active"`
 	CreatedAt             time.Time   `json:"created_at"`
 	UpdatedAt             time.Time   `json:"updated_at"`
+	EntityType            string      `json:"entity_type"`
+	MaxClaimAmount        int64       `json:"max_claim_amount"`
 }
 
 type AuditEvent struct {
@@ -169,6 +182,7 @@ type Claim struct {
 	VettedBy             pgtype.UUID        `json:"vetted_by"`
 	VettedAt             pgtype.Timestamptz `json:"vetted_at"`
 	SlaBreachAt          pgtype.Timestamptz `json:"sla_breach_at"`
+	EscalatedTo          pgtype.Text        `json:"escalated_to"`
 }
 
 type ClaimDocument struct {
@@ -196,6 +210,46 @@ type ClaimLineItem struct {
 	ApprovedAmount int64       `json:"approved_amount"`
 	CreatedAt      time.Time   `json:"created_at"`
 	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
+type ClaimStatusHistory struct {
+	ID          uuid.UUID `json:"id"`
+	ClaimID     uuid.UUID `json:"claim_id"`
+	FromStatus  string    `json:"from_status"`
+	ToStatus    string    `json:"to_status"`
+	Action      string    `json:"action"`
+	Notes       string    `json:"notes"`
+	PerformedBy uuid.UUID `json:"performed_by"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type CommissionPayment struct {
+	ID               uuid.UUID          `json:"id"`
+	PolicyID         uuid.UUID          `json:"policy_id"`
+	IntermediaryID   uuid.UUID          `json:"intermediary_id"`
+	CommissionRuleID uuid.UUID          `json:"commission_rule_id"`
+	Amount           int64              `json:"amount"`
+	Currency         string             `json:"currency"`
+	Status           string             `json:"status"`
+	PeriodStart      time.Time          `json:"period_start"`
+	PeriodEnd        time.Time          `json:"period_end"`
+	PaidAt           pgtype.Timestamptz `json:"paid_at"`
+	CreatedBy        pgtype.UUID        `json:"created_by"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+}
+
+type CommissionRule struct {
+	ID             uuid.UUID          `json:"id"`
+	PlanID         uuid.UUID          `json:"plan_id"`
+	IntermediaryID uuid.UUID          `json:"intermediary_id"`
+	RatePct        pgtype.Numeric     `json:"rate_pct"`
+	FlatAmount     int64              `json:"flat_amount"`
+	EffectiveFrom  time.Time          `json:"effective_from"`
+	EffectiveTo    pgtype.Timestamptz `json:"effective_to"`
+	CreatedBy      pgtype.UUID        `json:"created_by"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
 }
 
 type Contract struct {
@@ -243,6 +297,17 @@ type Endorsement struct {
 	AppliedAt         pgtype.Timestamptz `json:"applied_at"`
 	CreatedAt         time.Time          `json:"created_at"`
 	UpdatedAt         time.Time          `json:"updated_at"`
+}
+
+type EscalationRule struct {
+	ID              uuid.UUID `json:"id"`
+	Name            string    `json:"name"`
+	ConditionType   string    `json:"condition_type"`
+	ThresholdAmount int64     `json:"threshold_amount"`
+	EscalationRole  string    `json:"escalation_role"`
+	IsActive        bool      `json:"is_active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type Exclusion struct {
@@ -515,6 +580,20 @@ type Preauthorization struct {
 	UpdatedAt      time.Time          `json:"updated_at"`
 }
 
+type PremiumLedgerEntry struct {
+	ID              uuid.UUID   `json:"id"`
+	PolicyID        uuid.UUID   `json:"policy_id"`
+	EntryType       string      `json:"entry_type"`
+	Amount          int64       `json:"amount"`
+	Description     string      `json:"description"`
+	ReferenceNumber string      `json:"reference_number"`
+	EffectiveDate   time.Time   `json:"effective_date"`
+	BalanceAfter    int64       `json:"balance_after"`
+	CreatedBy       pgtype.UUID `json:"created_by"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+}
+
 type PremiumRule struct {
 	ID              uuid.UUID   `json:"id"`
 	PlanID          uuid.UUID   `json:"plan_id"`
@@ -686,6 +765,22 @@ type RecoveryWorkflowEvent struct {
 	CreatedAt   time.Time   `json:"created_at"`
 }
 
+type Refund struct {
+	ID           uuid.UUID          `json:"id"`
+	PolicyID     uuid.UUID          `json:"policy_id"`
+	CreditNoteID pgtype.UUID        `json:"credit_note_id"`
+	Amount       int64              `json:"amount"`
+	Currency     string             `json:"currency"`
+	Status       string             `json:"status"`
+	Reason       string             `json:"reason"`
+	ApprovedBy   pgtype.UUID        `json:"approved_by"`
+	ApprovedAt   pgtype.Timestamptz `json:"approved_at"`
+	ProcessedAt  pgtype.Timestamptz `json:"processed_at"`
+	CreatedBy    pgtype.UUID        `json:"created_by"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
 type ReinsuranceRecovery struct {
 	ID                uuid.UUID   `json:"id"`
 	RecoveryNumber    string      `json:"recovery_number"`
@@ -737,6 +832,9 @@ type Remittance struct {
 	CreatedBy            pgtype.UUID     `json:"created_by"`
 	CreatedAt            time.Time       `json:"created_at"`
 	UpdatedAt            time.Time       `json:"updated_at"`
+	WhtRate              pgtype.Numeric  `json:"wht_rate"`
+	WhtAmount            int64           `json:"wht_amount"`
+	NetAmount            int64           `json:"net_amount"`
 }
 
 type ReportDefinition struct {

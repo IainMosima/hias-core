@@ -42,3 +42,13 @@ SELECT * FROM members WHERE policy_id = $1 AND status = 'ACTIVE' ORDER BY relati
 
 -- name: CountActiveMembersByPolicy :one
 SELECT COUNT(*) FROM members WHERE policy_id = $1 AND status = 'ACTIVE';
+
+-- name: ListMembersFiltered :many
+SELECT * FROM members
+WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR national_id ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'))
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountMembersFiltered :one
+SELECT COUNT(*) FROM members
+WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR national_id ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'));

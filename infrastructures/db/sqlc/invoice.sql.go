@@ -24,6 +24,24 @@ func (q *Queries) CountInvoices(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countInvoicesFiltered = `-- name: CountInvoicesFiltered :one
+SELECT COUNT(*) FROM invoices
+WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+  AND ($2::timestamptz IS NULL OR created_at <= $2)
+`
+
+type CountInvoicesFilteredParams struct {
+	DateFrom pgtype.Timestamptz `json:"date_from"`
+	DateTo   pgtype.Timestamptz `json:"date_to"`
+}
+
+func (q *Queries) CountInvoicesFiltered(ctx context.Context, arg CountInvoicesFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countInvoicesFiltered, arg.DateFrom, arg.DateTo)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createInvoice = `-- name: CreateInvoice :one
 INSERT INTO invoices (policy_id, invoice_number, amount, currency, due_date, status, billing_period_start, billing_period_end, notes, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, policy_id, invoice_number, amount, currency, due_date, status, billing_period_start, billing_period_end, notes, created_by, created_at, updated_at
@@ -223,6 +241,60 @@ type ListInvoicesByStatusParams struct {
 
 func (q *Queries) ListInvoicesByStatus(ctx context.Context, arg ListInvoicesByStatusParams) ([]Invoice, error) {
 	rows, err := q.db.Query(ctx, listInvoicesByStatus, arg.Status, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Invoice{}
+	for rows.Next() {
+		var i Invoice
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.InvoiceNumber,
+			&i.Amount,
+			&i.Currency,
+			&i.DueDate,
+			&i.Status,
+			&i.BillingPeriodStart,
+			&i.BillingPeriodEnd,
+			&i.Notes,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvoicesFiltered = `-- name: ListInvoicesFiltered :many
+SELECT id, policy_id, invoice_number, amount, currency, due_date, status, billing_period_start, billing_period_end, notes, created_by, created_at, updated_at FROM invoices
+WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+  AND ($2::timestamptz IS NULL OR created_at <= $2)
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListInvoicesFilteredParams struct {
+	DateFrom    pgtype.Timestamptz `json:"date_from"`
+	DateTo      pgtype.Timestamptz `json:"date_to"`
+	QueryOffset int32              `json:"query_offset"`
+	QueryLimit  int32              `json:"query_limit"`
+}
+
+func (q *Queries) ListInvoicesFiltered(ctx context.Context, arg ListInvoicesFilteredParams) ([]Invoice, error) {
+	rows, err := q.db.Query(ctx, listInvoicesFiltered,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.QueryOffset,
+		arg.QueryLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

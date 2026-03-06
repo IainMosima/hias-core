@@ -15,6 +15,8 @@ type ApprovalLimit struct {
 	MaxLoadingAmount      int64     `json:"max_loading_amount"`
 	EscalationRole        string    `json:"escalation_role"`
 	IsActive              bool      `json:"is_active"`
+	EntityType            string    `json:"entity_type"`
+	MaxClaimAmount        int64     `json:"max_claim_amount"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }
