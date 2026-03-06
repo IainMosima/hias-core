@@ -42,10 +42,10 @@ type Config struct {
 	DashboardURL   string `mapstructure:"DASHBOARD_URL"`
 
 	// S3
-	AWSS3Bucket    string   `mapstructure:"AWS_S3_BUCKET"`
-	AWSS3Region    string   `mapstructure:"AWS_S3_REGION"`
-	AWSS3CDNDomain string   `mapstructure:"AWS_S3_CDN_DOMAIN"`
-	AWSS3MaxFileSize int    `mapstructure:"AWS_S3_MAX_FILE_SIZE"`
+	AWSS3Bucket       string   `mapstructure:"AWS_S3_BUCKET"`
+	AWSS3Region       string   `mapstructure:"AWS_S3_REGION"`
+	AWSS3CDNDomain    string   `mapstructure:"AWS_S3_CDN_DOMAIN"`
+	AWSS3MaxFileSize  int      `mapstructure:"AWS_S3_MAX_FILE_SIZE"`
 	AWSS3AllowedTypes []string `mapstructure:"AWS_S3_ALLOWED_TYPES"`
 
 	// SQS Queue URLs
@@ -75,9 +75,9 @@ type Config struct {
 	IPRSAPIKey  string `mapstructure:"IPRS_API_KEY"`
 
 	// SMART / Slade360
-	SMARTBaseURL     string `mapstructure:"SMART_BASE_URL"`
-	SMARTAPIKey      string `mapstructure:"SMART_API_KEY"`
-	SMARTAPISecret   string `mapstructure:"SMART_API_SECRET"`
+	SMARTBaseURL      string `mapstructure:"SMART_BASE_URL"`
+	SMARTAPIKey       string `mapstructure:"SMART_API_KEY"`
+	SMARTAPISecret    string `mapstructure:"SMART_API_SECRET"`
 	SMARTFacilityCode string `mapstructure:"SMART_FACILITY_CODE"`
 
 	// Bank
@@ -86,9 +86,9 @@ type Config struct {
 	BankAccountNo string `mapstructure:"BANK_ACCOUNT_NO"`
 
 	// SMS (Africa's Talking)
-	SMSAPIKey    string `mapstructure:"SMS_API_KEY"`
-	SMSUsername  string `mapstructure:"SMS_USERNAME"`
-	SMSSenderID  string `mapstructure:"SMS_SENDER_ID"`
+	SMSAPIKey   string `mapstructure:"SMS_API_KEY"`
+	SMSUsername string `mapstructure:"SMS_USERNAME"`
+	SMSSenderID string `mapstructure:"SMS_SENDER_ID"`
 
 	// SNS / SES
 	SNSTopicArn          string `mapstructure:"SNS_TOPIC_ARN"`
@@ -118,15 +118,17 @@ type Config struct {
 	SSECleanupInterval       time.Duration `mapstructure:"SSE_CLEANUP_INTERVAL"`
 
 	// Scheduler Configuration
-	SchedulerEnabled             bool   `mapstructure:"SCHEDULER_ENABLED"`
-	BillingCycleSchedule         string `mapstructure:"BILLING_CYCLE_SCHEDULE"`
-	PaymentReminderSchedule      string `mapstructure:"PAYMENT_REMINDER_SCHEDULE"`
-	PolicyLapseSchedule          string `mapstructure:"POLICY_LAPSE_SCHEDULE"`
-	PreAuthExpirySchedule        string `mapstructure:"PREAUTH_EXPIRY_SCHEDULE"`
-	RemittanceCycleSchedule      string `mapstructure:"REMITTANCE_CYCLE_SCHEDULE"`
-	PaymentRetrySchedule         string `mapstructure:"PAYMENT_RETRY_SCHEDULE"`
-	ReconciliationSchedule       string `mapstructure:"RECONCILIATION_SCHEDULE"`
-	NotificationRetrySchedule    string `mapstructure:"NOTIFICATION_RETRY_SCHEDULE"`
+	SchedulerEnabled           bool   `mapstructure:"SCHEDULER_ENABLED"`
+	BillingCycleSchedule       string `mapstructure:"BILLING_CYCLE_SCHEDULE"`
+	PaymentReminderSchedule    string `mapstructure:"PAYMENT_REMINDER_SCHEDULE"`
+	PolicyLapseSchedule        string `mapstructure:"POLICY_LAPSE_SCHEDULE"`
+	PreAuthExpirySchedule      string `mapstructure:"PREAUTH_EXPIRY_SCHEDULE"`
+	RemittanceCycleSchedule    string `mapstructure:"REMITTANCE_CYCLE_SCHEDULE"`
+	PaymentRetrySchedule       string `mapstructure:"PAYMENT_RETRY_SCHEDULE"`
+	ReconciliationSchedule     string `mapstructure:"RECONCILIATION_SCHEDULE"`
+	NotificationRetrySchedule  string `mapstructure:"NOTIFICATION_RETRY_SCHEDULE"`
+	ReportDistributionSchedule string `mapstructure:"REPORT_DISTRIBUTION_SCHEDULE"`
+	ReportCleanupSchedule      string `mapstructure:"REPORT_CLEANUP_SCHEDULE"`
 }
 
 var AppConfig Config

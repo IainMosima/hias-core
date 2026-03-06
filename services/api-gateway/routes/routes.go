@@ -52,6 +52,9 @@ type Handlers struct {
 	ReinsurerStatement   *handlers.ReinsurerStatementHandler
 	TreatyAlert          *handlers.TreatyAlertHandler
 	ReinsuranceAnalytics *handlers.ReinsuranceAnalyticsHandler
+
+	// Reporting
+	Report *handlers.ReportHandler
 }
 
 func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) {
@@ -622,6 +625,37 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 		reinsuranceAnalytics := authenticated.Group("/analytics/reinsurance")
 		{
 			reinsuranceAnalytics.GET("", h.ReinsuranceAnalytics.GetReinsuranceDashboard)
+		}
+
+		// ===== Reporting =====
+		reports := authenticated.Group("/reports")
+		{
+			reports.GET("/definitions", h.Report.ListDefinitions)
+			reports.GET("/definitions/:id", h.Report.GetDefinition)
+			reports.POST("/definitions/adhoc", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleManager),
+			), h.Report.CreateAdHocDefinition)
+			reports.POST("/generate", h.Report.GenerateReport)
+			reports.POST("/preview", h.Report.PreviewReport)
+			reports.POST("/drilldown", h.Report.DrillDown)
+			reports.GET("/generated", h.Report.ListGeneratedReports)
+			reports.GET("/generated/:id", h.Report.GetGeneratedReport)
+			reports.GET("/generated/:id/download", h.Report.DownloadReport)
+			reports.POST("/schedules", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleManager),
+			), h.Report.CreateSchedule)
+			reports.GET("/schedules", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleManager),
+			), h.Report.ListSchedules)
+			reports.PUT("/schedules/:id", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleManager),
+			), h.Report.UpdateSchedule)
+			reports.DELETE("/schedules/:id", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleManager),
+			), h.Report.DeleteSchedule)
+			reports.GET("/dashboard", middleware.RequireRole(
+				string(shared.UserRoleAdmin), string(shared.UserRoleManager), string(shared.UserRoleFinance),
+			), h.Report.GetManagementDashboard)
 		}
 	}
 }

@@ -269,6 +269,25 @@ type FraudFlag struct {
 	UpdatedAt        time.Time          `json:"updated_at"`
 }
 
+type GeneratedReport struct {
+	ID                 uuid.UUID          `json:"id"`
+	ReportDefinitionID uuid.UUID          `json:"report_definition_id"`
+	ScheduleID         pgtype.UUID        `json:"schedule_id"`
+	ReportNumber       string             `json:"report_number"`
+	Name               string             `json:"name"`
+	Parameters         []byte             `json:"parameters"`
+	Format             string             `json:"format"`
+	Status             string             `json:"status"`
+	RowCount           pgtype.Int4        `json:"row_count"`
+	FileData           []byte             `json:"file_data"`
+	FileSize           pgtype.Int8        `json:"file_size"`
+	ErrorMessage       pgtype.Text        `json:"error_message"`
+	GeneratedBy        pgtype.UUID        `json:"generated_by"`
+	GeneratedAt        pgtype.Timestamptz `json:"generated_at"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
 type Installment struct {
 	ID                uuid.UUID          `json:"id"`
 	ScheduleID        uuid.UUID          `json:"schedule_id"`
@@ -718,6 +737,39 @@ type Remittance struct {
 	CreatedBy            pgtype.UUID     `json:"created_by"`
 	CreatedAt            time.Time       `json:"created_at"`
 	UpdatedAt            time.Time       `json:"updated_at"`
+}
+
+type ReportDefinition struct {
+	ID                uuid.UUID          `json:"id"`
+	Code              string             `json:"code"`
+	Name              string             `json:"name"`
+	Description       pgtype.Text        `json:"description"`
+	Category          string             `json:"category"`
+	ReportType        string             `json:"report_type"`
+	QueryTemplate     pgtype.Text        `json:"query_template"`
+	DefaultParameters []byte             `json:"default_parameters"`
+	AllowedRoles      []string           `json:"allowed_roles"`
+	Columns           json.RawMessage    `json:"columns"`
+	IsActive          pgtype.Bool        `json:"is_active"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ReportSchedule struct {
+	ID                 uuid.UUID          `json:"id"`
+	ReportDefinitionID uuid.UUID          `json:"report_definition_id"`
+	Name               string             `json:"name"`
+	CronExpression     string             `json:"cron_expression"`
+	Parameters         []byte             `json:"parameters"`
+	ExportFormat       string             `json:"export_format"`
+	Recipients         []uuid.UUID        `json:"recipients"`
+	IsActive           pgtype.Bool        `json:"is_active"`
+	LastRunAt          pgtype.Timestamptz `json:"last_run_at"`
+	NextRunAt          pgtype.Timestamptz `json:"next_run_at"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Role struct {

@@ -776,6 +776,45 @@ const (
 	AccreditationStatusRevoked    AccreditationStatus = "REVOKED"
 )
 
+// ReportStatus represents the status of a generated report
+type ReportStatus string
+
+const (
+	ReportStatusGenerating ReportStatus = "GENERATING"
+	ReportStatusCompleted  ReportStatus = "COMPLETED"
+	ReportStatusFailed     ReportStatus = "FAILED"
+	ReportStatusExpired    ReportStatus = "EXPIRED"
+)
+
+// ReportFormat represents report export formats
+type ReportFormat string
+
+const (
+	ReportFormatCSV  ReportFormat = "CSV"
+	ReportFormatXLSX ReportFormat = "XLSX"
+	ReportFormatPDF  ReportFormat = "PDF"
+)
+
+// ReportCategory represents report categories
+type ReportCategory string
+
+const (
+	ReportCategoryClaims      ReportCategory = "CLAIMS"
+	ReportCategoryPremium     ReportCategory = "PREMIUM"
+	ReportCategoryMembership  ReportCategory = "MEMBERSHIP"
+	ReportCategoryProvider    ReportCategory = "PROVIDER"
+	ReportCategoryReinsurance ReportCategory = "REINSURANCE"
+	ReportCategoryManagement  ReportCategory = "MANAGEMENT"
+)
+
+// ReportType represents types of report definitions
+type ReportType string
+
+const (
+	ReportTypePreBuilt ReportType = "PRE_BUILT"
+	ReportTypeAdHoc    ReportType = "AD_HOC"
+)
+
 // Reinsurance audit entity types
 const (
 	AuditEntityTypeTreaty                AuditEntityType = "TREATY"
@@ -789,4 +828,7 @@ const (
 	AuditEntityTypeReinsurerStatement    AuditEntityType = "REINSURER_STATEMENT"
 	AuditEntityTypeProfitCommission      AuditEntityType = "PROFIT_COMMISSION"
 	AuditEntityTypeTreatyAlert           AuditEntityType = "TREATY_ALERT"
+	AuditEntityTypeReportDefinition      AuditEntityType = "REPORT_DEFINITION"
+	AuditEntityTypeReportSchedule        AuditEntityType = "REPORT_SCHEDULE"
+	AuditEntityTypeGeneratedReport       AuditEntityType = "GENERATED_REPORT"
 )

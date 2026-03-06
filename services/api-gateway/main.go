@@ -9,7 +9,10 @@ import (
 	db "github.com/bitbiz/hias-core/infrastructures/db/sqlc"
 	"github.com/bitbiz/hias-core/infrastructures/documents"
 	"github.com/bitbiz/hias-core/infrastructures/queue"
+	reportingInfra "github.com/bitbiz/hias-core/infrastructures/reporting"
 	"github.com/bitbiz/hias-core/infrastructures/repository"
+	"github.com/bitbiz/hias-core/infrastructures/scheduler"
+	schedulerTasks "github.com/bitbiz/hias-core/infrastructures/scheduler/tasks"
 	"github.com/bitbiz/hias-core/services/analytics"
 	"github.com/bitbiz/hias-core/services/api-gateway/handlers"
 	"github.com/bitbiz/hias-core/services/api-gateway/routes"
@@ -27,6 +30,7 @@ import (
 	"github.com/bitbiz/hias-core/services/product"
 	"github.com/bitbiz/hias-core/services/provider"
 	"github.com/bitbiz/hias-core/services/reinsurance"
+	reportingSvc "github.com/bitbiz/hias-core/services/reporting"
 	"github.com/bitbiz/hias-core/services/sales"
 	"github.com/bitbiz/hias-core/shared/auth"
 
@@ -154,6 +158,11 @@ func main() {
 	reinsurerStatementRepo := repository.NewReinsurerStatementRepository(store)
 	treatyAlertRepo := repository.NewTreatyAlertRepository(store)
 
+	// Reporting repositories
+	reportRepo := reportingInfra.NewReportRepository(store)
+	reportDataRepo := reportingInfra.NewReportDataRepository(store)
+	reportExporter := reportingInfra.NewReportExporter()
+
 	// 6. Services (bottom-up dependency order)
 	auditSvc := audit.NewAuditService(auditRepo)
 	notifSvc := notification.NewNotificationService(notifRepo, queueManager)
@@ -242,6 +251,9 @@ func main() {
 	reinsurerStatementSvc := reinsurance.NewReinsurerStatementService(reinsurerStatementRepo, reinsuranceCessionRepo, reinsuranceRecoveryRepo, treatyParticipantRepo, profitCommissionRepo, auditSvc)
 	treatyAlertSvc := reinsurance.NewTreatyAlertService(treatyAlertRepo, treatyLayerRepo, reinsuranceRecoveryRepo, treatyRepo)
 
+	// Reporting service
+	reportSvc := reportingSvc.NewReportService(reportRepo, reportDataRepo, reportExporter, notifSvc, auditSvc, analyticsRepo)
+
 	// Suppress unused variable warnings for services used internally
 	_ = billingSvc
 
@@ -290,13 +302,46 @@ func main() {
 		ReinsurerStatement:   handlers.NewReinsurerStatementHandler(reinsurerStatementSvc),
 		TreatyAlert:          handlers.NewTreatyAlertHandler(treatyAlertSvc),
 		ReinsuranceAnalytics: handlers.NewReinsuranceAnalyticsHandler(treatySvc, cessionSvc, recoverySvc, treatyAlertSvc),
+
+		// Reporting
+		Report: handlers.NewReportHandler(reportSvc),
 	}
 
-	// 8. Server
+	// 8. Scheduler (optional — only if enabled)
+	if cfg.SchedulerEnabled {
+		schedulerMgr := scheduler.NewSchedulerManager()
+
+		reportDistSchedule := cfg.ReportDistributionSchedule
+		if reportDistSchedule == "" {
+			reportDistSchedule = "*/5 * * * *"
+		}
+		reportCleanupSchedule := cfg.ReportCleanupSchedule
+		if reportCleanupSchedule == "" {
+			reportCleanupSchedule = "0 2 * * *"
+		}
+
+		reportDistTask := schedulerTasks.NewReportDistributionTask(reportDistSchedule, reportSvc)
+		reportCleanupTask := schedulerTasks.NewReportCleanupTask(reportCleanupSchedule, reportRepo)
+
+		if err := schedulerMgr.RegisterTask(reportDistTask); err != nil {
+			log.Printf("Warning: Failed to register report distribution task: %v", err)
+		}
+		if err := schedulerMgr.RegisterTask(reportCleanupTask); err != nil {
+			log.Printf("Warning: Failed to register report cleanup task: %v", err)
+		}
+
+		if err := schedulerMgr.Start(); err != nil {
+			log.Printf("Warning: Failed to start scheduler: %v", err)
+		} else {
+			log.Printf("Scheduler started with %d tasks", len(schedulerMgr.GetRegisteredTasks()))
+		}
+	}
+
+	// 9. Server
 	server := NewServer(tokenMaker, cfg.AllowedOrigins)
 	server.RegisterRoutes(h)
 
-	// 9. Start
+	// 10. Start
 	if err := server.Start(cfg.HTTPServerAddress); err != nil {
 		log.Fatalf("Cannot start server: %v", err)
 	}

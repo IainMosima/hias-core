@@ -31,6 +31,7 @@ type Querier interface {
 	CountCessions(ctx context.Context) (int64, error)
 	CountClaims(ctx context.Context) (int64, error)
 	CountClaimsByStatus(ctx context.Context, status string) (int64, error)
+	CountGeneratedReports(ctx context.Context, reportDefinitionID pgtype.UUID) (int64, error)
 	CountInvoices(ctx context.Context) (int64, error)
 	CountLeads(ctx context.Context) (int64, error)
 	CountLeadsByStatus(ctx context.Context, status string) (int64, error)
@@ -47,6 +48,7 @@ type Querier interface {
 	CountReinsuranceRecoveries(ctx context.Context) (int64, error)
 	CountReinsurerStatements(ctx context.Context) (int64, error)
 	CountRemittances(ctx context.Context) (int64, error)
+	CountReportDefinitions(ctx context.Context) (int64, error)
 	CountTreaties(ctx context.Context) (int64, error)
 	CountUnacknowledgedTreatyAlerts(ctx context.Context) (int64, error)
 	CountUnreadNotificationsByUser(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -68,6 +70,8 @@ type Querier interface {
 	CreateEndorsement(ctx context.Context, arg CreateEndorsementParams) (Endorsement, error)
 	CreateExclusion(ctx context.Context, arg CreateExclusionParams) (Exclusion, error)
 	CreateFraudFlag(ctx context.Context, arg CreateFraudFlagParams) (FraudFlag, error)
+	// Generated Reports CRUD
+	CreateGeneratedReport(ctx context.Context, arg CreateGeneratedReportParams) (GeneratedReport, error)
 	CreateInstallment(ctx context.Context, arg CreateInstallmentParams) (Installment, error)
 	CreateInstallmentSchedule(ctx context.Context, arg CreateInstallmentScheduleParams) (InstallmentSchedule, error)
 	CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (Invoice, error)
@@ -95,6 +99,10 @@ type Querier interface {
 	CreateReinsuranceRecovery(ctx context.Context, arg CreateReinsuranceRecoveryParams) (ReinsuranceRecovery, error)
 	CreateReinsurerStatement(ctx context.Context, arg CreateReinsurerStatementParams) (ReinsurerStatement, error)
 	CreateRemittance(ctx context.Context, arg CreateRemittanceParams) (Remittance, error)
+	// Report Definitions CRUD
+	CreateReportDefinition(ctx context.Context, arg CreateReportDefinitionParams) (ReportDefinition, error)
+	// Report Schedules CRUD
+	CreateReportSchedule(ctx context.Context, arg CreateReportScheduleParams) (ReportSchedule, error)
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateStatementLineItem(ctx context.Context, arg CreateStatementLineItemParams) (StatementLineItem, error)
 	CreateTreaty(ctx context.Context, arg CreateTreatyParams) (Treaty, error)
@@ -110,18 +118,22 @@ type Querier interface {
 	DeleteBordereauItemsByBordereau(ctx context.Context, bordereauID uuid.UUID) error
 	DeleteClaimLineItem(ctx context.Context, id uuid.UUID) error
 	DeleteExclusion(ctx context.Context, id uuid.UUID) error
+	DeleteExpiredReports(ctx context.Context) error
 	DeleteMember(ctx context.Context, id uuid.UUID) error
 	DeletePolicyDocument(ctx context.Context, id uuid.UUID) error
 	DeletePremiumRule(ctx context.Context, id uuid.UUID) error
 	DeleteProfitCommission(ctx context.Context, id uuid.UUID) error
 	DeleteProviderNetwork(ctx context.Context, id uuid.UUID) error
 	DeleteRateCard(ctx context.Context, id uuid.UUID) error
+	DeleteReportSchedule(ctx context.Context, id uuid.UUID) error
 	DeleteRole(ctx context.Context, id uuid.UUID) error
 	DeleteTreatyLayer(ctx context.Context, id uuid.UUID) error
 	DeleteTreatyParticipant(ctx context.Context, id uuid.UUID) error
 	DeleteUnderwritingRule(ctx context.Context, id uuid.UUID) error
 	DenyPreAuth(ctx context.Context, arg DenyPreAuthParams) (Preauthorization, error)
 	DischargeCaseRecord(ctx context.Context, arg DischargeCaseRecordParams) (CaseRecord, error)
+	DrillDownClaimsByPolicy(ctx context.Context, arg DrillDownClaimsByPolicyParams) ([]DrillDownClaimsByPolicyRow, error)
+	DrillDownPaymentsByPolicy(ctx context.Context, arg DrillDownPaymentsByPolicyParams) ([]DrillDownPaymentsByPolicyRow, error)
 	FindClaimByProviderAndDate(ctx context.Context, arg FindClaimByProviderAndDateParams) (Claim, error)
 	GetActiveContractByProvider(ctx context.Context, providerID uuid.UUID) (Contract, error)
 	GetActivePoliciesForBilling(ctx context.Context) ([]Policy, error)
@@ -146,7 +158,10 @@ type Querier interface {
 	GetClaimByNumber(ctx context.Context, claimNumber string) (Claim, error)
 	GetClaimDocumentByID(ctx context.Context, id uuid.UUID) (ClaimDocument, error)
 	GetClaimLineItemByID(ctx context.Context, id uuid.UUID) (ClaimLineItem, error)
+	// Report Data Queries: cross-domain queries for pre-built reports
+	GetClaimsExperienceData(ctx context.Context, arg GetClaimsExperienceDataParams) ([]GetClaimsExperienceDataRow, error)
 	GetClaimsForAdjudication(ctx context.Context, limit int32) ([]Claim, error)
+	GetClaimsRegisterData(ctx context.Context, arg GetClaimsRegisterDataParams) ([]GetClaimsRegisterDataRow, error)
 	GetClaimsVolume(ctx context.Context, arg GetClaimsVolumeParams) (GetClaimsVolumeRow, error)
 	GetContractByID(ctx context.Context, id uuid.UUID) (Contract, error)
 	GetCreditNoteByID(ctx context.Context, id uuid.UUID) (CreditNote, error)
@@ -158,6 +173,8 @@ type Querier interface {
 	GetFailedPaymentsForRetry(ctx context.Context, limit int32) ([]Payment, error)
 	GetFraudFlagByID(ctx context.Context, id uuid.UUID) (FraudFlag, error)
 	GetFraudRate(ctx context.Context, arg GetFraudRateParams) (int32, error)
+	GetGeneratedReport(ctx context.Context, id uuid.UUID) (GetGeneratedReportRow, error)
+	GetGeneratedReportWithData(ctx context.Context, id uuid.UUID) (GeneratedReport, error)
 	GetInstallmentByID(ctx context.Context, id uuid.UUID) (Installment, error)
 	GetInstallmentScheduleByID(ctx context.Context, id uuid.UUID) (InstallmentSchedule, error)
 	GetInstallmentScheduleByPolicy(ctx context.Context, policyID uuid.UUID) ([]InstallmentSchedule, error)
@@ -169,10 +186,14 @@ type Querier interface {
 	GetLeadByID(ctx context.Context, id uuid.UUID) (Lead, error)
 	GetLeadByNumber(ctx context.Context, leadNumber string) (Lead, error)
 	GetLossRatio(ctx context.Context, arg GetLossRatioParams) (int32, error)
+	GetLossRatioData(ctx context.Context, arg GetLossRatioDataParams) ([]GetLossRatioDataRow, error)
 	GetMemberByID(ctx context.Context, id uuid.UUID) (Member, error)
 	GetMemberByNationalID(ctx context.Context, nationalID pgtype.Text) (Member, error)
 	GetMemberByNumber(ctx context.Context, memberNumber string) (Member, error)
+	GetMembershipData(ctx context.Context, arg GetMembershipDataParams) ([]GetMembershipDataRow, error)
 	GetNotificationByID(ctx context.Context, id uuid.UUID) (Notification, error)
+	// Dashboard KPI queries
+	GetOutstandingPremium(ctx context.Context) (int64, error)
 	GetOverduePoliciesForLapse(ctx context.Context) ([]Policy, error)
 	GetPaymentByID(ctx context.Context, id uuid.UUID) (Payment, error)
 	GetPaymentByReference(ctx context.Context, referenceNumber pgtype.Text) (Payment, error)
@@ -185,12 +206,15 @@ type Querier interface {
 	GetPolicyRenewalByPolicyID(ctx context.Context, policyID uuid.UUID) (PolicyRenewal, error)
 	GetPreAuthByAuthCode(ctx context.Context, authCode pgtype.Text) (Preauthorization, error)
 	GetPreAuthByID(ctx context.Context, id uuid.UUID) (Preauthorization, error)
+	GetPremiumDebtorsAgeingData(ctx context.Context) ([]GetPremiumDebtorsAgeingDataRow, error)
+	GetPremiumRegisterData(ctx context.Context, arg GetPremiumRegisterDataParams) ([]GetPremiumRegisterDataRow, error)
 	GetPremiumRuleByID(ctx context.Context, id uuid.UUID) (PremiumRule, error)
 	GetProfitCommissionByID(ctx context.Context, id uuid.UUID) (ProfitCommission, error)
 	GetProviderByID(ctx context.Context, id uuid.UUID) (Provider, error)
 	GetProviderByLicense(ctx context.Context, licenseNumber string) (Provider, error)
 	GetProviderByUserID(ctx context.Context, userID pgtype.UUID) (Provider, error)
 	GetProviderNetworkByID(ctx context.Context, id uuid.UUID) (ProviderNetwork, error)
+	GetProviderPerformanceData(ctx context.Context, arg GetProviderPerformanceDataParams) ([]GetProviderPerformanceDataRow, error)
 	GetProviderStatementByID(ctx context.Context, id uuid.UUID) (ProviderStatement, error)
 	GetQuotationByID(ctx context.Context, id uuid.UUID) (Quotation, error)
 	GetQuotationByNumber(ctx context.Context, quotationNumber string) (Quotation, error)
@@ -205,9 +229,15 @@ type Querier interface {
 	GetReinsurerStatementByID(ctx context.Context, id uuid.UUID) (ReinsurerStatement, error)
 	GetReinsurerStatementByNumber(ctx context.Context, statementNumber string) (ReinsurerStatement, error)
 	GetRemittanceByID(ctx context.Context, id uuid.UUID) (Remittance, error)
+	GetRenewalData(ctx context.Context, arg GetRenewalDataParams) ([]GetRenewalDataRow, error)
 	GetRenewalRate(ctx context.Context, arg GetRenewalRateParams) (interface{}, error)
+	GetReportDefinition(ctx context.Context, id uuid.UUID) (ReportDefinition, error)
+	GetReportDefinitionByCode(ctx context.Context, code string) (ReportDefinition, error)
+	GetReportFileData(ctx context.Context, id uuid.UUID) (GetReportFileDataRow, error)
+	GetReportSchedule(ctx context.Context, id uuid.UUID) (ReportSchedule, error)
 	GetRoleByID(ctx context.Context, id uuid.UUID) (Role, error)
 	GetRoleByName(ctx context.Context, name string) (Role, error)
+	GetSLABreachCount(ctx context.Context) (int64, error)
 	GetTopProviders(ctx context.Context, arg GetTopProvidersParams) ([]GetTopProvidersRow, error)
 	GetTotalActiveMemberCount(ctx context.Context, arg GetTotalActiveMemberCountParams) (int64, error)
 	GetTotalCededAmountAll(ctx context.Context) (int64, error)
@@ -269,6 +299,7 @@ type Querier interface {
 	ListCreditNotesByPolicy(ctx context.Context, policyID uuid.UUID) ([]CreditNote, error)
 	ListCreditNotesByStatus(ctx context.Context, arg ListCreditNotesByStatusParams) ([]CreditNote, error)
 	ListDueFollowUps(ctx context.Context, arg ListDueFollowUpsParams) ([]Lead, error)
+	ListDueSchedules(ctx context.Context) ([]ReportSchedule, error)
 	ListEndorsementsByPolicy(ctx context.Context, policyID uuid.UUID) ([]Endorsement, error)
 	ListExclusionsByPlan(ctx context.Context, planID uuid.UUID) ([]Exclusion, error)
 	ListExclusionsByType(ctx context.Context, arg ListExclusionsByTypeParams) ([]Exclusion, error)
@@ -278,6 +309,7 @@ type Querier interface {
 	ListExpiringAccreditations(ctx context.Context, arg ListExpiringAccreditationsParams) ([]Provider, error)
 	ListExpiringTreaties(ctx context.Context, arg ListExpiringTreatiesParams) ([]Treaty, error)
 	ListFraudFlagsByClaim(ctx context.Context, claimID uuid.UUID) ([]FraudFlag, error)
+	ListGeneratedReports(ctx context.Context, arg ListGeneratedReportsParams) ([]ListGeneratedReportsRow, error)
 	ListInstallmentsBySchedule(ctx context.Context, scheduleID uuid.UUID) ([]Installment, error)
 	ListInvoices(ctx context.Context, arg ListInvoicesParams) ([]Invoice, error)
 	ListInvoicesByPolicy(ctx context.Context, arg ListInvoicesByPolicyParams) ([]Invoice, error)
@@ -332,6 +364,8 @@ type Querier interface {
 	ListRemittances(ctx context.Context, arg ListRemittancesParams) ([]Remittance, error)
 	ListRemittancesByProvider(ctx context.Context, arg ListRemittancesByProviderParams) ([]Remittance, error)
 	ListRemittancesByStatus(ctx context.Context, arg ListRemittancesByStatusParams) ([]Remittance, error)
+	ListReportDefinitions(ctx context.Context, arg ListReportDefinitionsParams) ([]ReportDefinition, error)
+	ListReportSchedulesByDefinition(ctx context.Context, arg ListReportSchedulesByDefinitionParams) ([]ReportSchedule, error)
 	ListRolePermissions(ctx context.Context, roleID uuid.UUID) ([]RolePermission, error)
 	ListRoles(ctx context.Context) ([]Role, error)
 	ListSLABreachedClaims(ctx context.Context, arg ListSLABreachedClaimsParams) ([]Claim, error)
@@ -370,6 +404,7 @@ type Querier interface {
 	SetRemittancePayment(ctx context.Context, arg SetRemittancePaymentParams) (Remittance, error)
 	SoftDeleteClaimDocument(ctx context.Context, id uuid.UUID) (ClaimDocument, error)
 	SoftDeleteQuotationDocument(ctx context.Context, id uuid.UUID) error
+	StoreReportFile(ctx context.Context, arg StoreReportFileParams) error
 	UpdateAccreditation(ctx context.Context, arg UpdateAccreditationParams) (Provider, error)
 	UpdateApprovalLimit(ctx context.Context, arg UpdateApprovalLimitParams) (ApprovalLimit, error)
 	UpdateBenefit(ctx context.Context, arg UpdateBenefitParams) (Benefit, error)
@@ -387,6 +422,7 @@ type Querier interface {
 	UpdateEndorsement(ctx context.Context, arg UpdateEndorsementParams) (Endorsement, error)
 	UpdateEndorsementStatus(ctx context.Context, arg UpdateEndorsementStatusParams) (Endorsement, error)
 	UpdateExclusion(ctx context.Context, arg UpdateExclusionParams) (Exclusion, error)
+	UpdateGeneratedReportStatus(ctx context.Context, arg UpdateGeneratedReportStatusParams) (UpdateGeneratedReportStatusRow, error)
 	UpdateInstallmentScheduleStatus(ctx context.Context, arg UpdateInstallmentScheduleStatusParams) (InstallmentSchedule, error)
 	UpdateInstallmentStatus(ctx context.Context, arg UpdateInstallmentStatusParams) (Installment, error)
 	UpdateInvoiceStatus(ctx context.Context, arg UpdateInvoiceStatusParams) (Invoice, error)
@@ -419,7 +455,10 @@ type Querier interface {
 	UpdateReinsurerStatement(ctx context.Context, arg UpdateReinsurerStatementParams) (ReinsurerStatement, error)
 	UpdateReinsurerStatementStatus(ctx context.Context, arg UpdateReinsurerStatementStatusParams) (ReinsurerStatement, error)
 	UpdateRemittanceStatus(ctx context.Context, arg UpdateRemittanceStatusParams) (Remittance, error)
+	UpdateReportDefinition(ctx context.Context, arg UpdateReportDefinitionParams) (ReportDefinition, error)
+	UpdateReportSchedule(ctx context.Context, arg UpdateReportScheduleParams) (ReportSchedule, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error)
+	UpdateScheduleLastRun(ctx context.Context, arg UpdateScheduleLastRunParams) error
 	UpdateTreaty(ctx context.Context, arg UpdateTreatyParams) (Treaty, error)
 	UpdateTreatyLayer(ctx context.Context, arg UpdateTreatyLayerParams) (TreatyLayer, error)
 	UpdateTreatyLayerAggregateUsed(ctx context.Context, arg UpdateTreatyLayerAggregateUsedParams) (TreatyLayer, error)
