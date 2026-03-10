@@ -45,17 +45,18 @@ func (s *providerServiceImpl) RegisterProvider(ctx context.Context, req provider
 	}
 
 	provider := &entity.Provider{
-		Name:          req.Name,
-		Type:          req.Type,
-		LicenseNumber: req.LicenseNumber,
-		Status:        string(shared.ProviderStatusPending),
-		Tier:          tier,
-		County:        req.County,
-		Address:       req.Address,
-		Phone:         req.Phone,
-		Email:         req.Email,
-		ContactPerson: req.ContactPerson,
-		CreatedBy:     createdBy,
+		Name:                req.Name,
+		Type:                req.Type,
+		LicenseNumber:       req.LicenseNumber,
+		Status:              string(shared.ProviderStatusPending),
+		Tier:                tier,
+		County:              req.County,
+		Address:             req.Address,
+		Phone:               req.Phone,
+		Email:               req.Email,
+		ContactPerson:       req.ContactPerson,
+		AccreditationStatus: "PENDING",
+		CreatedBy:           createdBy,
 	}
 
 	created, err := s.providerRepo.Create(ctx, provider)
@@ -96,7 +97,24 @@ func (s *providerServiceImpl) CredentialProvider(ctx context.Context, id uuid.UU
 }
 
 func (s *providerServiceImpl) ActivateProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
-	return s.updateProviderStatus(ctx, id, string(shared.ProviderStatusActive), string(shared.ProviderStatusCredentialing), "Provider activated")
+	provider, err := s.providerRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusNotFound, "Provider not found", err)
+	}
+
+	if provider.Status == string(shared.ProviderStatusActive) {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, "Provider is already active", nil)
+	}
+	if provider.Status == string(shared.ProviderStatusPending) {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, "Provider must complete credentialing before activation", nil)
+	}
+
+	updated, err := s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusActive))
+	if err != nil {
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to activate provider", err)
+	}
+
+	return schema.NewServiceResponse(providerSchema.ToProviderResponse(updated), http.StatusOK, "Provider activated")
 }
 
 func (s *providerServiceImpl) SuspendProvider(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {

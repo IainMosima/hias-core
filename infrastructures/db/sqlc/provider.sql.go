@@ -36,22 +36,23 @@ func (q *Queries) CountProvidersFiltered(ctx context.Context, dollar_1 string) (
 }
 
 const createProvider = `-- name: CreateProvider :one
-INSERT INTO providers (name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body
+INSERT INTO providers (name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, accreditation_status)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, created_at, updated_at, tier, accreditation_status, accreditation_expiry, accreditation_body
 `
 
 type CreateProviderParams struct {
-	Name          string      `json:"name"`
-	Type          string      `json:"type"`
-	LicenseNumber string      `json:"license_number"`
-	Status        string      `json:"status"`
-	County        pgtype.Text `json:"county"`
-	Address       pgtype.Text `json:"address"`
-	Phone         pgtype.Text `json:"phone"`
-	Email         pgtype.Text `json:"email"`
-	ContactPerson pgtype.Text `json:"contact_person"`
-	UserID        pgtype.UUID `json:"user_id"`
-	CreatedBy     pgtype.UUID `json:"created_by"`
+	Name                string      `json:"name"`
+	Type                string      `json:"type"`
+	LicenseNumber       string      `json:"license_number"`
+	Status              string      `json:"status"`
+	County              pgtype.Text `json:"county"`
+	Address             pgtype.Text `json:"address"`
+	Phone               pgtype.Text `json:"phone"`
+	Email               pgtype.Text `json:"email"`
+	ContactPerson       pgtype.Text `json:"contact_person"`
+	UserID              pgtype.UUID `json:"user_id"`
+	CreatedBy           pgtype.UUID `json:"created_by"`
+	AccreditationStatus pgtype.Text `json:"accreditation_status"`
 }
 
 func (q *Queries) CreateProvider(ctx context.Context, arg CreateProviderParams) (Provider, error) {
@@ -67,6 +68,7 @@ func (q *Queries) CreateProvider(ctx context.Context, arg CreateProviderParams) 
 		arg.ContactPerson,
 		arg.UserID,
 		arg.CreatedBy,
+		arg.AccreditationStatus,
 	)
 	var i Provider
 	err := row.Scan(

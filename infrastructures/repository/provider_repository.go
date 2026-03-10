@@ -30,8 +30,9 @@ func (r *providerRepository) Create(ctx context.Context, provider *entity.Provid
 		Phone:         stringToPgtypeText(provider.Phone),
 		Email:         stringToPgtypeText(provider.Email),
 		ContactPerson: stringToPgtypeText(provider.ContactPerson),
-		UserID:        uuidToPgtype(provider.UserID),
-		CreatedBy:     uuidToPgtype(provider.CreatedBy),
+		UserID:              uuidToPgtype(provider.UserID),
+		CreatedBy:           uuidToPgtype(provider.CreatedBy),
+		AccreditationStatus: stringToPgtypeText(provider.AccreditationStatus),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)

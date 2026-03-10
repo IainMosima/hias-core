@@ -1,6 +1,6 @@
 -- name: CreateProvider :one
-INSERT INTO providers (name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
+INSERT INTO providers (name, type, license_number, status, county, address, phone, email, contact_person, user_id, created_by, accreditation_status)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
 -- name: GetProviderByID :one
 SELECT * FROM providers WHERE id = $1;
