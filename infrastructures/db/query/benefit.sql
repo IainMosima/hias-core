@@ -1,6 +1,6 @@
 -- name: CreateBenefit :one
-INSERT INTO benefits (plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, deductible_amount)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
+INSERT INTO benefits (plan_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, deductible_amount, is_optional, addon_premium)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
 
 -- name: GetBenefitByID :one
 SELECT * FROM benefits WHERE id = $1;
@@ -10,6 +10,9 @@ SELECT * FROM benefits WHERE plan_id = $1 ORDER BY category, name;
 
 -- name: ListBenefitsByCategory :many
 SELECT * FROM benefits WHERE plan_id = $1 AND category = $2;
+
+-- name: ListOptionalBenefitsByPlan :many
+SELECT * FROM benefits WHERE plan_id = $1 AND is_optional = true ORDER BY category, name;
 
 -- name: UpdateBenefit :one
 UPDATE benefits SET
@@ -24,6 +27,8 @@ UPDATE benefits SET
     min_age = COALESCE(sqlc.narg('min_age'), min_age),
     max_age = COALESCE(sqlc.narg('max_age'), max_age),
     waiting_period_type = COALESCE(sqlc.narg('waiting_period_type'), waiting_period_type),
+    is_optional = COALESCE(sqlc.narg('is_optional'), is_optional),
+    addon_premium = COALESCE(sqlc.narg('addon_premium'), addon_premium),
     updated_at = NOW()
 WHERE id = sqlc.arg('id') RETURNING *;
 
@@ -31,8 +36,8 @@ WHERE id = sqlc.arg('id') RETURNING *;
 DELETE FROM benefits WHERE id = $1;
 
 -- name: CreateBenefitWithParent :one
-INSERT INTO benefits (plan_id, parent_benefit_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, deductible_amount)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+INSERT INTO benefits (plan_id, parent_benefit_id, name, category, annual_limit, co_pay_type, co_pay_value, waiting_period_days, sub_limit_type, sub_limit_value, min_age, max_age, waiting_period_type, deductible_amount, is_optional, addon_premium)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *;
 
 -- name: ListSubBenefits :many
 SELECT * FROM benefits WHERE parent_benefit_id = $1 ORDER BY name;

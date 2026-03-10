@@ -52,6 +52,8 @@ func (s *benefitServiceImpl) CreateBenefit(ctx context.Context, planID uuid.UUID
 		MaxAge:            maxAge,
 		WaitingPeriodType: waitingPeriodType,
 		DeductibleAmount:  req.DeductibleAmount,
+		IsOptional:        req.IsOptional,
+		AddonPremium:      req.AddonPremium,
 	}
 
 	created, err := s.benefitRepo.Create(ctx, benefit)
@@ -137,6 +139,8 @@ func (s *benefitServiceImpl) CreateSubBenefit(ctx context.Context, parentID uuid
 		MaxAge:            maxAge,
 		WaitingPeriodType: waitingPeriodType,
 		DeductibleAmount:  req.DeductibleAmount,
+		IsOptional:        req.IsOptional,
+		AddonPremium:      req.AddonPremium,
 	}
 
 	created, err := s.benefitRepo.CreateWithParent(ctx, benefit)

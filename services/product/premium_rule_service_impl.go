@@ -48,6 +48,25 @@ func (s *premiumRuleServiceImpl) CreatePremiumRule(ctx context.Context, planID u
 		maxAge = 150
 	}
 
+	ruleType := req.RuleType
+	if ruleType == "" {
+		ruleType = "base_rate"
+	}
+
+	effectiveFrom := time.Now()
+	if req.EffectiveFrom != "" {
+		if parsed, err := time.Parse("2006-01-02", req.EffectiveFrom); err == nil {
+			effectiveFrom = parsed
+		}
+	}
+
+	var effectiveTo *time.Time
+	if req.EffectiveTo != nil && *req.EffectiveTo != "" {
+		if parsed, err := time.Parse("2006-01-02", *req.EffectiveTo); err == nil {
+			effectiveTo = &parsed
+		}
+	}
+
 	rule := &entity.PremiumRule{
 		PlanID:          planID,
 		CalculationType: req.CalculationType,
@@ -58,6 +77,10 @@ func (s *premiumRuleServiceImpl) CreatePremiumRule(ctx context.Context, planID u
 		MinMembers:      req.MinMembers,
 		MinAge:          req.MinAge,
 		MaxAge:          maxAge,
+		RuleType:        ruleType,
+		EffectiveFrom:   effectiveFrom,
+		EffectiveTo:     effectiveTo,
+		SortOrder:       req.SortOrder,
 	}
 
 	created, err := s.ruleRepo.Create(ctx, rule)
@@ -98,7 +121,7 @@ func (s *premiumRuleServiceImpl) CalculatePremium(ctx context.Context, planID uu
 		return schema.NewServiceErrorResponse[int64](http.StatusNotFound, "Plan not found", err)
 	}
 
-	rules, err := s.ruleRepo.ListByPlan(ctx, planID)
+	rules, err := s.ruleRepo.ListEffectiveByPlan(ctx, planID, time.Now())
 	if err != nil || len(rules) == 0 {
 		return schema.NewServiceResponse(plan.BasePremium, http.StatusOK, "Premium calculated (base)")
 	}
@@ -152,7 +175,7 @@ func (s *premiumRuleServiceImpl) CalculatePremiumWithMembers(ctx context.Context
 		return schema.NewServiceErrorResponse[int64](http.StatusNotFound, "Plan not found", err)
 	}
 
-	rules, err := s.ruleRepo.ListByPlan(ctx, planID)
+	rules, err := s.ruleRepo.ListEffectiveByPlan(ctx, planID, time.Now())
 	if err != nil || len(rules) == 0 {
 		return schema.NewServiceResponse(plan.BasePremium, http.StatusOK, "Premium calculated (base)")
 	}
@@ -326,7 +349,7 @@ func (s *premiumRuleServiceImpl) CalculatePremiumBreakdown(ctx context.Context, 
 		return schema.NewServiceErrorResponse[productSchema.PremiumBreakdownResponse](http.StatusNotFound, "Plan not found", err)
 	}
 
-	rules, err := s.ruleRepo.ListByPlan(ctx, planID)
+	rules, err := s.ruleRepo.ListEffectiveByPlan(ctx, planID, time.Now())
 	if err != nil || len(rules) == 0 {
 		return schema.NewServiceResponse(productSchema.PremiumBreakdownResponse{
 			TotalPremium:    plan.BasePremium,

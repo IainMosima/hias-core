@@ -13,5 +13,7 @@ type PlanRepository interface {
 	ListByStatus(ctx context.Context, status string, limit, offset int) ([]*entity.Plan, error)
 	ListBySegment(ctx context.Context, segment string, limit, offset int) ([]*entity.Plan, error)
 	Count(ctx context.Context) (int64, error)
+	CountByStatus(ctx context.Context, status string) (int64, error)
 	Update(ctx context.Context, plan *entity.Plan) (*entity.Plan, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }

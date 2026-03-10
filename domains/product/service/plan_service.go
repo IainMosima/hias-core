@@ -13,5 +13,8 @@ type PlanService interface {
 	ListPlans(ctx context.Context, page, pageSize int) *schema.ServiceResponse[[]productSchema.PlanResponse]
 	ListPlansBySegment(ctx context.Context, segment string, page, pageSize int) *schema.ServiceResponse[[]productSchema.PlanResponse]
 	UpdatePlan(ctx context.Context, id uuid.UUID, req productSchema.UpdatePlanRequest) *schema.ServiceResponse[productSchema.PlanResponse]
+	ListPlansByStatus(ctx context.Context, status string, page, pageSize int) *schema.ServiceResponse[[]productSchema.PlanResponse]
 	GetTotalCount(ctx context.Context) *schema.ServiceResponse[int64]
+	GetTotalCountByStatus(ctx context.Context, status string) *schema.ServiceResponse[int64]
+	DeletePlan(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[string]
 }

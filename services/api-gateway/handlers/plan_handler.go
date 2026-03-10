@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	identitySchema "github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/bitbiz/hias-core/domains/product/schema"
 	"github.com/bitbiz/hias-core/domains/product/service"
 	"github.com/bitbiz/hias-core/shared/utils"
@@ -78,18 +79,30 @@ func (h *PlanHandler) GetPlan(ctx *gin.Context) {
 // @Produce      json
 // @Param        page query int false "Page number"
 // @Param        page_size query int false "Page size"
+// @Param        status query string false "Filter by status (ACTIVE, INACTIVE)"
 // @Success      200 {object} map[string]interface{}
 // @Failure      400 {object} map[string]string
 // @Security     BearerAuth
 // @Router       /api/v1/plans [get]
 func (h *PlanHandler) ListPlans(ctx *gin.Context) {
 	pagination := utils.GetPaginationParams(ctx)
-	resp := h.planSvc.ListPlans(ctx.Request.Context(), pagination.Page, pagination.PageSize)
+	status := ctx.Query("status")
+
+	var resp *identitySchema.ServiceResponse[[]schema.PlanResponse]
+	var countResp *identitySchema.ServiceResponse[int64]
+
+	if status != "" {
+		resp = h.planSvc.ListPlansByStatus(ctx.Request.Context(), status, pagination.Page, pagination.PageSize)
+		countResp = h.planSvc.GetTotalCountByStatus(ctx.Request.Context(), status)
+	} else {
+		resp = h.planSvc.ListPlans(ctx.Request.Context(), pagination.Page, pagination.PageSize)
+		countResp = h.planSvc.GetTotalCount(ctx.Request.Context())
+	}
+
 	if resp.Error != nil {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return
 	}
-	countResp := h.planSvc.GetTotalCount(ctx.Request.Context())
 	utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 }
 
@@ -119,6 +132,32 @@ func (h *PlanHandler) UpdatePlan(ctx *gin.Context) {
 	}
 
 	resp := h.planSvc.UpdatePlan(ctx.Request.Context(), id, req)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+// DeletePlan godoc
+// @Summary      Delete a plan
+// @Description  Soft delete a plan by setting its status to INACTIVE
+// @Tags         Plans
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Plan ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/plans/{id} [delete]
+func (h *PlanHandler) DeletePlan(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid plan ID")
+		return
+	}
+
+	resp := h.planSvc.DeletePlan(ctx.Request.Context(), id)
 	if resp.Error != nil {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return

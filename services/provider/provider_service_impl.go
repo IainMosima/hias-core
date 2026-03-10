@@ -39,11 +39,17 @@ func NewProviderService(
 }
 
 func (s *providerServiceImpl) RegisterProvider(ctx context.Context, req providerSchema.RegisterProviderRequest, createdBy uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
+	tier := req.Tier
+	if tier == "" {
+		tier = string(shared.ProviderTierThree)
+	}
+
 	provider := &entity.Provider{
 		Name:          req.Name,
 		Type:          req.Type,
 		LicenseNumber: req.LicenseNumber,
 		Status:        string(shared.ProviderStatusPending),
+		Tier:          tier,
 		County:        req.County,
 		Address:       req.Address,
 		Phone:         req.Phone,

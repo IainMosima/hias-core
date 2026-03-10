@@ -5,6 +5,7 @@ import "time"
 type RegisterProviderRequest struct {
 	Name          string `json:"name" binding:"required"`
 	Type          string `json:"type" binding:"required,oneof=hospital clinic pharmacy lab"`
+	Tier          string `json:"tier"`
 	LicenseNumber string `json:"license_number" binding:"required"`
 	County        string `json:"county"`
 	Address       string `json:"address"`

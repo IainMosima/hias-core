@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bitbiz/hias-core/domains/product/entity"
 	domainRepo "github.com/bitbiz/hias-core/domains/product/repository"
@@ -29,6 +30,10 @@ func (r *premiumRuleRepository) Create(ctx context.Context, rule *entity.Premium
 		MinMembers:      int32(rule.MinMembers),
 		MinAge:          int32(rule.MinAge),
 		MaxAge:          int32(rule.MaxAge),
+		RuleType:        rule.RuleType,
+		EffectiveFrom:   timeToPgtypeDate(rule.EffectiveFrom),
+		EffectiveTo:     timePtrToPgtypeDate(rule.EffectiveTo),
+		SortOrder:       int32(rule.SortOrder),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create premium rule: %w", err)
@@ -56,6 +61,23 @@ func (r *premiumRuleRepository) ListByPlan(ctx context.Context, planID uuid.UUID
 	return rules, nil
 }
 
+func (r *premiumRuleRepository) ListEffectiveByPlan(ctx context.Context, planID uuid.UUID, asOf time.Time) ([]*entity.PremiumRule, error) {
+	asOfDate := timeToPgtypeDate(asOf)
+	dbRules, err := r.store.ListEffectivePremiumRulesByPlan(ctx, db.ListEffectivePremiumRulesByPlanParams{
+		PlanID:        planID,
+		EffectiveFrom: asOfDate,
+		EffectiveTo:   asOfDate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list effective premium rules by plan: %w", err)
+	}
+	rules := make([]*entity.PremiumRule, len(dbRules))
+	for i, r := range dbRules {
+		rules[i] = sqlcPremiumRuleToDomain(r)
+	}
+	return rules, nil
+}
+
 func (r *premiumRuleRepository) Update(ctx context.Context, rule *entity.PremiumRule) (*entity.PremiumRule, error) {
 	dbRule, err := r.store.UpdatePremiumRule(ctx, db.UpdatePremiumRuleParams{
 		ID:              rule.ID,
@@ -67,6 +89,10 @@ func (r *premiumRuleRepository) Update(ctx context.Context, rule *entity.Premium
 		MinMembers:      intToPgtypeInt4(rule.MinMembers),
 		MinAge:          intToPgtypeInt4(rule.MinAge),
 		MaxAge:          intToPgtypeInt4(rule.MaxAge),
+		RuleType:        stringToPgtypeText(rule.RuleType),
+		EffectiveFrom:   timeToPgtypeDate(rule.EffectiveFrom),
+		EffectiveTo:     timePtrToPgtypeDate(rule.EffectiveTo),
+		SortOrder:       intToPgtypeInt4(rule.SortOrder),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update premium rule: %w", err)
@@ -94,6 +120,10 @@ func sqlcPremiumRuleToDomain(r db.PremiumRule) *entity.PremiumRule {
 		MinMembers:      int(r.MinMembers),
 		MinAge:          int(r.MinAge),
 		MaxAge:          int(r.MaxAge),
+		RuleType:        r.RuleType,
+		EffectiveFrom:   pgtypeDateToTime(r.EffectiveFrom),
+		EffectiveTo:     pgtypeDateToTimePtr(r.EffectiveTo),
+		SortOrder:       int(r.SortOrder),
 		CreatedAt:       r.CreatedAt,
 		UpdatedAt:       r.UpdatedAt,
 	}

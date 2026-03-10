@@ -32,6 +32,9 @@ func (r *benefitRepository) Create(ctx context.Context, benefit *entity.Benefit)
 		MinAge:            int32(benefit.MinAge),
 		MaxAge:            int32(benefit.MaxAge),
 		WaitingPeriodType: benefit.WaitingPeriodType,
+		DeductibleAmount:  benefit.DeductibleAmount,
+		IsOptional:        benefit.IsOptional,
+		AddonPremium:      benefit.AddonPremium,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create benefit: %w", err)
@@ -88,6 +91,8 @@ func (r *benefitRepository) Update(ctx context.Context, benefit *entity.Benefit)
 		MinAge:            intToPgtypeInt4(benefit.MinAge),
 		MaxAge:            intToPgtypeInt4(benefit.MaxAge),
 		WaitingPeriodType: stringToPgtypeText(benefit.WaitingPeriodType),
+		IsOptional:        boolToPgtypeBool(benefit.IsOptional),
+		AddonPremium:      int64ToPgtypeInt8(benefit.AddonPremium),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update benefit: %w", err)
@@ -119,6 +124,8 @@ func (r *benefitRepository) CreateWithParent(ctx context.Context, benefit *entit
 		MaxAge:            int32(benefit.MaxAge),
 		WaitingPeriodType: benefit.WaitingPeriodType,
 		DeductibleAmount:  benefit.DeductibleAmount,
+		IsOptional:        benefit.IsOptional,
+		AddonPremium:      benefit.AddonPremium,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sub-benefit: %w", err)
@@ -160,6 +167,8 @@ func sqlcBenefitToDomain(b db.Benefit) *entity.Benefit {
 		MaxAge:            int(b.MaxAge),
 		WaitingPeriodType: b.WaitingPeriodType,
 		DeductibleAmount:  b.DeductibleAmount,
+		IsOptional:        b.IsOptional,
+		AddonPremium:      b.AddonPremium,
 		CreatedAt:         b.CreatedAt,
 		UpdatedAt:         b.UpdatedAt,
 	}

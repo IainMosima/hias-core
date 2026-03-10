@@ -10,7 +10,7 @@ type Benefit struct {
 	PlanID            uuid.UUID  `json:"plan_id"`
 	ParentBenefitID   *uuid.UUID `json:"parent_benefit_id,omitempty"`
 	Name              string     `json:"name"`
-	Category          string     `json:"category"` // outpatient, inpatient, dental, optical, maternity
+	Category          string     `json:"category"` // outpatient, inpatient, dental, optical, maternity, pharmacy, specialist, emergency, chronic, wellness
 	AnnualLimit       int64      `json:"annual_limit"`
 	CoPayType         string     `json:"co_pay_type"` // percentage, fixed
 	CoPayValue        int64      `json:"co_pay_value"`
@@ -21,6 +21,8 @@ type Benefit struct {
 	MaxAge            int        `json:"max_age"`
 	WaitingPeriodType string     `json:"waiting_period_type"` // general, maternity, pre_existing
 	DeductibleAmount  int64      `json:"deductible_amount"`
+	IsOptional        bool       `json:"is_optional"`
+	AddonPremium      int64      `json:"addon_premium"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 }

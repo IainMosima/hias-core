@@ -23,20 +23,32 @@ func (q *Queries) CountPlans(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countPlansByStatus = `-- name: CountPlansByStatus :one
+SELECT COUNT(*) FROM plans WHERE status = $1
+`
+
+func (q *Queries) CountPlansByStatus(ctx context.Context, status string) (int64, error) {
+	row := q.db.QueryRow(ctx, countPlansByStatus, status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createPlan = `-- name: CreatePlan :one
-INSERT INTO plans (name, type, segment, base_premium, currency, status, description, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at
+INSERT INTO plans (name, type, segment, base_premium, premium_frequency, currency, status, description, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at, premium_frequency
 `
 
 type CreatePlanParams struct {
-	Name        string      `json:"name"`
-	Type        string      `json:"type"`
-	Segment     string      `json:"segment"`
-	BasePremium int64       `json:"base_premium"`
-	Currency    string      `json:"currency"`
-	Status      string      `json:"status"`
-	Description string      `json:"description"`
-	CreatedBy   pgtype.UUID `json:"created_by"`
+	Name             string      `json:"name"`
+	Type             string      `json:"type"`
+	Segment          string      `json:"segment"`
+	BasePremium      int64       `json:"base_premium"`
+	PremiumFrequency string      `json:"premium_frequency"`
+	Currency         string      `json:"currency"`
+	Status           string      `json:"status"`
+	Description      string      `json:"description"`
+	CreatedBy        pgtype.UUID `json:"created_by"`
 }
 
 func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, error) {
@@ -45,6 +57,7 @@ func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, e
 		arg.Type,
 		arg.Segment,
 		arg.BasePremium,
+		arg.PremiumFrequency,
 		arg.Currency,
 		arg.Status,
 		arg.Description,
@@ -63,12 +76,13 @@ func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, e
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PremiumFrequency,
 	)
 	return i, err
 }
 
 const getPlanByID = `-- name: GetPlanByID :one
-SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans WHERE id = $1
+SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at, premium_frequency FROM plans WHERE id = $1
 `
 
 func (q *Queries) GetPlanByID(ctx context.Context, id uuid.UUID) (Plan, error) {
@@ -86,12 +100,13 @@ func (q *Queries) GetPlanByID(ctx context.Context, id uuid.UUID) (Plan, error) {
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PremiumFrequency,
 	)
 	return i, err
 }
 
 const listPlans = `-- name: ListPlans :many
-SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at, premium_frequency FROM plans ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListPlansParams struct {
@@ -120,6 +135,7 @@ func (q *Queries) ListPlans(ctx context.Context, arg ListPlansParams) ([]Plan, e
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PremiumFrequency,
 		); err != nil {
 			return nil, err
 		}
@@ -132,7 +148,7 @@ func (q *Queries) ListPlans(ctx context.Context, arg ListPlansParams) ([]Plan, e
 }
 
 const listPlansBySegment = `-- name: ListPlansBySegment :many
-SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans WHERE segment = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at, premium_frequency FROM plans WHERE segment = $1 AND status != 'INACTIVE' ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListPlansBySegmentParams struct {
@@ -162,6 +178,7 @@ func (q *Queries) ListPlansBySegment(ctx context.Context, arg ListPlansBySegment
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PremiumFrequency,
 		); err != nil {
 			return nil, err
 		}
@@ -174,7 +191,7 @@ func (q *Queries) ListPlansBySegment(ctx context.Context, arg ListPlansBySegment
 }
 
 const listPlansByStatus = `-- name: ListPlansByStatus :many
-SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at FROM plans WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at, premium_frequency FROM plans WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListPlansByStatusParams struct {
@@ -204,6 +221,7 @@ func (q *Queries) ListPlansByStatus(ctx context.Context, arg ListPlansByStatusPa
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PremiumFrequency,
 		); err != nil {
 			return nil, err
 		}
@@ -215,26 +233,52 @@ func (q *Queries) ListPlansByStatus(ctx context.Context, arg ListPlansByStatusPa
 	return items, nil
 }
 
+const softDeletePlan = `-- name: SoftDeletePlan :one
+UPDATE plans SET status = 'INACTIVE', updated_at = NOW() WHERE id = $1 RETURNING id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at, premium_frequency
+`
+
+func (q *Queries) SoftDeletePlan(ctx context.Context, id uuid.UUID) (Plan, error) {
+	row := q.db.QueryRow(ctx, softDeletePlan, id)
+	var i Plan
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.Segment,
+		&i.BasePremium,
+		&i.Currency,
+		&i.Status,
+		&i.Description,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PremiumFrequency,
+	)
+	return i, err
+}
+
 const updatePlan = `-- name: UpdatePlan :one
 UPDATE plans SET
     name = COALESCE($1, name),
     type = COALESCE($2, type),
     segment = COALESCE($3, segment),
     base_premium = COALESCE($4, base_premium),
-    description = COALESCE($5, description),
-    status = COALESCE($6, status),
+    premium_frequency = COALESCE($5, premium_frequency),
+    description = COALESCE($6, description),
+    status = COALESCE($7, status),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at
+WHERE id = $8 RETURNING id, name, type, segment, base_premium, currency, status, description, created_by, created_at, updated_at, premium_frequency
 `
 
 type UpdatePlanParams struct {
-	Name        pgtype.Text `json:"name"`
-	Type        pgtype.Text `json:"type"`
-	Segment     pgtype.Text `json:"segment"`
-	BasePremium pgtype.Int8 `json:"base_premium"`
-	Description pgtype.Text `json:"description"`
-	Status      pgtype.Text `json:"status"`
-	ID          uuid.UUID   `json:"id"`
+	Name             pgtype.Text `json:"name"`
+	Type             pgtype.Text `json:"type"`
+	Segment          pgtype.Text `json:"segment"`
+	BasePremium      pgtype.Int8 `json:"base_premium"`
+	PremiumFrequency pgtype.Text `json:"premium_frequency"`
+	Description      pgtype.Text `json:"description"`
+	Status           pgtype.Text `json:"status"`
+	ID               uuid.UUID   `json:"id"`
 }
 
 func (q *Queries) UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, error) {
@@ -243,6 +287,7 @@ func (q *Queries) UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, e
 		arg.Type,
 		arg.Segment,
 		arg.BasePremium,
+		arg.PremiumFrequency,
 		arg.Description,
 		arg.Status,
 		arg.ID,
@@ -260,6 +305,7 @@ func (q *Queries) UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, e
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PremiumFrequency,
 	)
 	return i, err
 }

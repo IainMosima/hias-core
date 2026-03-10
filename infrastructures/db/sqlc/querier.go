@@ -45,6 +45,7 @@ type Querier interface {
 	CountOutstandingRecoveries(ctx context.Context) (int64, error)
 	CountPayments(ctx context.Context) (int64, error)
 	CountPlans(ctx context.Context) (int64, error)
+	CountPlansByStatus(ctx context.Context, status string) (int64, error)
 	CountPolicies(ctx context.Context) (int64, error)
 	CountPoliciesByStatus(ctx context.Context, status string) (int64, error)
 	CountPoliciesFiltered(ctx context.Context, arg CountPoliciesFilteredParams) (int64, error)
@@ -331,6 +332,7 @@ type Querier interface {
 	ListCreditNotesByStatus(ctx context.Context, arg ListCreditNotesByStatusParams) ([]CreditNote, error)
 	ListDueFollowUps(ctx context.Context, arg ListDueFollowUpsParams) ([]Lead, error)
 	ListDueSchedules(ctx context.Context) ([]ReportSchedule, error)
+	ListEffectivePremiumRulesByPlan(ctx context.Context, arg ListEffectivePremiumRulesByPlanParams) ([]PremiumRule, error)
 	ListEndorsementsByPolicy(ctx context.Context, policyID uuid.UUID) ([]Endorsement, error)
 	ListEscalationRules(ctx context.Context, arg ListEscalationRulesParams) ([]EscalationRule, error)
 	ListExclusionsByPlan(ctx context.Context, planID uuid.UUID) ([]Exclusion, error)
@@ -355,6 +357,7 @@ type Querier interface {
 	ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]Member, error)
 	ListNotificationsByUser(ctx context.Context, arg ListNotificationsByUserParams) ([]Notification, error)
 	ListOpenUnderwritingFlags(ctx context.Context, arg ListOpenUnderwritingFlagsParams) ([]UnderwritingFlag, error)
+	ListOptionalBenefitsByPlan(ctx context.Context, planID uuid.UUID) ([]Benefit, error)
 	ListOutstandingRecoveries(ctx context.Context, arg ListOutstandingRecoveriesParams) ([]ReinsuranceRecovery, error)
 	ListOverdueInstallments(ctx context.Context) ([]Installment, error)
 	ListOverdueInvoices(ctx context.Context) ([]Invoice, error)
@@ -444,6 +447,7 @@ type Querier interface {
 	SetQuotationPolicyID(ctx context.Context, arg SetQuotationPolicyIDParams) (Quotation, error)
 	SetRemittancePayment(ctx context.Context, arg SetRemittancePaymentParams) (Remittance, error)
 	SoftDeleteClaimDocument(ctx context.Context, id uuid.UUID) (ClaimDocument, error)
+	SoftDeletePlan(ctx context.Context, id uuid.UUID) (Plan, error)
 	SoftDeleteQuotationDocument(ctx context.Context, id uuid.UUID) error
 	StoreReportFile(ctx context.Context, arg StoreReportFileParams) error
 	UpdateAccreditation(ctx context.Context, arg UpdateAccreditationParams) (Provider, error)

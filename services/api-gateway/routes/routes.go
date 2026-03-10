@@ -122,6 +122,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			plans.GET("/:id", h.Plan.GetPlan)
 			plans.POST("", h.Plan.CreatePlan)
 			plans.PUT("/:id", h.Plan.UpdatePlan)
+			plans.DELETE("/:id", h.Plan.DeletePlan)
 
 			// Benefits (nested under plans)
 			plans.GET("/:id/benefits", h.Benefit.ListBenefits)

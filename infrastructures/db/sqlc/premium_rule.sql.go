@@ -13,8 +13,8 @@ import (
 )
 
 const createPremiumRule = `-- name: CreatePremiumRule :one
-INSERT INTO premium_rules (plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, min_age, max_age)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age
+INSERT INTO premium_rules (plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, min_age, max_age, rule_type, effective_from, effective_to, sort_order)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age, rule_type, effective_from, effective_to, sort_order
 `
 
 type CreatePremiumRuleParams struct {
@@ -27,6 +27,10 @@ type CreatePremiumRuleParams struct {
 	MinMembers      int32       `json:"min_members"`
 	MinAge          int32       `json:"min_age"`
 	MaxAge          int32       `json:"max_age"`
+	RuleType        string      `json:"rule_type"`
+	EffectiveFrom   pgtype.Date `json:"effective_from"`
+	EffectiveTo     pgtype.Date `json:"effective_to"`
+	SortOrder       int32       `json:"sort_order"`
 }
 
 func (q *Queries) CreatePremiumRule(ctx context.Context, arg CreatePremiumRuleParams) (PremiumRule, error) {
@@ -40,6 +44,10 @@ func (q *Queries) CreatePremiumRule(ctx context.Context, arg CreatePremiumRulePa
 		arg.MinMembers,
 		arg.MinAge,
 		arg.MaxAge,
+		arg.RuleType,
+		arg.EffectiveFrom,
+		arg.EffectiveTo,
+		arg.SortOrder,
 	)
 	var i PremiumRule
 	err := row.Scan(
@@ -55,6 +63,10 @@ func (q *Queries) CreatePremiumRule(ctx context.Context, arg CreatePremiumRulePa
 		&i.UpdatedAt,
 		&i.MinAge,
 		&i.MaxAge,
+		&i.RuleType,
+		&i.EffectiveFrom,
+		&i.EffectiveTo,
+		&i.SortOrder,
 	)
 	return i, err
 }
@@ -69,7 +81,7 @@ func (q *Queries) DeletePremiumRule(ctx context.Context, id uuid.UUID) error {
 }
 
 const getPremiumRuleByID = `-- name: GetPremiumRuleByID :one
-SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age FROM premium_rules WHERE id = $1
+SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age, rule_type, effective_from, effective_to, sort_order FROM premium_rules WHERE id = $1
 `
 
 func (q *Queries) GetPremiumRuleByID(ctx context.Context, id uuid.UUID) (PremiumRule, error) {
@@ -88,12 +100,65 @@ func (q *Queries) GetPremiumRuleByID(ctx context.Context, id uuid.UUID) (Premium
 		&i.UpdatedAt,
 		&i.MinAge,
 		&i.MaxAge,
+		&i.RuleType,
+		&i.EffectiveFrom,
+		&i.EffectiveTo,
+		&i.SortOrder,
 	)
 	return i, err
 }
 
+const listEffectivePremiumRulesByPlan = `-- name: ListEffectivePremiumRulesByPlan :many
+SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age, rule_type, effective_from, effective_to, sort_order FROM premium_rules
+WHERE plan_id = $1 AND effective_from <= $2 AND (effective_to IS NULL OR effective_to >= $3)
+ORDER BY sort_order, created_at
+`
+
+type ListEffectivePremiumRulesByPlanParams struct {
+	PlanID        uuid.UUID   `json:"plan_id"`
+	EffectiveFrom pgtype.Date `json:"effective_from"`
+	EffectiveTo   pgtype.Date `json:"effective_to"`
+}
+
+func (q *Queries) ListEffectivePremiumRulesByPlan(ctx context.Context, arg ListEffectivePremiumRulesByPlanParams) ([]PremiumRule, error) {
+	rows, err := q.db.Query(ctx, listEffectivePremiumRulesByPlan, arg.PlanID, arg.EffectiveFrom, arg.EffectiveTo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PremiumRule{}
+	for rows.Next() {
+		var i PremiumRule
+		if err := rows.Scan(
+			&i.ID,
+			&i.PlanID,
+			&i.CalculationType,
+			&i.Relationship,
+			&i.RateAmount,
+			&i.DiscountType,
+			&i.DiscountValue,
+			&i.MinMembers,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MinAge,
+			&i.MaxAge,
+			&i.RuleType,
+			&i.EffectiveFrom,
+			&i.EffectiveTo,
+			&i.SortOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPremiumRulesByPlan = `-- name: ListPremiumRulesByPlan :many
-SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age FROM premium_rules WHERE plan_id = $1 ORDER BY created_at
+SELECT id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age, rule_type, effective_from, effective_to, sort_order FROM premium_rules WHERE plan_id = $1 ORDER BY sort_order, created_at
 `
 
 func (q *Queries) ListPremiumRulesByPlan(ctx context.Context, planID uuid.UUID) ([]PremiumRule, error) {
@@ -118,6 +183,10 @@ func (q *Queries) ListPremiumRulesByPlan(ctx context.Context, planID uuid.UUID) 
 			&i.UpdatedAt,
 			&i.MinAge,
 			&i.MaxAge,
+			&i.RuleType,
+			&i.EffectiveFrom,
+			&i.EffectiveTo,
+			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -139,8 +208,12 @@ UPDATE premium_rules SET
     min_members = COALESCE($6, min_members),
     min_age = COALESCE($7, min_age),
     max_age = COALESCE($8, max_age),
+    rule_type = COALESCE($9, rule_type),
+    effective_from = COALESCE($10, effective_from),
+    effective_to = COALESCE($11, effective_to),
+    sort_order = COALESCE($12, sort_order),
     updated_at = NOW()
-WHERE id = $9 RETURNING id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age
+WHERE id = $13 RETURNING id, plan_id, calculation_type, relationship, rate_amount, discount_type, discount_value, min_members, created_at, updated_at, min_age, max_age, rule_type, effective_from, effective_to, sort_order
 `
 
 type UpdatePremiumRuleParams struct {
@@ -152,6 +225,10 @@ type UpdatePremiumRuleParams struct {
 	MinMembers      pgtype.Int4 `json:"min_members"`
 	MinAge          pgtype.Int4 `json:"min_age"`
 	MaxAge          pgtype.Int4 `json:"max_age"`
+	RuleType        pgtype.Text `json:"rule_type"`
+	EffectiveFrom   pgtype.Date `json:"effective_from"`
+	EffectiveTo     pgtype.Date `json:"effective_to"`
+	SortOrder       pgtype.Int4 `json:"sort_order"`
 	ID              uuid.UUID   `json:"id"`
 }
 
@@ -165,6 +242,10 @@ func (q *Queries) UpdatePremiumRule(ctx context.Context, arg UpdatePremiumRulePa
 		arg.MinMembers,
 		arg.MinAge,
 		arg.MaxAge,
+		arg.RuleType,
+		arg.EffectiveFrom,
+		arg.EffectiveTo,
+		arg.SortOrder,
 		arg.ID,
 	)
 	var i PremiumRule
@@ -181,6 +262,10 @@ func (q *Queries) UpdatePremiumRule(ctx context.Context, arg UpdatePremiumRulePa
 		&i.UpdatedAt,
 		&i.MinAge,
 		&i.MaxAge,
+		&i.RuleType,
+		&i.EffectiveFrom,
+		&i.EffectiveTo,
+		&i.SortOrder,
 	)
 	return i, err
 }

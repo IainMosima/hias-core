@@ -83,6 +83,8 @@ type Benefit struct {
 	UpdatedAt         time.Time   `json:"updated_at"`
 	DeductibleAmount  int64       `json:"deductible_amount"`
 	ParentBenefitID   pgtype.UUID `json:"parent_benefit_id"`
+	IsOptional        bool        `json:"is_optional"`
+	AddonPremium      int64       `json:"addon_premium"`
 }
 
 type BordereauItem struct {
@@ -497,17 +499,18 @@ type Permission struct {
 }
 
 type Plan struct {
-	ID          uuid.UUID   `json:"id"`
-	Name        string      `json:"name"`
-	Type        string      `json:"type"`
-	Segment     string      `json:"segment"`
-	BasePremium int64       `json:"base_premium"`
-	Currency    string      `json:"currency"`
-	Status      string      `json:"status"`
-	Description string      `json:"description"`
-	CreatedBy   pgtype.UUID `json:"created_by"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID               uuid.UUID   `json:"id"`
+	Name             string      `json:"name"`
+	Type             string      `json:"type"`
+	Segment          string      `json:"segment"`
+	BasePremium      int64       `json:"base_premium"`
+	Currency         string      `json:"currency"`
+	Status           string      `json:"status"`
+	Description      string      `json:"description"`
+	CreatedBy        pgtype.UUID `json:"created_by"`
+	CreatedAt        time.Time   `json:"created_at"`
+	UpdatedAt        time.Time   `json:"updated_at"`
+	PremiumFrequency string      `json:"premium_frequency"`
 }
 
 type Policy struct {
@@ -607,6 +610,10 @@ type PremiumRule struct {
 	UpdatedAt       time.Time   `json:"updated_at"`
 	MinAge          int32       `json:"min_age"`
 	MaxAge          int32       `json:"max_age"`
+	RuleType        string      `json:"rule_type"`
+	EffectiveFrom   pgtype.Date `json:"effective_from"`
+	EffectiveTo     pgtype.Date `json:"effective_to"`
+	SortOrder       int32       `json:"sort_order"`
 }
 
 type ProfitCommission struct {

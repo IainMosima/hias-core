@@ -275,7 +275,7 @@ func (s *renewalServiceImpl) CompleteRenewal(ctx context.Context, id uuid.UUID) 
 	// Get premium rules for age validation
 	var premiumRules []*productEntity.PremiumRule
 	if s.premiumRuleRepo != nil {
-		if rules, rErr := s.premiumRuleRepo.ListByPlan(ctx, planID); rErr == nil {
+		if rules, rErr := s.premiumRuleRepo.ListEffectiveByPlan(ctx, planID, time.Now()); rErr == nil {
 			premiumRules = rules
 		}
 	}

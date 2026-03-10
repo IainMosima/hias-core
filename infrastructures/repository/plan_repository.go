@@ -20,14 +20,15 @@ func NewPlanRepository(store db.Store) domainRepo.PlanRepository {
 
 func (r *planRepository) Create(ctx context.Context, plan *entity.Plan) (*entity.Plan, error) {
 	dbPlan, err := r.store.CreatePlan(ctx, db.CreatePlanParams{
-		Name:        plan.Name,
-		Type:        plan.Type,
-		Segment:     plan.Segment,
-		BasePremium: plan.BasePremium,
-		Currency:    plan.Currency,
-		Status:      plan.Status,
-		Description: plan.Description,
-		CreatedBy:   uuidToPgtype(plan.CreatedBy),
+		Name:             plan.Name,
+		Type:             plan.Type,
+		Segment:          plan.Segment,
+		BasePremium:      plan.BasePremium,
+		PremiumFrequency: plan.PremiumFrequency,
+		Currency:         plan.Currency,
+		Status:           plan.Status,
+		Description:      plan.Description,
+		CreatedBy:        uuidToPgtype(plan.CreatedBy),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create plan: %w", err)
@@ -98,15 +99,24 @@ func (r *planRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
+func (r *planRepository) CountByStatus(ctx context.Context, status string) (int64, error) {
+	count, err := r.store.CountPlansByStatus(ctx, status)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count plans by status: %w", err)
+	}
+	return count, nil
+}
+
 func (r *planRepository) Update(ctx context.Context, plan *entity.Plan) (*entity.Plan, error) {
 	dbPlan, err := r.store.UpdatePlan(ctx, db.UpdatePlanParams{
-		ID:          plan.ID,
-		Name:        stringToPgtypeText(plan.Name),
-		Type:        stringToPgtypeText(plan.Type),
-		Segment:     stringToPgtypeText(plan.Segment),
-		BasePremium: int64ToPgtypeInt8(plan.BasePremium),
-		Description: stringToPgtypeText(plan.Description),
-		Status:      stringToPgtypeText(plan.Status),
+		ID:               plan.ID,
+		Name:             stringToPgtypeText(plan.Name),
+		Type:             stringToPgtypeText(plan.Type),
+		Segment:          stringToPgtypeText(plan.Segment),
+		BasePremium:      int64ToPgtypeInt8(plan.BasePremium),
+		PremiumFrequency: stringToPgtypeText(plan.PremiumFrequency),
+		Description:      stringToPgtypeText(plan.Description),
+		Status:           stringToPgtypeText(plan.Status),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update plan: %w", err)
@@ -114,18 +124,27 @@ func (r *planRepository) Update(ctx context.Context, plan *entity.Plan) (*entity
 	return sqlcPlanToDomain(dbPlan), nil
 }
 
+func (r *planRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	_, err := r.store.SoftDeletePlan(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to soft delete plan: %w", err)
+	}
+	return nil
+}
+
 func sqlcPlanToDomain(p db.Plan) *entity.Plan {
 	return &entity.Plan{
-		ID:          p.ID,
-		Name:        p.Name,
-		Type:        p.Type,
-		Segment:     p.Segment,
-		BasePremium: p.BasePremium,
-		Currency:    p.Currency,
-		Status:      p.Status,
-		Description: p.Description,
-		CreatedBy:   pgtypeToUUID(p.CreatedBy),
-		CreatedAt:   p.CreatedAt,
-		UpdatedAt:   p.UpdatedAt,
+		ID:               p.ID,
+		Name:             p.Name,
+		Type:             p.Type,
+		Segment:          p.Segment,
+		BasePremium:      p.BasePremium,
+		PremiumFrequency: p.PremiumFrequency,
+		Currency:         p.Currency,
+		Status:           p.Status,
+		Description:      p.Description,
+		CreatedBy:        pgtypeToUUID(p.CreatedBy),
+		CreatedAt:        p.CreatedAt,
+		UpdatedAt:        p.UpdatedAt,
 	}
 }

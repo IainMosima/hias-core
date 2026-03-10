@@ -8,16 +8,17 @@ import (
 )
 
 type PlanResponse struct {
-	ID          uuid.UUID `json:"id"`
-	Name        string    `json:"name"`
-	Type        string    `json:"type"`
-	Segment     string    `json:"segment"`
-	BasePremium int64     `json:"base_premium"`
-	Currency    string    `json:"currency"`
-	Status      string    `json:"status"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID               uuid.UUID `json:"id"`
+	Name             string    `json:"name"`
+	Type             string    `json:"type"`
+	Segment          string    `json:"segment"`
+	BasePremium      int64     `json:"base_premium"`
+	PremiumFrequency string    `json:"premium_frequency"`
+	Currency         string    `json:"currency"`
+	Status           string    `json:"status"`
+	Description      string    `json:"description"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type BenefitResponse struct {
@@ -36,6 +37,8 @@ type BenefitResponse struct {
 	MaxAge            int        `json:"max_age"`
 	WaitingPeriodType string     `json:"waiting_period_type"`
 	DeductibleAmount  int64      `json:"deductible_amount"`
+	IsOptional        bool       `json:"is_optional"`
+	AddonPremium      int64      `json:"addon_premium"`
 	CreatedAt         time.Time  `json:"created_at"`
 }
 
@@ -51,7 +54,8 @@ type ExclusionResponse struct {
 func ToPlanResponse(p *entity.Plan) PlanResponse {
 	return PlanResponse{
 		ID: p.ID, Name: p.Name, Type: p.Type, Segment: p.Segment,
-		BasePremium: p.BasePremium, Currency: p.Currency, Status: p.Status,
+		BasePremium: p.BasePremium, PremiumFrequency: p.PremiumFrequency,
+		Currency: p.Currency, Status: p.Status,
 		Description: p.Description, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }
@@ -62,7 +66,8 @@ func ToBenefitResponse(b *entity.Benefit) BenefitResponse {
 		AnnualLimit: b.AnnualLimit, CoPayType: b.CoPayType, CoPayValue: b.CoPayValue,
 		WaitingPeriodDays: b.WaitingPeriodDays, SubLimitType: b.SubLimitType,
 		SubLimitValue: b.SubLimitValue, MinAge: b.MinAge, MaxAge: b.MaxAge,
-		WaitingPeriodType: b.WaitingPeriodType, DeductibleAmount: b.DeductibleAmount, CreatedAt: b.CreatedAt,
+		WaitingPeriodType: b.WaitingPeriodType, DeductibleAmount: b.DeductibleAmount,
+		IsOptional: b.IsOptional, AddonPremium: b.AddonPremium, CreatedAt: b.CreatedAt,
 	}
 }
 

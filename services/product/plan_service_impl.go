@@ -40,15 +40,21 @@ func (s *planServiceImpl) CreatePlan(ctx context.Context, req productSchema.Crea
 		segment = string(shared.PlanSegmentRetail)
 	}
 
+	premiumFrequency := req.PremiumFrequency
+	if premiumFrequency == "" {
+		premiumFrequency = "annual"
+	}
+
 	plan := &entity.Plan{
-		Name:        req.Name,
-		Type:        req.Type,
-		Segment:     segment,
-		BasePremium: req.BasePremium,
-		Currency:    currency,
-		Status:      string(shared.PlanStatusActive),
-		Description: req.Description,
-		CreatedBy:   createdBy,
+		Name:             req.Name,
+		Type:             req.Type,
+		Segment:          segment,
+		BasePremium:      req.BasePremium,
+		PremiumFrequency: premiumFrequency,
+		Currency:         currency,
+		Status:           string(shared.PlanStatusActive),
+		Description:      req.Description,
+		CreatedBy:        createdBy,
 	}
 
 	created, err := s.planRepo.Create(ctx, plan)
@@ -82,6 +88,29 @@ func (s *planServiceImpl) ListPlans(ctx context.Context, page, pageSize int) *sc
 	}
 
 	return schema.NewServiceResponse(responses, http.StatusOK, "Plans retrieved")
+}
+
+func (s *planServiceImpl) ListPlansByStatus(ctx context.Context, status string, page, pageSize int) *schema.ServiceResponse[[]productSchema.PlanResponse] {
+	offset := (page - 1) * pageSize
+	plans, err := s.planRepo.ListByStatus(ctx, status, pageSize, offset)
+	if err != nil {
+		return schema.NewServiceErrorResponse[[]productSchema.PlanResponse](http.StatusInternalServerError, "Failed to list plans by status", err)
+	}
+
+	responses := make([]productSchema.PlanResponse, len(plans))
+	for i, p := range plans {
+		responses[i] = productSchema.ToPlanResponse(p)
+	}
+
+	return schema.NewServiceResponse(responses, http.StatusOK, "Plans retrieved")
+}
+
+func (s *planServiceImpl) GetTotalCountByStatus(ctx context.Context, status string) *schema.ServiceResponse[int64] {
+	count, err := s.planRepo.CountByStatus(ctx, status)
+	if err != nil {
+		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to get count by status", err)
+	}
+	return schema.NewServiceResponse(count, http.StatusOK, "Count retrieved")
 }
 
 func (s *planServiceImpl) ListPlansBySegment(ctx context.Context, segment string, page, pageSize int) *schema.ServiceResponse[[]productSchema.PlanResponse] {
@@ -123,6 +152,9 @@ func (s *planServiceImpl) UpdatePlan(ctx context.Context, id uuid.UUID, req prod
 	if req.Status != nil {
 		plan.Status = *req.Status
 	}
+	if req.PremiumFrequency != nil {
+		plan.PremiumFrequency = *req.PremiumFrequency
+	}
 
 	updated, err := s.planRepo.Update(ctx, plan)
 	if err != nil {
@@ -138,6 +170,15 @@ func (s *planServiceImpl) GetTotalCount(ctx context.Context) *schema.ServiceResp
 		return schema.NewServiceErrorResponse[int64](http.StatusInternalServerError, "Failed to get count", err)
 	}
 	return schema.NewServiceResponse(count, http.StatusOK, "Count retrieved")
+}
+
+func (s *planServiceImpl) DeletePlan(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[string] {
+	err := s.planRepo.Delete(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[string](http.StatusInternalServerError, "Failed to delete plan", err)
+	}
+
+	return schema.NewServiceResponse("Plan deleted", http.StatusOK, "Plan deleted")
 }
 
 func (s *planServiceImpl) logAudit(ctx context.Context, userID uuid.UUID, entityType string, entityID uuid.UUID, action string) {

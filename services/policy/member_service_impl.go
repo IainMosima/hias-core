@@ -418,7 +418,7 @@ func (s *memberServiceImpl) validateMemberAge(ctx context.Context, planID uuid.U
 		return nil
 	}
 
-	rules, err := s.premiumRuleRepo.ListByPlan(ctx, planID)
+	rules, err := s.premiumRuleRepo.ListEffectiveByPlan(ctx, planID, time.Now())
 	if err != nil || len(rules) == 0 {
 		return nil
 	}

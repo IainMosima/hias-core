@@ -147,6 +147,11 @@ func int64PtrToPgtypeInt8(v *int64) pgtype.Int8 {
 	return pgtype.Int8{Int64: *v, Valid: true}
 }
 
+// boolToPgtypeBool converts a bool to pgtype.Bool.
+func boolToPgtypeBool(v bool) pgtype.Bool {
+	return pgtype.Bool{Bool: v, Valid: true}
+}
+
 // float64ToPgNumeric converts a float64 to pgtype.Numeric.
 func float64ToPgNumeric(f float64) pgtype.Numeric {
 	var n pgtype.Numeric

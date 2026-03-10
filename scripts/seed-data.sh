@@ -85,7 +85,8 @@ INSERT INTO benefits (id, plan_id, name, category, annual_limit, co_pay_type, co
   ('30000000-0000-0000-0001-000000000002', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Inpatient Care',  'inpatient',  50000000, 'percentage', 1000, 30, 0),
   ('30000000-0000-0000-0001-000000000003', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Dental Care',     'dental',      5000000, 'fixed',       50000, 90, 0),
   ('30000000-0000-0000-0001-000000000004', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Optical Care',    'optical',     3000000, 'fixed',       30000, 90, 0),
-  ('30000000-0000-0000-0001-000000000005', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Maternity',       'maternity',  30000000, 'percentage',    500, 270, 0)
+  ('30000000-0000-0000-0001-000000000005', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Maternity',       'maternity',  30000000, 'percentage',    500, 270, 0),
+  ('30000000-0000-0000-0001-000000000006', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Pharmacy',        'pharmacy',   2000000,  'fixed',         20000, 0, 0)
 ON CONFLICT DO NOTHING;
 
 -- Benefits: Afya Family
@@ -94,7 +95,8 @@ INSERT INTO benefits (id, plan_id, name, category, annual_limit, co_pay_type, co
   ('30000000-0000-0000-0002-000000000002', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'Inpatient Care',  'inpatient',  80000000, 'percentage',  500, 14, 0),
   ('30000000-0000-0000-0002-000000000003', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'Dental Care',     'dental',     10000000, 'fixed',       30000, 60, 0),
   ('30000000-0000-0000-0002-000000000004', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'Optical Care',    'optical',     5000000, 'fixed',       20000, 60, 0),
-  ('30000000-0000-0000-0002-000000000005', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'Maternity',       'maternity',  50000000, 'percentage',    500, 270, 0)
+  ('30000000-0000-0000-0002-000000000005', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'Maternity',       'maternity',  50000000, 'percentage',    500, 270, 0),
+  ('30000000-0000-0000-0002-000000000006', 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'Pharmacy',        'pharmacy',   4000000,  'fixed',         15000, 0, 0)
 ON CONFLICT DO NOTHING;
 
 -- Benefits: Corporate Gold
@@ -103,7 +105,12 @@ INSERT INTO benefits (id, plan_id, name, category, annual_limit, co_pay_type, co
   ('30000000-0000-0000-0003-000000000002', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Inpatient Care',  'inpatient',  200000000, 'percentage',  500, 0,  0),
   ('30000000-0000-0000-0003-000000000003', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Dental Care',     'dental',      20000000, 'fixed',       10000, 30, 0),
   ('30000000-0000-0000-0003-000000000004', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Optical Care',    'optical',     10000000, 'fixed',       10000, 30, 0),
-  ('30000000-0000-0000-0003-000000000005', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Maternity',       'maternity',  100000000, 'percentage',    0, 180, 0)
+  ('30000000-0000-0000-0003-000000000005', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Maternity',       'maternity',  100000000, 'percentage',    0, 180, 0),
+  ('30000000-0000-0000-0003-000000000006', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Pharmacy',        'pharmacy',   10000000, 'fixed',         5000, 0, 0),
+  ('30000000-0000-0000-0003-000000000007', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Specialist Care', 'specialist',  30000000, 'percentage',  500, 30, 0),
+  ('30000000-0000-0000-0003-000000000008', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Emergency',       'emergency',  50000000, 'percentage',  200, 0, 0),
+  ('30000000-0000-0000-0003-000000000009', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Chronic Care',    'chronic',   40000000, 'percentage',  300, 90, 0),
+  ('30000000-0000-0000-0003-000000000010', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'Wellness',        'wellness',    5000000, 'fixed',       10000, 0, 0)
 ON CONFLICT DO NOTHING;
 
 -- Exclusions for all plans
@@ -161,14 +168,27 @@ ON CONFLICT DO NOTHING;
 -- Provider Networks (link plans to providers)
 INSERT INTO provider_networks (plan_id, provider_id, benefit_category, status) VALUES
   ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '40000000-0000-0000-0000-000000000001', 'inpatient',  'ACTIVE'),
+  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '40000000-0000-0000-0000-000000000001', 'emergency', 'ACTIVE'),
   ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '40000000-0000-0000-0000-000000000002', 'outpatient', 'ACTIVE'),
+  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '40000000-0000-0000-0000-000000000002', 'specialist', 'ACTIVE'),
+  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '40000000-0000-0000-0000-000000000002', 'chronic', 'ACTIVE'),
+  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '40000000-0000-0000-0000-000000000002', 'wellness', 'ACTIVE'),
   ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '40000000-0000-0000-0000-000000000003', 'outpatient', 'ACTIVE'),
+  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '40000000-0000-0000-0000-000000000003', 'pharmacy', 'ACTIVE'),
   ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', '40000000-0000-0000-0000-000000000001', 'inpatient',  'ACTIVE'),
+  ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', '40000000-0000-0000-0000-000000000001', 'emergency', 'ACTIVE'),
   ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', '40000000-0000-0000-0000-000000000002', 'outpatient', 'ACTIVE'),
+  ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', '40000000-0000-0000-0000-000000000002', 'specialist', 'ACTIVE'),
   ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', '40000000-0000-0000-0000-000000000003', 'outpatient', 'ACTIVE'),
+  ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', '40000000-0000-0000-0000-000000000003', 'pharmacy', 'ACTIVE'),
   ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000001', 'inpatient',  'ACTIVE'),
+  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000001', 'emergency', 'ACTIVE'),
   ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000002', 'outpatient', 'ACTIVE'),
-  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000003', 'outpatient', 'ACTIVE')
+  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000002', 'specialist', 'ACTIVE'),
+  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000002', 'chronic', 'ACTIVE'),
+  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000002', 'wellness', 'ACTIVE'),
+  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000003', 'outpatient', 'ACTIVE'),
+  ('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', '40000000-0000-0000-0000-000000000003', 'pharmacy', 'ACTIVE')
 ON CONFLICT (plan_id, provider_id, benefit_category) DO NOTHING;
 
 -- ============================================================
@@ -296,7 +316,8 @@ INSERT INTO quotations (id, quotation_number, lead_id, plan_id, quotation_type, 
 ON CONFLICT (quotation_number) DO NOTHING;
 
 INSERT INTO quotation_versions (quotation_id, version_number, base_premium, discount_type, discount_value, discount_reason, loading_type, loading_value, final_premium, member_count, billing_frequency, pricing_breakdown, created_by) VALUES
-  ('81000000-0000-0000-0000-000000000001', 1, 22500000, 'percentage', 500, 'Volume discount for 15+ members', 'percentage', 0, 21375000, 15, 'monthly', '{"per_member": 1500000, "discount_pct": 5, "monthly_total": 21375000}', '20000000-0000-0000-0000-000000000003');
+  ('81000000-0000-0000-0000-000000000001', 1, 22500000, 'percentage', 500, 'Volume discount for 15+ members', 'percentage', 0, 21375000, 15, 'monthly', '{"per_member": 1500000, "discount_pct": 5, "monthly_total": 21375000}', '20000000-0000-0000-0000-000000000003')
+ON CONFLICT (quotation_id, version_number) DO NOTHING;
 
 -- Quotation 2: SENT (for Lead 2)
 INSERT INTO quotations (id, quotation_number, lead_id, plan_id, quotation_type, status, current_version, valid_from, valid_until, client_name, client_email, client_phone, created_by) VALUES
@@ -304,7 +325,8 @@ INSERT INTO quotations (id, quotation_number, lead_id, plan_id, quotation_type, 
 ON CONFLICT (quotation_number) DO NOTHING;
 
 INSERT INTO quotation_versions (quotation_id, version_number, base_premium, discount_type, discount_value, loading_type, loading_value, final_premium, member_count, billing_frequency, pricing_breakdown, created_by) VALUES
-  ('81000000-0000-0000-0000-000000000002', 1, 250000, 'percentage', 0, 'percentage', 0, 250000, 1, 'monthly', '{"per_member": 250000, "monthly_total": 250000}', '20000000-0000-0000-0000-000000000003');
+  ('81000000-0000-0000-0000-000000000002', 1, 250000, 'percentage', 0, 'percentage', 0, 250000, 1, 'monthly', '{"per_member": 250000, "monthly_total": 250000}', '20000000-0000-0000-0000-000000000003')
+ON CONFLICT (quotation_id, version_number) DO NOTHING;
 
 -- ============================================================
 -- LAYER 8: BILLING (Invoices + Payments)
@@ -371,6 +393,20 @@ INSERT INTO claim_status_history (claim_id, from_status, to_status, action, note
   ('70000000-0000-0000-0000-000000000004', 'RECEIVED',      'REJECTED',      'reject',          'Excluded benefit: cosmetic procedures',                 '20000000-0000-0000-0000-000000000002'),
   ('70000000-0000-0000-0000-000000000005', 'RECEIVED',      'MANUAL_REVIEW', 'escalate',        'Amount exceeds auto-approval threshold',                '20000000-0000-0000-0000-000000000002'),
   ('70000000-0000-0000-0000-000000000006', '',              'RECEIVED',      'submit',          'Claim submitted by provider',                           '20000000-0000-0000-0000-000000000002');
+
+-- ============================================================
+-- LAYER 12: PREMIUM MODEL ENHANCEMENTS
+-- ============================================================
+
+-- Set premium frequency on plans
+UPDATE plans SET premium_frequency = 'annual';
+
+-- Classify existing premium rules
+UPDATE premium_rules SET rule_type = 'age_band', sort_order = 10 WHERE min_age > 0 OR max_age < 150;
+UPDATE premium_rules SET rule_type = 'base_rate', sort_order = 0 WHERE rule_type = 'base_rate' AND min_age = 0;
+
+-- Mark maternity as optional add-on
+UPDATE benefits SET is_optional = true, addon_premium = 1500000 WHERE category = 'maternity';
 
 SELECT 'Seed data inserted successfully' as result;
 

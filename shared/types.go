@@ -278,6 +278,11 @@ const (
 	BenefitCategoryDental     BenefitCategory = "dental"
 	BenefitCategoryOptical    BenefitCategory = "optical"
 	BenefitCategoryMaternity  BenefitCategory = "maternity"
+	BenefitCategoryPharmacy   BenefitCategory = "pharmacy"
+	BenefitCategorySpecialist BenefitCategory = "specialist"
+	BenefitCategoryEmergency  BenefitCategory = "emergency"
+	BenefitCategoryChronic    BenefitCategory = "chronic"
+	BenefitCategoryWellness   BenefitCategory = "wellness"
 )
 
 // CoPayType represents co-pay calculation types
@@ -514,6 +519,19 @@ const (
 	ExclusionTypePreExisting  ExclusionType = "pre_existing"
 	ExclusionTypeCosmetic     ExclusionType = "cosmetic"
 	ExclusionTypeExperimental ExclusionType = "experimental"
+)
+
+// PremiumRuleType represents the classification of a premium rule
+type PremiumRuleType string
+
+const (
+	PremiumRuleTypeBaseRate       PremiumRuleType = "base_rate"
+	PremiumRuleTypeAgeBand        PremiumRuleType = "age_band"
+	PremiumRuleTypeFamilySize     PremiumRuleType = "family_size"
+	PremiumRuleTypeMaternityAddon PremiumRuleType = "maternity_addon"
+	PremiumRuleTypeLoading        PremiumRuleType = "loading"
+	PremiumRuleTypeDiscount       PremiumRuleType = "discount"
+	PremiumRuleTypeCorporateRate  PremiumRuleType = "corporate_rate"
 )
 
 // PremiumCalculationType represents how premiums are calculated
