@@ -37,6 +37,7 @@ Thumbs.db
 
 # Environment variables file
 app.env
+configs/app.env
 
 # Binary output directory
 bin/
