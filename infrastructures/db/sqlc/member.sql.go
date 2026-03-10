@@ -12,6 +12,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const activatePendingMembersByPolicy = `-- name: ActivatePendingMembersByPolicy :exec
+UPDATE members SET status = 'ACTIVE', updated_at = NOW()
+WHERE policy_id = $1 AND status = 'PENDING'
+`
+
+func (q *Queries) ActivatePendingMembersByPolicy(ctx context.Context, policyID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, activatePendingMembersByPolicy, policyID)
+	return err
+}
+
 const countActiveMembersByPolicy = `-- name: CountActiveMembersByPolicy :one
 SELECT COUNT(*) FROM members WHERE policy_id = $1 AND status = 'ACTIVE'
 `
@@ -305,6 +315,49 @@ type ListMembersFilteredParams struct {
 
 func (q *Queries) ListMembersFiltered(ctx context.Context, arg ListMembersFilteredParams) ([]Member, error) {
 	rows, err := q.db.Query(ctx, listMembersFiltered, arg.Column1, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Member{}
+	for rows.Next() {
+		var i Member
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.NationalID,
+			&i.Name,
+			&i.DateOfBirth,
+			&i.Gender,
+			&i.Relationship,
+			&i.MemberNumber,
+			&i.Phone,
+			&i.Email,
+			&i.KraPin,
+			&i.County,
+			&i.Address,
+			&i.Verified,
+			&i.VerifiedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingMembersByPolicy = `-- name: ListPendingMembersByPolicy :many
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE policy_id = $1 AND status = 'PENDING'
+`
+
+func (q *Queries) ListPendingMembersByPolicy(ctx context.Context, policyID uuid.UUID) ([]Member, error) {
+	rows, err := q.db.Query(ctx, listPendingMembersByPolicy, policyID)
 	if err != nil {
 		return nil, err
 	}

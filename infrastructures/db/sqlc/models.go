@@ -529,6 +529,7 @@ type Policy struct {
 	CreatedAt         time.Time          `json:"created_at"`
 	UpdatedAt         time.Time          `json:"updated_at"`
 	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
 }
 
 type PolicyDocument struct {

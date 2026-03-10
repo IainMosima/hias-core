@@ -18,6 +18,7 @@ type Policy struct {
 	PremiumAmount     int64      `json:"premium_amount"`
 	Currency          string     `json:"currency"`
 	RenewedFromID     *uuid.UUID `json:"renewed_from_id,omitempty"`
+	ActivatedAt       *time.Time `json:"activated_at,omitempty"`
 	CreatedBy         uuid.UUID  `json:"created_by"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`

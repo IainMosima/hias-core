@@ -19,6 +19,7 @@ type PolicyRepository interface {
 	CountByStatus(ctx context.Context, status string) (int64, error)
 	GetActivePoliciesForBilling(ctx context.Context) ([]*entity.Policy, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*entity.Policy, error)
+	ActivateWithTimestamp(ctx context.Context, id uuid.UUID) (*entity.Policy, error)
 	Update(ctx context.Context, policy *entity.Policy) (*entity.Policy, error)
 	UpdatePlanAndPremium(ctx context.Context, id uuid.UUID, planID uuid.UUID, premiumAmount int64) (*entity.Policy, error)
 	GetLapsedForTermination(ctx context.Context) ([]*entity.Policy, error)

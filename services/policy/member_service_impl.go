@@ -104,6 +104,12 @@ func (s *memberServiceImpl) EnrollMember(ctx context.Context, policyID uuid.UUID
 	// Underwriting: evaluate plan-specific underwriting rules
 	s.evaluateUnderwritingRules(ctx, policyID, pol.PlanID, req, dob)
 
+	// Members start as PENDING unless the policy is already ACTIVE
+	memberStatus := string(shared.MemberStatusPending)
+	if pol.Status == string(shared.PolicyStatusActive) {
+		memberStatus = string(shared.MemberStatusActive)
+	}
+
 	member := &entity.Member{
 		PolicyID:     policyID,
 		NationalID:   req.NationalID,
@@ -117,7 +123,7 @@ func (s *memberServiceImpl) EnrollMember(ctx context.Context, policyID uuid.UUID
 		KRAPin:       req.KRAPin,
 		County:       req.County,
 		Address:      req.Address,
-		Status:       string(shared.MemberStatusActive),
+		Status:       memberStatus,
 		Verified:     false,
 	}
 

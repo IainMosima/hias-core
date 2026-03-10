@@ -144,9 +144,14 @@ func (s *policyServiceImpl) ActivatePolicy(ctx context.Context, id uuid.UUID) *s
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, fmt.Sprintf("Cannot activate policy in %s status", policy.Status), nil)
 	}
 
-	updated, err := s.policyRepo.UpdateStatus(ctx, id, string(shared.PolicyStatusActive))
+	updated, err := s.policyRepo.ActivateWithTimestamp(ctx, id)
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusInternalServerError, "Failed to activate policy", err)
+	}
+
+	// Activate all pending members linked to this policy
+	if err := s.memberRepo.ActivatePendingByPolicy(ctx, id); err != nil {
+		log.Printf("Failed to activate pending members for policy %s: %v", id, err)
 	}
 
 	// Auto-generate welcome letter and member cards (non-blocking)

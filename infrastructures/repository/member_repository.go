@@ -138,6 +138,14 @@ func (r *memberRepository) UpdateStatus(ctx context.Context, id uuid.UUID, statu
 	return sqlcMemberToDomain(dbMember), nil
 }
 
+func (r *memberRepository) ActivatePendingByPolicy(ctx context.Context, policyID uuid.UUID) error {
+	err := r.store.ActivatePendingMembersByPolicy(ctx, policyID)
+	if err != nil {
+		return fmt.Errorf("failed to activate pending members: %w", err)
+	}
+	return nil
+}
+
 func (r *memberRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	err := r.store.DeleteMember(ctx, id)
 	if err != nil {

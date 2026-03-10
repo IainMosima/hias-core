@@ -13,6 +13,8 @@ import (
 
 type Querier interface {
 	AcknowledgeTreatyAlert(ctx context.Context, arg AcknowledgeTreatyAlertParams) (TreatyAlert, error)
+	ActivatePendingMembersByPolicy(ctx context.Context, policyID uuid.UUID) error
+	ActivatePolicyWithTimestamp(ctx context.Context, id uuid.UUID) (Policy, error)
 	AdmitCaseRecord(ctx context.Context, arg AdmitCaseRecordParams) (CaseRecord, error)
 	ApplyCreditNote(ctx context.Context, arg ApplyCreditNoteParams) (CreditNote, error)
 	ApproveCreditNote(ctx context.Context, arg ApproveCreditNoteParams) (CreditNote, error)
@@ -364,6 +366,7 @@ type Querier interface {
 	ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error)
 	ListPaymentsByInvoice(ctx context.Context, invoiceID pgtype.UUID) ([]Payment, error)
 	ListPaymentsByStatus(ctx context.Context, arg ListPaymentsByStatusParams) ([]Payment, error)
+	ListPendingMembersByPolicy(ctx context.Context, policyID uuid.UUID) ([]Member, error)
 	ListPendingRenewals(ctx context.Context) ([]PolicyRenewal, error)
 	ListPermissions(ctx context.Context) ([]Permission, error)
 	ListPermissionsByRole(ctx context.Context, roleID uuid.UUID) ([]Permission, error)

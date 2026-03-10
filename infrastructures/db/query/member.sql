@@ -52,3 +52,10 @@ LIMIT $2 OFFSET $3;
 -- name: CountMembersFiltered :one
 SELECT COUNT(*) FROM members
 WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR national_id ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'));
+
+-- name: ActivatePendingMembersByPolicy :exec
+UPDATE members SET status = 'ACTIVE', updated_at = NOW()
+WHERE policy_id = $1 AND status = 'PENDING';
+
+-- name: ListPendingMembersByPolicy :many
+SELECT * FROM members WHERE policy_id = $1 AND status = 'PENDING';

@@ -15,6 +15,7 @@ const (
 type MemberStatus string
 
 const (
+	MemberStatusPending   MemberStatus = "PENDING"
 	MemberStatusActive    MemberStatus = "ACTIVE"
 	MemberStatusSuspended MemberStatus = "SUSPENDED"
 	MemberStatusRemoved   MemberStatus = "REMOVED"

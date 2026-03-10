@@ -18,6 +18,7 @@ type MemberRepository interface {
 	Verify(ctx context.Context, id uuid.UUID) (*entity.Member, error)
 	Update(ctx context.Context, member *entity.Member) (*entity.Member, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*entity.Member, error)
+	ActivatePendingByPolicy(ctx context.Context, policyID uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListFiltered(ctx context.Context, search string, limit, offset int) ([]*entity.Member, error)
 	CountFiltered(ctx context.Context, search string) (int64, error)

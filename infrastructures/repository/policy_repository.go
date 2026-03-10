@@ -125,6 +125,14 @@ func (r *policyRepository) UpdateStatus(ctx context.Context, id uuid.UUID, statu
 	return sqlcPolicyToDomain(dbPolicy), nil
 }
 
+func (r *policyRepository) ActivateWithTimestamp(ctx context.Context, id uuid.UUID) (*entity.Policy, error) {
+	dbPolicy, err := r.store.ActivatePolicyWithTimestamp(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to activate policy with timestamp: %w", err)
+	}
+	return sqlcPolicyToDomain(dbPolicy), nil
+}
+
 func (r *policyRepository) Update(ctx context.Context, policy *entity.Policy) (*entity.Policy, error) {
 	dbPolicy, err := r.store.UpdatePolicy(ctx, db.UpdatePolicyParams{
 		ID:                policy.ID,
@@ -208,6 +216,7 @@ func sqlcPolicyToDomain(p db.Policy) *entity.Policy {
 		PremiumAmount:     p.PremiumAmount,
 		Currency:          p.Currency,
 		RenewedFromID:     renewedFromID,
+		ActivatedAt:       pgtypeTimestamptzToTimePtr(p.ActivatedAt),
 		CreatedBy:         pgtypeToUUID(p.CreatedBy),
 		CreatedAt:         p.CreatedAt,
 		UpdatedAt:         p.UpdatedAt,

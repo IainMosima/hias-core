@@ -78,3 +78,7 @@ SELECT COUNT(*) FROM policies
 WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
   AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'))
   AND (sqlc.arg('search')::text = '' OR (policy_number ILIKE '%' || sqlc.arg('search') || '%' OR policyholder_name ILIKE '%' || sqlc.arg('search') || '%' OR policyholder_email ILIKE '%' || sqlc.arg('search') || '%'));
+
+-- name: ActivatePolicyWithTimestamp :one
+UPDATE policies SET status = 'ACTIVE', activated_at = NOW(), updated_at = NOW()
+WHERE id = $1 RETURNING *;

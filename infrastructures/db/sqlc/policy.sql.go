@@ -13,6 +13,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const activatePolicyWithTimestamp = `-- name: ActivatePolicyWithTimestamp :one
+UPDATE policies SET status = 'ACTIVE', activated_at = NOW(), updated_at = NOW()
+WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
+`
+
+func (q *Queries) ActivatePolicyWithTimestamp(ctx context.Context, id uuid.UUID) (Policy, error) {
+	row := q.db.QueryRow(ctx, activatePolicyWithTimestamp, id)
+	var i Policy
+	err := row.Scan(
+		&i.ID,
+		&i.PlanID,
+		&i.PolicyholderName,
+		&i.PolicyholderEmail,
+		&i.PolicyholderPhone,
+		&i.PolicyNumber,
+		&i.Status,
+		&i.StartDate,
+		&i.EndDate,
+		&i.PremiumAmount,
+		&i.Currency,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RenewedFromID,
+		&i.ActivatedAt,
+	)
+	return i, err
+}
+
 const countPolicies = `-- name: CountPolicies :one
 SELECT COUNT(*) FROM policies
 `
@@ -57,7 +86,7 @@ func (q *Queries) CountPoliciesFiltered(ctx context.Context, arg CountPoliciesFi
 
 const createPolicy = `-- name: CreatePolicy :one
 INSERT INTO policies (plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
 `
 
 type CreatePolicyParams struct {
@@ -105,12 +134,13 @@ func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Pol
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RenewedFromID,
+		&i.ActivatedAt,
 	)
 	return i, err
 }
 
 const getActivePoliciesForBilling = `-- name: GetActivePoliciesForBilling :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies WHERE status = 'ACTIVE' AND end_date > NOW()
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE status = 'ACTIVE' AND end_date > NOW()
 `
 
 func (q *Queries) GetActivePoliciesForBilling(ctx context.Context) ([]Policy, error) {
@@ -138,6 +168,7 @@ func (q *Queries) GetActivePoliciesForBilling(ctx context.Context) ([]Policy, er
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RenewedFromID,
+			&i.ActivatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -166,7 +197,7 @@ func (q *Queries) GetActivePolicyCount(ctx context.Context, arg GetActivePolicyC
 }
 
 const getLapsedPoliciesForTermination = `-- name: GetLapsedPoliciesForTermination :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies WHERE status = 'LAPSED' AND updated_at < NOW() - INTERVAL '90 days'
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE status = 'LAPSED' AND updated_at < NOW() - INTERVAL '90 days'
 `
 
 func (q *Queries) GetLapsedPoliciesForTermination(ctx context.Context) ([]Policy, error) {
@@ -194,6 +225,7 @@ func (q *Queries) GetLapsedPoliciesForTermination(ctx context.Context) ([]Policy
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RenewedFromID,
+			&i.ActivatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -222,7 +254,7 @@ func (q *Queries) GetLapsedPolicyCount(ctx context.Context, arg GetLapsedPolicyC
 }
 
 const getOverduePoliciesForLapse = `-- name: GetOverduePoliciesForLapse :many
-SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id FROM policies p
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at FROM policies p
 JOIN invoices i ON i.policy_id = p.id
 WHERE p.status = 'ACTIVE' AND i.status = 'OVERDUE' AND i.due_date < NOW() - INTERVAL '30 days'
 `
@@ -252,6 +284,7 @@ func (q *Queries) GetOverduePoliciesForLapse(ctx context.Context) ([]Policy, err
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RenewedFromID,
+			&i.ActivatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -264,7 +297,7 @@ func (q *Queries) GetOverduePoliciesForLapse(ctx context.Context) ([]Policy, err
 }
 
 const getPolicyByID = `-- name: GetPolicyByID :one
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies WHERE id = $1
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE id = $1
 `
 
 func (q *Queries) GetPolicyByID(ctx context.Context, id uuid.UUID) (Policy, error) {
@@ -286,12 +319,13 @@ func (q *Queries) GetPolicyByID(ctx context.Context, id uuid.UUID) (Policy, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RenewedFromID,
+		&i.ActivatedAt,
 	)
 	return i, err
 }
 
 const getPolicyByNumber = `-- name: GetPolicyByNumber :one
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies WHERE policy_number = $1
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE policy_number = $1
 `
 
 func (q *Queries) GetPolicyByNumber(ctx context.Context, policyNumber string) (Policy, error) {
@@ -313,6 +347,7 @@ func (q *Queries) GetPolicyByNumber(ctx context.Context, policyNumber string) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RenewedFromID,
+		&i.ActivatedAt,
 	)
 	return i, err
 }
@@ -352,7 +387,7 @@ func (q *Queries) GetTotalActiveMemberCount(ctx context.Context, arg GetTotalAct
 }
 
 const listPolicies = `-- name: ListPolicies :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListPoliciesParams struct {
@@ -385,6 +420,7 @@ func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]P
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RenewedFromID,
+			&i.ActivatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -397,7 +433,7 @@ func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]P
 }
 
 const listPoliciesByStatus = `-- name: ListPoliciesByStatus :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListPoliciesByStatusParams struct {
@@ -431,6 +467,7 @@ func (q *Queries) ListPoliciesByStatus(ctx context.Context, arg ListPoliciesBySt
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RenewedFromID,
+			&i.ActivatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -443,7 +480,7 @@ func (q *Queries) ListPoliciesByStatus(ctx context.Context, arg ListPoliciesBySt
 }
 
 const listPoliciesExpiringSoon = `-- name: ListPoliciesExpiringSoon :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies WHERE status = 'ACTIVE' AND end_date BETWEEN NOW() AND NOW() + make_interval(days => $1::int) ORDER BY end_date ASC
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE status = 'ACTIVE' AND end_date BETWEEN NOW() AND NOW() + make_interval(days => $1::int) ORDER BY end_date ASC
 `
 
 func (q *Queries) ListPoliciesExpiringSoon(ctx context.Context, days int32) ([]Policy, error) {
@@ -471,6 +508,7 @@ func (q *Queries) ListPoliciesExpiringSoon(ctx context.Context, days int32) ([]P
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RenewedFromID,
+			&i.ActivatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -483,7 +521,7 @@ func (q *Queries) ListPoliciesExpiringSoon(ctx context.Context, days int32) ([]P
 }
 
 const listPoliciesFiltered = `-- name: ListPoliciesFiltered :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id FROM policies
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies
 WHERE ($1::timestamptz IS NULL OR created_at >= $1)
   AND ($2::timestamptz IS NULL OR created_at <= $2)
   AND ($3::text = '' OR (policy_number ILIKE '%' || $3 || '%' OR policyholder_name ILIKE '%' || $3 || '%' OR policyholder_email ILIKE '%' || $3 || '%'))
@@ -530,6 +568,7 @@ func (q *Queries) ListPoliciesFiltered(ctx context.Context, arg ListPoliciesFilt
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RenewedFromID,
+			&i.ActivatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -550,7 +589,7 @@ UPDATE policies SET
     end_date = COALESCE($5, end_date),
     premium_amount = COALESCE($6, premium_amount),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id
+WHERE id = $7 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
 `
 
 type UpdatePolicyParams struct {
@@ -590,12 +629,13 @@ func (q *Queries) UpdatePolicy(ctx context.Context, arg UpdatePolicyParams) (Pol
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RenewedFromID,
+		&i.ActivatedAt,
 	)
 	return i, err
 }
 
 const updatePolicyPlanAndPremium = `-- name: UpdatePolicyPlanAndPremium :one
-UPDATE policies SET plan_id = $2, premium_amount = $3, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id
+UPDATE policies SET plan_id = $2, premium_amount = $3, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
 `
 
 type UpdatePolicyPlanAndPremiumParams struct {
@@ -623,12 +663,13 @@ func (q *Queries) UpdatePolicyPlanAndPremium(ctx context.Context, arg UpdatePoli
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RenewedFromID,
+		&i.ActivatedAt,
 	)
 	return i, err
 }
 
 const updatePolicyStatus = `-- name: UpdatePolicyStatus :one
-UPDATE policies SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id
+UPDATE policies SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
 `
 
 type UpdatePolicyStatusParams struct {
@@ -655,6 +696,7 @@ func (q *Queries) UpdatePolicyStatus(ctx context.Context, arg UpdatePolicyStatus
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.RenewedFromID,
+		&i.ActivatedAt,
 	)
 	return i, err
 }

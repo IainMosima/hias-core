@@ -408,6 +408,10 @@ UPDATE premium_rules SET rule_type = 'base_rate', sort_order = 0 WHERE rule_type
 -- Mark maternity as optional add-on
 UPDATE benefits SET is_optional = true, addon_premium = 1500000 WHERE category = 'maternity';
 
+-- Set members of non-active policies to PENDING
+UPDATE members SET status = 'PENDING'
+WHERE policy_id IN (SELECT id FROM policies WHERE status = 'DRAFT');
+
 SELECT 'Seed data inserted successfully' as result;
 
 COMMIT;

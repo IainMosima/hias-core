@@ -21,6 +21,7 @@ type PolicyResponse struct {
 	PremiumAmount     int64      `json:"premium_amount"`
 	Currency          string     `json:"currency"`
 	RenewedFromID     *uuid.UUID `json:"renewed_from_id,omitempty"`
+	ActivatedAt       *time.Time `json:"activated_at,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
@@ -128,8 +129,8 @@ func ToPolicyResponse(p *entity.Policy) PolicyResponse {
 		PolicyholderEmail: p.PolicyholderEmail, PolicyholderPhone: p.PolicyholderPhone,
 		PolicyNumber: p.PolicyNumber, Status: p.Status, StartDate: p.StartDate,
 		EndDate: p.EndDate, PremiumAmount: p.PremiumAmount, Currency: p.Currency,
-		RenewedFromID: p.RenewedFromID,
-		CreatedAt:     p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		RenewedFromID: p.RenewedFromID, ActivatedAt: p.ActivatedAt,
+		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }
 
