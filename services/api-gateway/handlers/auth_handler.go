@@ -5,8 +5,6 @@ import (
 
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	"github.com/bitbiz/hias-core/domains/identity/service"
-	"github.com/bitbiz/hias-core/services/api-gateway/middleware"
-	"github.com/bitbiz/hias-core/shared/auth"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/gin-gonic/gin"
 )
@@ -107,9 +105,12 @@ func (h *AuthHandler) RefreshToken(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Router       /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(ctx *gin.Context) {
-	payload := ctx.MustGet(middleware.AuthPayloadKey).(*auth.Payload)
+	userID, ok := requireUserID(ctx)
+	if !ok {
+		return
+	}
 
-	resp := h.authSvc.Logout(ctx.Request.Context(), payload.UserID)
+	resp := h.authSvc.Logout(ctx.Request.Context(), userID.String())
 	if resp.Error != nil {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return
@@ -128,7 +129,10 @@ func (h *AuthHandler) Logout(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Router       /api/v1/profile [get]
 func (h *AuthHandler) GetProfile(ctx *gin.Context) {
-	userID := getUserID(ctx)
+	userID, ok := requireUserID(ctx)
+	if !ok {
+		return
+	}
 
 	resp := h.userSvc.GetUserByID(ctx.Request.Context(), userID)
 	if resp.Error != nil {
@@ -150,7 +154,10 @@ func (h *AuthHandler) GetProfile(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Router       /api/v1/profile [put]
 func (h *AuthHandler) UpdateProfile(ctx *gin.Context) {
-	userID := getUserID(ctx)
+	userID, ok := requireUserID(ctx)
+	if !ok {
+		return
+	}
 
 	var req schema.UpdateProfileRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -183,7 +190,10 @@ func (h *AuthHandler) UpdateProfile(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Router       /api/v1/auth/change-password [put]
 func (h *AuthHandler) ChangePassword(ctx *gin.Context) {
-	userID := getUserID(ctx)
+	userID, ok := requireUserID(ctx)
+	if !ok {
+		return
+	}
 
 	var req schema.ChangePasswordRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {

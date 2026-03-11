@@ -11,6 +11,7 @@ import (
 type PolicyResponse struct {
 	ID                uuid.UUID  `json:"id"`
 	PlanID            uuid.UUID  `json:"plan_id"`
+	PlanName          string     `json:"plan_name"`
 	PolicyholderName  string     `json:"policyholder_name"`
 	PolicyholderEmail string     `json:"policyholder_email"`
 	PolicyholderPhone string     `json:"policyholder_phone"`
@@ -27,23 +28,25 @@ type PolicyResponse struct {
 }
 
 type MemberResponse struct {
-	ID           uuid.UUID  `json:"id"`
-	PolicyID     uuid.UUID  `json:"policy_id"`
-	NationalID   string     `json:"national_id"`
-	Name         string     `json:"name"`
-	DateOfBirth  time.Time  `json:"date_of_birth"`
-	Gender       string     `json:"gender"`
-	Relationship string     `json:"relationship"`
-	MemberNumber string     `json:"member_number"`
-	Phone        string     `json:"phone"`
-	Email        string     `json:"email"`
-	KRAPin       string     `json:"kra_pin"`
-	County       string     `json:"county"`
-	Address      string     `json:"address"`
-	Status       string     `json:"status"`
-	Verified     bool       `json:"verified"`
-	VerifiedAt   *time.Time `json:"verified_at,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
+	ID                uuid.UUID  `json:"id"`
+	PolicyID          uuid.UUID  `json:"policy_id"`
+	NationalID        string     `json:"national_id"`
+	Name              string     `json:"name"`
+	DateOfBirth       time.Time  `json:"date_of_birth"`
+	Gender            string     `json:"gender"`
+	Relationship      string     `json:"relationship"`
+	MemberNumber      string     `json:"member_number"`
+	Phone             string     `json:"phone"`
+	Email             string     `json:"email"`
+	KRAPin            string     `json:"kra_pin"`
+	County            string     `json:"county"`
+	Address           string     `json:"address"`
+	Status            string     `json:"status"`
+	Verified          bool       `json:"verified"`
+	VerifiedAt        *time.Time `json:"verified_at,omitempty"`
+	CoverageStartDate *time.Time `json:"coverage_start_date,omitempty"`
+	CoverageEndDate   *time.Time `json:"coverage_end_date,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 type BulkResultResponse struct {
@@ -125,7 +128,7 @@ type PolicyDocumentResponse struct {
 
 func ToPolicyResponse(p *entity.Policy) PolicyResponse {
 	return PolicyResponse{
-		ID: p.ID, PlanID: p.PlanID, PolicyholderName: p.PolicyholderName,
+		ID: p.ID, PlanID: p.PlanID, PlanName: p.PlanName, PolicyholderName: p.PolicyholderName,
 		PolicyholderEmail: p.PolicyholderEmail, PolicyholderPhone: p.PolicyholderPhone,
 		PolicyNumber: p.PolicyNumber, Status: p.Status, StartDate: p.StartDate,
 		EndDate: p.EndDate, PremiumAmount: p.PremiumAmount, Currency: p.Currency,
@@ -141,7 +144,9 @@ func ToMemberResponse(m *entity.Member) MemberResponse {
 		Relationship: m.Relationship, MemberNumber: m.MemberNumber,
 		Phone: m.Phone, Email: m.Email, KRAPin: m.KRAPin,
 		County: m.County, Address: m.Address, Status: m.Status,
-		Verified: m.Verified, VerifiedAt: m.VerifiedAt, CreatedAt: m.CreatedAt,
+		Verified: m.Verified, VerifiedAt: m.VerifiedAt,
+		CoverageStartDate: m.CoverageStartDate, CoverageEndDate: m.CoverageEndDate,
+		CreatedAt: m.CreatedAt,
 	}
 }
 

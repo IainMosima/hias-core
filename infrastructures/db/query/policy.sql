@@ -3,16 +3,24 @@ INSERT INTO policies (plan_id, policyholder_name, policyholder_email, policyhold
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
 
 -- name: GetPolicyByID :one
-SELECT * FROM policies WHERE id = $1;
+SELECT p.*, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+WHERE p.id = $1;
 
 -- name: GetPolicyByNumber :one
-SELECT * FROM policies WHERE policy_number = $1;
+SELECT p.*, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+WHERE p.policy_number = $1;
 
 -- name: ListPolicies :many
-SELECT * FROM policies ORDER BY created_at DESC LIMIT $1 OFFSET $2;
+SELECT p.*, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+ORDER BY p.created_at DESC LIMIT $1 OFFSET $2;
 
 -- name: ListPoliciesByStatus :many
-SELECT * FROM policies WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3;
+SELECT p.*, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+WHERE p.status = $1 ORDER BY p.created_at DESC LIMIT $2 OFFSET $3;
 
 -- name: CountPolicies :one
 SELECT COUNT(*) FROM policies;
@@ -66,11 +74,12 @@ SELECT CASE WHEN COUNT(*) = 0 THEN 0 ELSE
 END FROM policy_renewals pr WHERE pr.created_at BETWEEN sqlc.arg('start_date') AND sqlc.arg('end_date');
 
 -- name: ListPoliciesFiltered :many
-SELECT * FROM policies
-WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
-  AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'))
-  AND (sqlc.arg('search')::text = '' OR (policy_number ILIKE '%' || sqlc.arg('search') || '%' OR policyholder_name ILIKE '%' || sqlc.arg('search') || '%' OR policyholder_email ILIKE '%' || sqlc.arg('search') || '%'))
-ORDER BY created_at DESC
+SELECT p.*, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR p.created_at >= sqlc.narg('date_from'))
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR p.created_at <= sqlc.narg('date_to'))
+  AND (sqlc.arg('search')::text = '' OR (p.policy_number ILIKE '%' || sqlc.arg('search') || '%' OR p.policyholder_name ILIKE '%' || sqlc.arg('search') || '%' OR p.policyholder_email ILIKE '%' || sqlc.arg('search') || '%'))
+ORDER BY p.created_at DESC
 LIMIT sqlc.arg('query_limit') OFFSET sqlc.arg('query_offset');
 
 -- name: CountPoliciesFiltered :one

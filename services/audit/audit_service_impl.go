@@ -87,10 +87,13 @@ func (s *auditServiceImpl) ListByUser(ctx context.Context, userID uuid.UUID, pag
 		return authSchema.NewServiceErrorResponse[interface{}](http.StatusInternalServerError, "Failed to list audit events by user", err)
 	}
 
+	count, _ := s.auditRepo.CountByUser(ctx, userID)
+
 	result := map[string]interface{}{
-		"events":    toAuditResponseList(events),
-		"page":      page,
-		"page_size": pageSize,
+		"events":      toAuditResponseList(events),
+		"total_count": count,
+		"page":        page,
+		"page_size":   pageSize,
 	}
 
 	return authSchema.NewServiceResponse[interface{}](result, http.StatusOK, "Audit events retrieved")

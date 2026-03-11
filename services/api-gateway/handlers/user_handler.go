@@ -214,3 +214,15 @@ func getUserID(ctx *gin.Context) uuid.UUID {
 	id, _ := uuid.Parse(authPayload.UserID)
 	return id
 }
+
+// requireUserID extracts the authenticated user ID from context.
+// Returns 401 and aborts if the user ID is missing or invalid.
+func requireUserID(ctx *gin.Context) (uuid.UUID, bool) {
+	id := getUserID(ctx)
+	if id == uuid.Nil {
+		utils.RespondError(ctx, http.StatusUnauthorized, "Authentication required")
+		ctx.Abort()
+		return uuid.Nil, false
+	}
+	return id, true
+}

@@ -297,12 +297,34 @@ func (q *Queries) GetOverduePoliciesForLapse(ctx context.Context) ([]Policy, err
 }
 
 const getPolicyByID = `-- name: GetPolicyByID :one
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE id = $1
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+WHERE p.id = $1
 `
 
-func (q *Queries) GetPolicyByID(ctx context.Context, id uuid.UUID) (Policy, error) {
+type GetPolicyByIDRow struct {
+	ID                uuid.UUID          `json:"id"`
+	PlanID            uuid.UUID          `json:"plan_id"`
+	PolicyholderName  string             `json:"policyholder_name"`
+	PolicyholderEmail string             `json:"policyholder_email"`
+	PolicyholderPhone string             `json:"policyholder_phone"`
+	PolicyNumber      string             `json:"policy_number"`
+	Status            string             `json:"status"`
+	StartDate         pgtype.Timestamptz `json:"start_date"`
+	EndDate           pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount     int64              `json:"premium_amount"`
+	Currency          string             `json:"currency"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
+	PlanName          string             `json:"plan_name"`
+}
+
+func (q *Queries) GetPolicyByID(ctx context.Context, id uuid.UUID) (GetPolicyByIDRow, error) {
 	row := q.db.QueryRow(ctx, getPolicyByID, id)
-	var i Policy
+	var i GetPolicyByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.PlanID,
@@ -320,17 +342,40 @@ func (q *Queries) GetPolicyByID(ctx context.Context, id uuid.UUID) (Policy, erro
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.PlanName,
 	)
 	return i, err
 }
 
 const getPolicyByNumber = `-- name: GetPolicyByNumber :one
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE policy_number = $1
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+WHERE p.policy_number = $1
 `
 
-func (q *Queries) GetPolicyByNumber(ctx context.Context, policyNumber string) (Policy, error) {
+type GetPolicyByNumberRow struct {
+	ID                uuid.UUID          `json:"id"`
+	PlanID            uuid.UUID          `json:"plan_id"`
+	PolicyholderName  string             `json:"policyholder_name"`
+	PolicyholderEmail string             `json:"policyholder_email"`
+	PolicyholderPhone string             `json:"policyholder_phone"`
+	PolicyNumber      string             `json:"policy_number"`
+	Status            string             `json:"status"`
+	StartDate         pgtype.Timestamptz `json:"start_date"`
+	EndDate           pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount     int64              `json:"premium_amount"`
+	Currency          string             `json:"currency"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
+	PlanName          string             `json:"plan_name"`
+}
+
+func (q *Queries) GetPolicyByNumber(ctx context.Context, policyNumber string) (GetPolicyByNumberRow, error) {
 	row := q.db.QueryRow(ctx, getPolicyByNumber, policyNumber)
-	var i Policy
+	var i GetPolicyByNumberRow
 	err := row.Scan(
 		&i.ID,
 		&i.PlanID,
@@ -348,6 +393,7 @@ func (q *Queries) GetPolicyByNumber(ctx context.Context, policyNumber string) (P
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.PlanName,
 	)
 	return i, err
 }
@@ -387,7 +433,9 @@ func (q *Queries) GetTotalActiveMemberCount(ctx context.Context, arg GetTotalAct
 }
 
 const listPolicies = `-- name: ListPolicies :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+ORDER BY p.created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListPoliciesParams struct {
@@ -395,15 +443,35 @@ type ListPoliciesParams struct {
 	Offset int32 `json:"offset"`
 }
 
-func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]Policy, error) {
+type ListPoliciesRow struct {
+	ID                uuid.UUID          `json:"id"`
+	PlanID            uuid.UUID          `json:"plan_id"`
+	PolicyholderName  string             `json:"policyholder_name"`
+	PolicyholderEmail string             `json:"policyholder_email"`
+	PolicyholderPhone string             `json:"policyholder_phone"`
+	PolicyNumber      string             `json:"policy_number"`
+	Status            string             `json:"status"`
+	StartDate         pgtype.Timestamptz `json:"start_date"`
+	EndDate           pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount     int64              `json:"premium_amount"`
+	Currency          string             `json:"currency"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
+	PlanName          string             `json:"plan_name"`
+}
+
+func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]ListPoliciesRow, error) {
 	rows, err := q.db.Query(ctx, listPolicies, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Policy{}
+	items := []ListPoliciesRow{}
 	for rows.Next() {
-		var i Policy
+		var i ListPoliciesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PlanID,
@@ -421,6 +489,7 @@ func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]P
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.PlanName,
 		); err != nil {
 			return nil, err
 		}
@@ -433,7 +502,9 @@ func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]P
 }
 
 const listPoliciesByStatus = `-- name: ListPoliciesByStatus :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+WHERE p.status = $1 ORDER BY p.created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListPoliciesByStatusParams struct {
@@ -442,15 +513,35 @@ type ListPoliciesByStatusParams struct {
 	Offset int32  `json:"offset"`
 }
 
-func (q *Queries) ListPoliciesByStatus(ctx context.Context, arg ListPoliciesByStatusParams) ([]Policy, error) {
+type ListPoliciesByStatusRow struct {
+	ID                uuid.UUID          `json:"id"`
+	PlanID            uuid.UUID          `json:"plan_id"`
+	PolicyholderName  string             `json:"policyholder_name"`
+	PolicyholderEmail string             `json:"policyholder_email"`
+	PolicyholderPhone string             `json:"policyholder_phone"`
+	PolicyNumber      string             `json:"policy_number"`
+	Status            string             `json:"status"`
+	StartDate         pgtype.Timestamptz `json:"start_date"`
+	EndDate           pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount     int64              `json:"premium_amount"`
+	Currency          string             `json:"currency"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
+	PlanName          string             `json:"plan_name"`
+}
+
+func (q *Queries) ListPoliciesByStatus(ctx context.Context, arg ListPoliciesByStatusParams) ([]ListPoliciesByStatusRow, error) {
 	rows, err := q.db.Query(ctx, listPoliciesByStatus, arg.Status, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Policy{}
+	items := []ListPoliciesByStatusRow{}
 	for rows.Next() {
-		var i Policy
+		var i ListPoliciesByStatusRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PlanID,
@@ -468,6 +559,7 @@ func (q *Queries) ListPoliciesByStatus(ctx context.Context, arg ListPoliciesBySt
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.PlanName,
 		); err != nil {
 			return nil, err
 		}
@@ -521,11 +613,12 @@ func (q *Queries) ListPoliciesExpiringSoon(ctx context.Context, days int32) ([]P
 }
 
 const listPoliciesFiltered = `-- name: ListPoliciesFiltered :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies
-WHERE ($1::timestamptz IS NULL OR created_at >= $1)
-  AND ($2::timestamptz IS NULL OR created_at <= $2)
-  AND ($3::text = '' OR (policy_number ILIKE '%' || $3 || '%' OR policyholder_name ILIKE '%' || $3 || '%' OR policyholder_email ILIKE '%' || $3 || '%'))
-ORDER BY created_at DESC
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
+JOIN plans pl ON pl.id = p.plan_id
+WHERE ($1::timestamptz IS NULL OR p.created_at >= $1)
+  AND ($2::timestamptz IS NULL OR p.created_at <= $2)
+  AND ($3::text = '' OR (p.policy_number ILIKE '%' || $3 || '%' OR p.policyholder_name ILIKE '%' || $3 || '%' OR p.policyholder_email ILIKE '%' || $3 || '%'))
+ORDER BY p.created_at DESC
 LIMIT $5 OFFSET $4
 `
 
@@ -537,7 +630,27 @@ type ListPoliciesFilteredParams struct {
 	QueryLimit  int32              `json:"query_limit"`
 }
 
-func (q *Queries) ListPoliciesFiltered(ctx context.Context, arg ListPoliciesFilteredParams) ([]Policy, error) {
+type ListPoliciesFilteredRow struct {
+	ID                uuid.UUID          `json:"id"`
+	PlanID            uuid.UUID          `json:"plan_id"`
+	PolicyholderName  string             `json:"policyholder_name"`
+	PolicyholderEmail string             `json:"policyholder_email"`
+	PolicyholderPhone string             `json:"policyholder_phone"`
+	PolicyNumber      string             `json:"policy_number"`
+	Status            string             `json:"status"`
+	StartDate         pgtype.Timestamptz `json:"start_date"`
+	EndDate           pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount     int64              `json:"premium_amount"`
+	Currency          string             `json:"currency"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
+	PlanName          string             `json:"plan_name"`
+}
+
+func (q *Queries) ListPoliciesFiltered(ctx context.Context, arg ListPoliciesFilteredParams) ([]ListPoliciesFilteredRow, error) {
 	rows, err := q.db.Query(ctx, listPoliciesFiltered,
 		arg.DateFrom,
 		arg.DateTo,
@@ -549,9 +662,9 @@ func (q *Queries) ListPoliciesFiltered(ctx context.Context, arg ListPoliciesFilt
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Policy{}
+	items := []ListPoliciesFilteredRow{}
 	for rows.Next() {
-		var i Policy
+		var i ListPoliciesFilteredRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PlanID,
@@ -569,6 +682,7 @@ func (q *Queries) ListPoliciesFiltered(ctx context.Context, arg ListPoliciesFilt
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.PlanName,
 		); err != nil {
 			return nil, err
 		}

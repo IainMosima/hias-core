@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-DB_URL="${DB_URL:-postgresql://root:supersecret@localhost:5432/hias_db?sslmode=disable}"
+DB_URL="${DB_URL:-postgresql://postgres.fkavaynkpqgzifbftdvx:hzYWFL%24vSa9P%2Aii@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require}"
 
 echo "Seeding comprehensive demo data..."
 
@@ -67,7 +67,9 @@ INSERT INTO users (id, email, name, phone, role_id, status, password_hash) VALUE
   ('20000000-0000-0000-0000-000000000001', 'admin@hias.co.ke',  'Admin User',     '+254700000001', '10000000-0000-0000-0000-000000000001', 'ACTIVE', '$2a$10$Zzk5j8vZSCG27ODa9ctJoOTy.6vfudm6pzWhKV4Um69Tay/TKF8OK'),
   ('20000000-0000-0000-0000-000000000002', 'jane@hias.co.ke',   'Jane Muthoni',   '+254700000002', '10000000-0000-0000-0000-000000000003', 'ACTIVE', '$2a$10$Zzk5j8vZSCG27ODa9ctJoOTy.6vfudm6pzWhKV4Um69Tay/TKF8OK'),
   ('20000000-0000-0000-0000-000000000003', 'peter@hias.co.ke',  'Peter Kamau',    '+254700000003', '10000000-0000-0000-0000-000000000002', 'ACTIVE', '$2a$10$Zzk5j8vZSCG27ODa9ctJoOTy.6vfudm6pzWhKV4Um69Tay/TKF8OK'),
-  ('20000000-0000-0000-0000-000000000004', 'sarah@hias.co.ke',  'Sarah Wanjiku',  '+254700000004', '10000000-0000-0000-0000-000000000004', 'ACTIVE', '$2a$10$Zzk5j8vZSCG27ODa9ctJoOTy.6vfudm6pzWhKV4Um69Tay/TKF8OK')
+  ('20000000-0000-0000-0000-000000000004', 'sarah@hias.co.ke',  'Sarah Wanjiku',  '+254700000004', '10000000-0000-0000-0000-000000000004', 'ACTIVE', '$2a$10$Zzk5j8vZSCG27ODa9ctJoOTy.6vfudm6pzWhKV4Um69Tay/TKF8OK'),
+  ('20000000-0000-0000-0000-000000000005', 'iain.mosima@bitbiz.co.ke', 'Iain Mosima',   '+254700000005', '10000000-0000-0000-0000-000000000001', 'ACTIVE', '$2a$10$Zzk5j8vZSCG27ODa9ctJoOTy.6vfudm6pzWhKV4Um69Tay/TKF8OK'),
+  ('20000000-0000-0000-0000-000000000006', 'info@bitbiz.co.ke',       'BitBiz Admin',  '+254700000006', '10000000-0000-0000-0000-000000000001', 'ACTIVE', '$2a$10$Zzk5j8vZSCG27ODa9ctJoOTy.6vfudm6pzWhKV4Um69Tay/TKF8OK')
 ON CONFLICT (email) DO NOTHING;
 
 -- ============================================================
@@ -411,6 +413,40 @@ UPDATE benefits SET is_optional = true, addon_premium = 1500000 WHERE category =
 -- Set members of non-active policies to PENDING
 UPDATE members SET status = 'PENDING'
 WHERE policy_id IN (SELECT id FROM policies WHERE status = 'DRAFT');
+
+-- ============================================================
+-- LAYER 13: AUDIT EVENTS
+-- ============================================================
+INSERT INTO audit_events (user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent) VALUES
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"policy_number":"POL-2026-000001","status":"DRAFT"}', '127.0.0.1', 'HIAS-Admin/1.0'),
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'UPDATE', '{"status":"DRAFT"}', '{"status":"ACTIVE"}', '127.0.0.1', 'HIAS-Admin/1.0'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"claim_number":"CLM-2026-000001","status":"RECEIVED"}', '127.0.0.1', 'HIAS-Admin/1.0'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'UPDATE', '{"status":"RECEIVED"}', '{"status":"ADJUDICATED"}', '127.0.0.1', 'HIAS-Admin/1.0'),
+  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"email":"jane@hias.co.ke","role":"ClaimsOfficer"}', '127.0.0.1', 'HIAS-Admin/1.0'),
+  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"member_number":"MBR-2026-000001","name":"John Doe"}', '127.0.0.1', 'HIAS-Admin/1.0'),
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"policy_number":"POL-2026-000002","status":"DRAFT"}', '127.0.0.1', 'HIAS-Admin/1.0'),
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"reference":"MPESA-REF-20260125-001","amount":250000}', '127.0.0.1', 'HIAS-Admin/1.0');
+
+-- ============================================================
+-- LAYER 14: DOCUMENTS (policy + claim)
+-- ============================================================
+INSERT INTO policy_documents (id, policy_id, document_type, file_name, file_size, s3_key, generated_by) VALUES
+  ('D0000000-0000-0000-0001-000000000001', '50000000-0000-0000-0000-000000000001', 'POLICY_SCHEDULE', 'POL-2026-000001-schedule.pdf', 245000, 'documents/policies/POL-2026-000001/schedule.pdf', '20000000-0000-0000-0000-000000000003'),
+  ('D0000000-0000-0000-0001-000000000002', '50000000-0000-0000-0000-000000000002', 'POLICY_SCHEDULE', 'POL-2026-000002-schedule.pdf', 312000, 'documents/policies/POL-2026-000002/schedule.pdf', '20000000-0000-0000-0000-000000000003')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO claim_documents (id, claim_id, file_name, file_type, file_size, s3_key, uploaded_by, is_deleted) VALUES
+  ('D0000000-0000-0000-0002-000000000001', '70000000-0000-0000-0000-000000000001', 'CLM-2026-000001-receipt.pdf',  'application/pdf', 128000, 'documents/claims/CLM-2026-000001/receipt.pdf',  '20000000-0000-0000-0000-000000000002', false),
+  ('D0000000-0000-0000-0002-000000000002', '70000000-0000-0000-0000-000000000002', 'CLM-2026-000002-invoice.pdf', 'application/pdf', 156000, 'documents/claims/CLM-2026-000002/invoice.pdf', '20000000-0000-0000-0000-000000000002', false)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- LAYER 15: ADDITIONAL NOTIFICATIONS (for non-admin users)
+-- ============================================================
+INSERT INTO notifications (user_id, channel, type, subject, body, metadata, status, sent_at) VALUES
+  ('20000000-0000-0000-0000-000000000002', 'IN_APP', 'CLAIM_SUBMITTED',  'New Claim CLM-2026-000006 Received',    'A new claim has been submitted by David Ouma for review.',                     '{"claim_id": "70000000-0000-0000-0000-000000000006"}', 'DELIVERED', '2026-03-05'),
+  ('20000000-0000-0000-0000-000000000003', 'IN_APP', 'POLICY_ACTIVATED', 'Policy POL-2026-000001 Activated',       'Policy for John Doe has been activated successfully.',                          '{"policy_id": "50000000-0000-0000-0000-000000000001"}', 'DELIVERED', '2026-01-01'),
+  ('20000000-0000-0000-0000-000000000004', 'IN_APP', 'PAYMENT_OVERDUE',  'Overdue Payment — INV-2026-000003',      'Invoice INV-2026-000003 for Acme Corporation is overdue. Amount: KES 15,000.', '{"invoice_id": "90000000-0000-0000-0000-000000000003"}', 'SENT', NOW());
 
 SELECT 'Seed data inserted successfully' as result;
 

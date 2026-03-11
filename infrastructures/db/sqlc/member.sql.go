@@ -58,7 +58,7 @@ func (q *Queries) CountMembersFiltered(ctx context.Context, dollar_1 string) (in
 
 const createMember = `-- name: CreateMember :one
 INSERT INTO members (policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date
 `
 
 type CreateMemberParams struct {
@@ -111,6 +111,8 @@ func (q *Queries) CreateMember(ctx context.Context, arg CreateMemberParams) (Mem
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		&i.CoverageStartDate,
+		&i.CoverageEndDate,
 	)
 	return i, err
 }
@@ -125,7 +127,7 @@ func (q *Queries) DeleteMember(ctx context.Context, id uuid.UUID) error {
 }
 
 const getMemberByID = `-- name: GetMemberByID :one
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE id = $1
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date FROM members WHERE id = $1
 `
 
 func (q *Queries) GetMemberByID(ctx context.Context, id uuid.UUID) (Member, error) {
@@ -150,12 +152,14 @@ func (q *Queries) GetMemberByID(ctx context.Context, id uuid.UUID) (Member, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		&i.CoverageStartDate,
+		&i.CoverageEndDate,
 	)
 	return i, err
 }
 
 const getMemberByNationalID = `-- name: GetMemberByNationalID :one
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE national_id = $1
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date FROM members WHERE national_id = $1
 `
 
 func (q *Queries) GetMemberByNationalID(ctx context.Context, nationalID pgtype.Text) (Member, error) {
@@ -180,12 +184,14 @@ func (q *Queries) GetMemberByNationalID(ctx context.Context, nationalID pgtype.T
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		&i.CoverageStartDate,
+		&i.CoverageEndDate,
 	)
 	return i, err
 }
 
 const getMemberByNumber = `-- name: GetMemberByNumber :one
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE member_number = $1
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date FROM members WHERE member_number = $1
 `
 
 func (q *Queries) GetMemberByNumber(ctx context.Context, memberNumber string) (Member, error) {
@@ -210,12 +216,14 @@ func (q *Queries) GetMemberByNumber(ctx context.Context, memberNumber string) (M
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		&i.CoverageStartDate,
+		&i.CoverageEndDate,
 	)
 	return i, err
 }
 
 const listActiveMembersByPolicy = `-- name: ListActiveMembersByPolicy :many
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE policy_id = $1 AND status = 'ACTIVE' ORDER BY relationship, name
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date FROM members WHERE policy_id = $1 AND status = 'ACTIVE' ORDER BY relationship, name
 `
 
 func (q *Queries) ListActiveMembersByPolicy(ctx context.Context, policyID uuid.UUID) ([]Member, error) {
@@ -246,6 +254,8 @@ func (q *Queries) ListActiveMembersByPolicy(ctx context.Context, policyID uuid.U
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
+			&i.CoverageStartDate,
+			&i.CoverageEndDate,
 		); err != nil {
 			return nil, err
 		}
@@ -258,7 +268,7 @@ func (q *Queries) ListActiveMembersByPolicy(ctx context.Context, policyID uuid.U
 }
 
 const listMembersByPolicy = `-- name: ListMembersByPolicy :many
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE policy_id = $1 ORDER BY relationship, name
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date FROM members WHERE policy_id = $1 ORDER BY relationship, name
 `
 
 func (q *Queries) ListMembersByPolicy(ctx context.Context, policyID uuid.UUID) ([]Member, error) {
@@ -289,6 +299,8 @@ func (q *Queries) ListMembersByPolicy(ctx context.Context, policyID uuid.UUID) (
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
+			&i.CoverageStartDate,
+			&i.CoverageEndDate,
 		); err != nil {
 			return nil, err
 		}
@@ -301,7 +313,7 @@ func (q *Queries) ListMembersByPolicy(ctx context.Context, policyID uuid.UUID) (
 }
 
 const listMembersFiltered = `-- name: ListMembersFiltered :many
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date FROM members
 WHERE ($1::text = '' OR (name ILIKE '%' || $1 || '%' OR national_id ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'))
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -341,6 +353,8 @@ func (q *Queries) ListMembersFiltered(ctx context.Context, arg ListMembersFilter
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
+			&i.CoverageStartDate,
+			&i.CoverageEndDate,
 		); err != nil {
 			return nil, err
 		}
@@ -353,7 +367,7 @@ func (q *Queries) ListMembersFiltered(ctx context.Context, arg ListMembersFilter
 }
 
 const listPendingMembersByPolicy = `-- name: ListPendingMembersByPolicy :many
-SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status FROM members WHERE policy_id = $1 AND status = 'PENDING'
+SELECT id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date FROM members WHERE policy_id = $1 AND status = 'PENDING'
 `
 
 func (q *Queries) ListPendingMembersByPolicy(ctx context.Context, policyID uuid.UUID) ([]Member, error) {
@@ -384,6 +398,8 @@ func (q *Queries) ListPendingMembersByPolicy(ctx context.Context, policyID uuid.
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
+			&i.CoverageStartDate,
+			&i.CoverageEndDate,
 		); err != nil {
 			return nil, err
 		}
@@ -404,7 +420,7 @@ UPDATE members SET
     county = COALESCE($5, county),
     address = COALESCE($6, address),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
+WHERE id = $7 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date
 `
 
 type UpdateMemberParams struct {
@@ -447,12 +463,56 @@ func (q *Queries) UpdateMember(ctx context.Context, arg UpdateMemberParams) (Mem
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		&i.CoverageStartDate,
+		&i.CoverageEndDate,
+	)
+	return i, err
+}
+
+const updateMemberCoverageDates = `-- name: UpdateMemberCoverageDates :one
+UPDATE members SET
+    coverage_start_date = COALESCE($1, coverage_start_date),
+    coverage_end_date = COALESCE($2, coverage_end_date),
+    updated_at = NOW()
+WHERE id = $3 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date
+`
+
+type UpdateMemberCoverageDatesParams struct {
+	CoverageStartDate pgtype.Timestamptz `json:"coverage_start_date"`
+	CoverageEndDate   pgtype.Timestamptz `json:"coverage_end_date"`
+	ID                uuid.UUID          `json:"id"`
+}
+
+func (q *Queries) UpdateMemberCoverageDates(ctx context.Context, arg UpdateMemberCoverageDatesParams) (Member, error) {
+	row := q.db.QueryRow(ctx, updateMemberCoverageDates, arg.CoverageStartDate, arg.CoverageEndDate, arg.ID)
+	var i Member
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.NationalID,
+		&i.Name,
+		&i.DateOfBirth,
+		&i.Gender,
+		&i.Relationship,
+		&i.MemberNumber,
+		&i.Phone,
+		&i.Email,
+		&i.KraPin,
+		&i.County,
+		&i.Address,
+		&i.Verified,
+		&i.VerifiedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.CoverageStartDate,
+		&i.CoverageEndDate,
 	)
 	return i, err
 }
 
 const updateMemberStatus = `-- name: UpdateMemberStatus :one
-UPDATE members SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
+UPDATE members SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date
 `
 
 type UpdateMemberStatusParams struct {
@@ -482,12 +542,14 @@ func (q *Queries) UpdateMemberStatus(ctx context.Context, arg UpdateMemberStatus
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		&i.CoverageStartDate,
+		&i.CoverageEndDate,
 	)
 	return i, err
 }
 
 const verifyMember = `-- name: VerifyMember :one
-UPDATE members SET verified = TRUE, verified_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status
+UPDATE members SET verified = TRUE, verified_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING id, policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address, verified, verified_at, created_at, updated_at, status, coverage_start_date, coverage_end_date
 `
 
 func (q *Queries) VerifyMember(ctx context.Context, id uuid.UUID) (Member, error) {
@@ -512,6 +574,8 @@ func (q *Queries) VerifyMember(ctx context.Context, id uuid.UUID) (Member, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		&i.CoverageStartDate,
+		&i.CoverageEndDate,
 	)
 	return i, err
 }

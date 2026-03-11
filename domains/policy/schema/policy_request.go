@@ -83,6 +83,22 @@ type RejectEndorsementRequest struct {
 	Reason string `json:"reason" binding:"required"`
 }
 
+type CancelEndorsementRequest struct {
+	Reason string `json:"reason" binding:"required"`
+}
+
+// RemoveMemberChanges is the typed payload for REMOVE_MEMBER endorsements
+type RemoveMemberChanges struct {
+	MemberID string `json:"member_id" binding:"required,uuid"`
+	Reason   string `json:"reason"`
+}
+
+// UpdateMemberChanges is the typed payload for UPDATE_MEMBER endorsements
+type UpdateMemberChanges struct {
+	MemberID string              `json:"member_id" binding:"required,uuid"`
+	Updates  UpdateMemberRequest `json:"updates" binding:"required"`
+}
+
 type InitiateRenewalRequest struct {
 	PolicyID    string `json:"policy_id" binding:"required,uuid"`
 	NewPlanID   string `json:"new_plan_id"`

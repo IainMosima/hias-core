@@ -2,7 +2,6 @@ package configs
 
 import (
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/spf13/viper"
@@ -147,7 +146,7 @@ func LoadConfig(path string) (config Config, localConfigLoaded bool, err error) 
 	err = viper.ReadInConfig()
 	if err != nil {
 		log.Printf("Warning: Could not read config file: %v", err)
-		log.Printf("Continuing with SSM parameters only")
+		log.Printf("Continuing with environment variables only")
 		localConfigLoaded = false
 	} else {
 		log.Printf("Using local app.env configuration")
@@ -159,148 +158,4 @@ func LoadConfig(path string) (config Config, localConfigLoaded bool, err error) 
 	}
 
 	return
-}
-
-func LoadSSMParameters(config *Config) error {
-	ssmManager, err := NewSSMManager(5 * time.Minute)
-	if err != nil {
-		return err
-	}
-
-	ssmConfig, err := ssmManager.LoadConfig()
-	if err != nil {
-		return err
-	}
-
-	if ssmConfig.DBSource != "" {
-		config.DBSource = ssmConfig.DBSource
-	}
-	if ssmConfig.Environment != "" {
-		config.Environment = ssmConfig.Environment
-	}
-	if ssmConfig.HTTPServerAddress != "" {
-		config.HTTPServerAddress = ssmConfig.HTTPServerAddress
-	}
-	if ssmConfig.GRPCServerAddress != "" {
-		config.GRPCServerAddress = ssmConfig.GRPCServerAddress
-	}
-	if ssmConfig.AWSRegion != "" {
-		config.AWSRegion = ssmConfig.AWSRegion
-	}
-	if ssmConfig.RedisURL != "" {
-		config.RedisURL = ssmConfig.RedisURL
-	}
-	if ssmConfig.CognitoClientID != "" {
-		config.CognitoClientID = ssmConfig.CognitoClientID
-	}
-	if ssmConfig.CognitoClientSecret != "" {
-		config.CognitoClientSecret = ssmConfig.CognitoClientSecret
-	}
-	if ssmConfig.CognitoRedirectURI != "" {
-		config.CognitoRedirectURI = ssmConfig.CognitoRedirectURI
-	}
-	if ssmConfig.CognitoDomain != "" {
-		config.CognitoDomain = ssmConfig.CognitoDomain
-	}
-	if ssmConfig.CognitoUserPoolID != "" {
-		config.CognitoUserPoolID = ssmConfig.CognitoUserPoolID
-	}
-	if ssmConfig.TokenSymmetricKey != "" {
-		config.TokenSymmetricKey = ssmConfig.TokenSymmetricKey
-	}
-	if ssmConfig.AccessTokenDuration != "" {
-		duration, parseErr := time.ParseDuration(ssmConfig.AccessTokenDuration)
-		if parseErr == nil {
-			config.AccessTokenDuration = duration
-		}
-	}
-	if ssmConfig.RefreshTokenDuration != "" {
-		duration, parseErr := time.ParseDuration(ssmConfig.RefreshTokenDuration)
-		if parseErr == nil {
-			config.RefreshTokenDuration = duration
-		}
-	}
-	if ssmConfig.CookieDomain != "" {
-		config.CookieDomain = ssmConfig.CookieDomain
-	}
-	if ssmConfig.AllowedOrigins != "" {
-		config.AllowedOrigins = ssmConfig.AllowedOrigins
-	}
-	if ssmConfig.DashboardURL != "" {
-		config.DashboardURL = ssmConfig.DashboardURL
-	}
-
-	// S3
-	if ssmConfig.AWSS3Bucket != "" {
-		config.AWSS3Bucket = ssmConfig.AWSS3Bucket
-	}
-	if ssmConfig.AWSS3Region != "" {
-		config.AWSS3Region = ssmConfig.AWSS3Region
-	}
-	if ssmConfig.AWSS3CDNDomain != "" {
-		config.AWSS3CDNDomain = ssmConfig.AWSS3CDNDomain
-	}
-
-	// SQS Queues
-	if ssmConfig.AWSSQSDocumentProcessingQueueURL != "" {
-		config.AWSSQSDocumentProcessingQueueURL = ssmConfig.AWSSQSDocumentProcessingQueueURL
-	}
-	if ssmConfig.AWSSQSExtractionResultsQueueURL != "" {
-		config.AWSSQSExtractionResultsQueueURL = ssmConfig.AWSSQSExtractionResultsQueueURL
-	}
-	if ssmConfig.AWSSQSClaimProcessingQueueURL != "" {
-		config.AWSSQSClaimProcessingQueueURL = ssmConfig.AWSSQSClaimProcessingQueueURL
-	}
-	if ssmConfig.AWSSQSPaymentEventsQueueURL != "" {
-		config.AWSSQSPaymentEventsQueueURL = ssmConfig.AWSSQSPaymentEventsQueueURL
-	}
-	if ssmConfig.AWSSQSNotificationEventsQueueURL != "" {
-		config.AWSSQSNotificationEventsQueueURL = ssmConfig.AWSSQSNotificationEventsQueueURL
-	}
-
-	// Watermill
-	if ssmConfig.ConsumerType != "" {
-		config.ConsumerType = ssmConfig.ConsumerType
-	}
-	if ssmConfig.QueueManagerType != "" {
-		config.QueueManagerType = ssmConfig.QueueManagerType
-	}
-	if ssmConfig.WatermillWaitTimeSeconds != "" {
-		if v, e := strconv.ParseInt(ssmConfig.WatermillWaitTimeSeconds, 10, 32); e == nil {
-			config.WatermillWaitTimeSeconds = int32(v)
-		}
-	}
-	if ssmConfig.WatermillMaxMessages != "" {
-		if v, e := strconv.Atoi(ssmConfig.WatermillMaxMessages); e == nil {
-			config.WatermillMaxMessages = v
-		}
-	}
-	if ssmConfig.WatermillVisibilityTimeout != "" {
-		if v, e := time.ParseDuration(ssmConfig.WatermillVisibilityTimeout); e == nil {
-			config.WatermillVisibilityTimeout = v
-		}
-	}
-
-	// M-Pesa
-	if ssmConfig.MpesaConsumerKey != "" {
-		config.MpesaConsumerKey = ssmConfig.MpesaConsumerKey
-	}
-	if ssmConfig.MpesaConsumerSecret != "" {
-		config.MpesaConsumerSecret = ssmConfig.MpesaConsumerSecret
-	}
-	if ssmConfig.MpesaPasskey != "" {
-		config.MpesaPasskey = ssmConfig.MpesaPasskey
-	}
-	if ssmConfig.MpesaShortcode != "" {
-		config.MpesaShortcode = ssmConfig.MpesaShortcode
-	}
-
-	// Scheduler
-	if ssmConfig.SchedulerEnabled != "" {
-		if v, e := strconv.ParseBool(ssmConfig.SchedulerEnabled); e == nil {
-			config.SchedulerEnabled = v
-		}
-	}
-
-	return nil
 }

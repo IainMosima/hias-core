@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM --platform=linux/amd64 golang:1.24-alpine AS builder
 
 RUN apk add --no-cache git
 
@@ -14,10 +14,10 @@ COPY . .
 
 RUN swag init -g services/api-gateway/main.go -o docs/swagger --parseDependency --parseInternal
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./services/api-gateway
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o main ./services/api-gateway
 
 # Final stage
-FROM alpine:latest
+FROM --platform=linux/amd64 alpine:latest
 
 RUN apk --no-cache add ca-certificates curl
 

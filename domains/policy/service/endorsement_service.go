@@ -14,4 +14,5 @@ type EndorsementService interface {
 	ApproveEndorsement(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID) *schema.ServiceResponse[policySchema.EndorsementResponse]
 	RejectEndorsement(ctx context.Context, id uuid.UUID, reason string, rejectedBy uuid.UUID) *schema.ServiceResponse[policySchema.EndorsementResponse]
 	ApplyEndorsement(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[policySchema.EndorsementResponse]
+	CancelEndorsement(ctx context.Context, id uuid.UUID, reason string, cancelledBy uuid.UUID) *schema.ServiceResponse[policySchema.EndorsementResponse]
 }

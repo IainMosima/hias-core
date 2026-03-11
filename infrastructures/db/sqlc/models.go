@@ -284,6 +284,23 @@ type CreditNote struct {
 	UpdatedAt          time.Time          `json:"updated_at"`
 }
 
+type Document struct {
+	ID           uuid.UUID          `json:"id"`
+	EntityType   string             `json:"entity_type"`
+	EntityID     uuid.UUID          `json:"entity_id"`
+	DocumentType string             `json:"document_type"`
+	Status       string             `json:"status"`
+	FileName     string             `json:"file_name"`
+	FileSize     int64              `json:"file_size"`
+	MimeType     string             `json:"mime_type"`
+	S3Key        string             `json:"s3_key"`
+	UploadedBy   uuid.UUID          `json:"uploaded_by"`
+	ConfirmedAt  pgtype.Timestamptz `json:"confirmed_at"`
+	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
 type Endorsement struct {
 	ID                uuid.UUID          `json:"id"`
 	PolicyID          uuid.UUID          `json:"policy_id"`
@@ -432,24 +449,26 @@ type LeadActivity struct {
 }
 
 type Member struct {
-	ID           uuid.UUID          `json:"id"`
-	PolicyID     uuid.UUID          `json:"policy_id"`
-	NationalID   pgtype.Text        `json:"national_id"`
-	Name         string             `json:"name"`
-	DateOfBirth  pgtype.Date        `json:"date_of_birth"`
-	Gender       string             `json:"gender"`
-	Relationship string             `json:"relationship"`
-	MemberNumber string             `json:"member_number"`
-	Phone        pgtype.Text        `json:"phone"`
-	Email        pgtype.Text        `json:"email"`
-	KraPin       pgtype.Text        `json:"kra_pin"`
-	County       pgtype.Text        `json:"county"`
-	Address      pgtype.Text        `json:"address"`
-	Verified     bool               `json:"verified"`
-	VerifiedAt   pgtype.Timestamptz `json:"verified_at"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
-	Status       string             `json:"status"`
+	ID                uuid.UUID          `json:"id"`
+	PolicyID          uuid.UUID          `json:"policy_id"`
+	NationalID        pgtype.Text        `json:"national_id"`
+	Name              string             `json:"name"`
+	DateOfBirth       pgtype.Date        `json:"date_of_birth"`
+	Gender            string             `json:"gender"`
+	Relationship      string             `json:"relationship"`
+	MemberNumber      string             `json:"member_number"`
+	Phone             pgtype.Text        `json:"phone"`
+	Email             pgtype.Text        `json:"email"`
+	KraPin            pgtype.Text        `json:"kra_pin"`
+	County            pgtype.Text        `json:"county"`
+	Address           pgtype.Text        `json:"address"`
+	Verified          bool               `json:"verified"`
+	VerifiedAt        pgtype.Timestamptz `json:"verified_at"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	Status            string             `json:"status"`
+	CoverageStartDate pgtype.Timestamptz `json:"coverage_start_date"`
+	CoverageEndDate   pgtype.Timestamptz `json:"coverage_end_date"`
 }
 
 type Notification struct {

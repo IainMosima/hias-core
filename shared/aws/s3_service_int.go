@@ -6,5 +6,7 @@ type S3Service interface {
 	Upload(ctx context.Context, req UploadRequest) (*UploadResponse, error)
 	Download(ctx context.Context, req DownloadRequest) (*DownloadResponse, error)
 	GetPresignedURL(ctx context.Context, key string, expiresIn int64) (string, error)
+	GetPresignedPutURL(ctx context.Context, key, contentType string, expiresIn int64) (string, error)
+	HeadObject(ctx context.Context, key string) (int64, error)
 	Delete(ctx context.Context, key string) error
 }

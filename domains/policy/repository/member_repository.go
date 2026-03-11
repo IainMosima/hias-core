@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"time"
+
 	"github.com/bitbiz/hias-core/domains/policy/entity"
 	"github.com/google/uuid"
 )
@@ -20,6 +22,7 @@ type MemberRepository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*entity.Member, error)
 	ActivatePendingByPolicy(ctx context.Context, policyID uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	UpdateCoverageDates(ctx context.Context, id uuid.UUID, startDate *time.Time, endDate *time.Time) (*entity.Member, error)
 	ListFiltered(ctx context.Context, search string, limit, offset int) ([]*entity.Member, error)
 	CountFiltered(ctx context.Context, search string) (int64, error)
 }

@@ -59,3 +59,10 @@ WHERE policy_id = $1 AND status = 'PENDING';
 
 -- name: ListPendingMembersByPolicy :many
 SELECT * FROM members WHERE policy_id = $1 AND status = 'PENDING';
+
+-- name: UpdateMemberCoverageDates :one
+UPDATE members SET
+    coverage_start_date = COALESCE(sqlc.narg('coverage_start_date'), coverage_start_date),
+    coverage_end_date = COALESCE(sqlc.narg('coverage_end_date'), coverage_end_date),
+    updated_at = NOW()
+WHERE id = sqlc.arg('id') RETURNING *;

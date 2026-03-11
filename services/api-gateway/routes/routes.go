@@ -219,6 +219,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			policies.POST("/:id/documents/welcome-letter", h.PolicyDocument.GenerateWelcomeLetter)
 			policies.POST("/:id/documents/policy-schedule", h.PolicyDocument.GeneratePolicySchedule)
 			policies.POST("/:id/documents/member-cards", h.PolicyDocument.BulkGenerateMemberCards)
+			policies.DELETE("/:id/documents/:docId", h.PolicyDocument.DeletePolicyDocument)
 
 			// Underwriting Flags (nested under policies)
 			policies.GET("/:id/underwriting-flags", h.UnderwritingFlag.ListByPolicy)
@@ -232,6 +233,9 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 
 			// Cases (nested under policies)
 			policies.GET("/:id/cases", h.Case.ListByPolicy)
+
+			// Uploaded documents (KYC etc.)
+			policies.GET("/:id/uploads", h.Document.ListPolicyUploads)
 		}
 
 		// Members
@@ -248,6 +252,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			members.POST("/:id/card", h.PolicyDocument.GenerateMemberCard)
 			members.GET("/:id/underwriting-flags", h.UnderwritingFlag.ListByMember)
 			members.GET("/:id/cases", h.Case.ListByMember)
+			members.GET("/:id/documents", h.Document.ListMemberDocuments)
 		}
 
 		// Endorsements (standalone)
@@ -257,6 +262,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			endorsements.PUT("/:id/approve", h.Endorsement.ApproveEndorsement)
 			endorsements.PUT("/:id/reject", h.Endorsement.RejectEndorsement)
 			endorsements.PUT("/:id/apply", h.Endorsement.ApplyEndorsement)
+			endorsements.PUT("/:id/cancel", h.Endorsement.CancelEndorsement)
 		}
 
 		// Renewals (standalone)
@@ -710,11 +716,16 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			reinsuranceAnalytics.GET("", h.ReinsuranceAnalytics.GetReinsuranceDashboard)
 		}
 
-		// Standalone Documents
+		// Standalone Documents + Upload Flow
 		documents := authenticated.Group("/documents")
 		{
 			documents.GET("/standalone", h.Document.ListStandaloneDocuments)
 			documents.GET("/:id/download", h.Document.DownloadDocument)
+			documents.POST("/upload-url", h.Document.RequestUploadURL)
+			documents.POST("/bulk-upload-urls", h.Document.BulkRequestUploadURLs)
+			documents.POST("/:id/confirm-upload", h.Document.ConfirmUpload)
+			documents.POST("/:id/download-url", h.Document.GetDocumentDownloadURL)
+			documents.DELETE("/:id", h.Document.DeleteUploadedDocument)
 		}
 
 		// ===== Reporting =====

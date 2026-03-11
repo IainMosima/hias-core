@@ -43,7 +43,7 @@ lint:
 	golangci-lint run ./...
 
 seed:
-	bash scripts/seed-data.sh
+	DB_URL="$(DB_URL)" bash scripts/seed-data.sh
 
 migrate-reset:
 	bash scripts/migrate-reset.sh

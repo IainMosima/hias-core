@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-DB_URL="${DB_URL:-postgresql://root:supersecret@localhost:5432/hias_db?sslmode=disable}"
+DB_URL="${DB_URL:-postgresql://postgres.fkavaynkpqgzifbftdvx:hzYWFL%24vSa9P%2Aii@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require}"
 echo "Resetting database migrations..."
 migrate -path infrastructures/db/migration -database "$DB_URL" down -all
 migrate -path infrastructures/db/migration -database "$DB_URL" up

@@ -30,7 +30,10 @@ func NewNotificationHandler(notifSvc service.NotificationService) *NotificationH
 // @Security     BearerAuth
 // @Router       /api/v1/notifications [get]
 func (h *NotificationHandler) ListNotifications(ctx *gin.Context) {
-	userID := getUserID(ctx)
+	userID, ok := requireUserID(ctx)
+	if !ok {
+		return
+	}
 	pagination := utils.GetPaginationParams(ctx)
 
 	resp := h.notifSvc.ListByUser(ctx.Request.Context(), userID, pagination.Page, pagination.PageSize)
@@ -78,7 +81,10 @@ func (h *NotificationHandler) MarkRead(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Router       /api/v1/notifications/unread-count [get]
 func (h *NotificationHandler) GetUnreadCount(ctx *gin.Context) {
-	userID := getUserID(ctx)
+	userID, ok := requireUserID(ctx)
+	if !ok {
+		return
+	}
 
 	resp := h.notifSvc.GetUnreadCount(ctx.Request.Context(), userID)
 	if resp.Error != nil {

@@ -111,6 +111,14 @@ func (r *auditRepository) CountByEntity(ctx context.Context, entityType string, 
 	return count, nil
 }
 
+func (r *auditRepository) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	count, err := r.store.CountAuditEventsByUser(ctx, uuidToPgtype(userID))
+	if err != nil {
+		return 0, fmt.Errorf("failed to count audit events by user: %w", err)
+	}
+	return count, nil
+}
+
 func sqlcAuditEventToDomain(e db.AuditEvent) *entity.AuditEvent {
 	return &entity.AuditEvent{
 		ID:         e.ID,

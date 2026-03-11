@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/bitbiz/hias-core/domains/policy/entity"
 	domainRepo "github.com/bitbiz/hias-core/domains/policy/repository"
@@ -156,25 +157,39 @@ func (r *memberRepository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func sqlcMemberToDomain(m db.Member) *entity.Member {
 	return &entity.Member{
-		ID:           m.ID,
-		PolicyID:     m.PolicyID,
-		NationalID:   m.NationalID.String,
-		Name:         m.Name,
-		DateOfBirth:  pgtypeDateToTime(m.DateOfBirth),
-		Gender:       m.Gender,
-		Relationship: m.Relationship,
-		MemberNumber: m.MemberNumber,
-		Phone:        m.Phone.String,
-		Email:        m.Email.String,
-		KRAPin:       m.KraPin.String,
-		County:       m.County.String,
-		Address:      m.Address.String,
-		Status:       m.Status,
-		Verified:     m.Verified,
-		VerifiedAt:   pgtypeTimestamptzToTimePtr(m.VerifiedAt),
-		CreatedAt:    m.CreatedAt,
-		UpdatedAt:    m.UpdatedAt,
+		ID:                m.ID,
+		PolicyID:          m.PolicyID,
+		NationalID:        m.NationalID.String,
+		Name:              m.Name,
+		DateOfBirth:       pgtypeDateToTime(m.DateOfBirth),
+		Gender:            m.Gender,
+		Relationship:      m.Relationship,
+		MemberNumber:      m.MemberNumber,
+		Phone:             m.Phone.String,
+		Email:             m.Email.String,
+		KRAPin:            m.KraPin.String,
+		County:            m.County.String,
+		Address:           m.Address.String,
+		Status:            m.Status,
+		Verified:          m.Verified,
+		VerifiedAt:        pgtypeTimestamptzToTimePtr(m.VerifiedAt),
+		CoverageStartDate: pgtypeTimestamptzToTimePtr(m.CoverageStartDate),
+		CoverageEndDate:   pgtypeTimestamptzToTimePtr(m.CoverageEndDate),
+		CreatedAt:         m.CreatedAt,
+		UpdatedAt:         m.UpdatedAt,
 	}
+}
+
+func (r *memberRepository) UpdateCoverageDates(ctx context.Context, id uuid.UUID, startDate *time.Time, endDate *time.Time) (*entity.Member, error) {
+	dbMember, err := r.store.UpdateMemberCoverageDates(ctx, db.UpdateMemberCoverageDatesParams{
+		ID:                id,
+		CoverageStartDate: timePtrToPgtypeTimestamptz(startDate),
+		CoverageEndDate:   timePtrToPgtypeTimestamptz(endDate),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update member coverage dates: %w", err)
+	}
+	return sqlcMemberToDomain(dbMember), nil
 }
 
 func (r *memberRepository) ListFiltered(ctx context.Context, search string, limit, offset int) ([]*entity.Member, error) {

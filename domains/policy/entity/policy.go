@@ -19,6 +19,7 @@ type Policy struct {
 	Currency          string     `json:"currency"`
 	RenewedFromID     *uuid.UUID `json:"renewed_from_id,omitempty"`
 	ActivatedAt       *time.Time `json:"activated_at,omitempty"`
+	PlanName          string     `json:"plan_name"`
 	CreatedBy         uuid.UUID  `json:"created_by"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`

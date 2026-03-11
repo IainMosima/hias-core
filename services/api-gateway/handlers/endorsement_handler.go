@@ -184,3 +184,36 @@ func (h *EndorsementHandler) ApplyEndorsement(ctx *gin.Context) {
 	}
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
+
+// CancelEndorsement godoc
+// @Summary      Cancel an endorsement
+// @Description  Cancel a pending or approved endorsement
+// @Tags         Endorsements
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Endorsement ID"
+// @Param        request body policySchema.CancelEndorsementRequest true "Cancellation reason"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/endorsements/{id}/cancel [put]
+func (h *EndorsementHandler) CancelEndorsement(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid endorsement ID")
+		return
+	}
+
+	var req policySchema.CancelEndorsementRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp := h.endorsementSvc.CancelEndorsement(ctx.Request.Context(), id, req.Reason, getUserID(ctx))
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}

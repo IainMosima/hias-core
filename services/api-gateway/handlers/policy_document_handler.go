@@ -190,6 +190,33 @@ func (h *PolicyDocumentHandler) DeleteDocument(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// DeletePolicyDocument godoc
+// @Summary      Delete a policy document (nested)
+// @Description  Delete a policy document by ID from the nested policy path
+// @Tags         PolicyDocuments
+// @Accept       json
+// @Produce      json
+// @Param        id    path string true "Policy ID"
+// @Param        docId path string true "Document ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/documents/{docId} [delete]
+func (h *PolicyDocumentHandler) DeletePolicyDocument(ctx *gin.Context) {
+	docID, err := uuid.Parse(ctx.Param("docId"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid document ID")
+		return
+	}
+
+	resp := h.policyDocSvc.DeleteDocument(ctx.Request.Context(), docID)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
 // BulkGenerateMemberCards godoc
 // @Summary      Bulk generate member cards
 // @Description  Generate member cards for all members in a policy

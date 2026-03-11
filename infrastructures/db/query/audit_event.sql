@@ -19,3 +19,6 @@ SELECT COUNT(*) FROM audit_events;
 
 -- name: CountAuditEventsByEntity :one
 SELECT COUNT(*) FROM audit_events WHERE entity_type = $1 AND entity_id = $2;
+
+-- name: CountAuditEventsByUser :one
+SELECT COUNT(*) FROM audit_events WHERE user_id = $1;

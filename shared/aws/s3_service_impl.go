@@ -10,10 +10,10 @@ import (
 )
 
 type s3ServiceImpl struct {
-	client *s3.Client
+	client        *s3.Client
 	presignClient *s3.PresignClient
-	bucket string
-	cdnDomain string
+	bucket        string
+	cdnDomain     string
 }
 
 func NewS3Service(client *s3.Client, bucket, cdnDomain string) S3Service {
@@ -99,6 +99,42 @@ func (s *s3ServiceImpl) GetPresignedURL(ctx context.Context, key string, expires
 	}
 
 	return presignResult.URL, nil
+}
+
+func (s *s3ServiceImpl) GetPresignedPutURL(ctx context.Context, key, contentType string, expiresIn int64) (string, error) {
+	input := &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+	}
+
+	presignResult, err := s.presignClient.PresignPutObject(ctx, input, func(opts *s3.PresignOptions) {
+		opts.Expires = time.Duration(expiresIn) * time.Second
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned PUT URL: %w", err)
+	}
+
+	return presignResult.URL, nil
+}
+
+func (s *s3ServiceImpl) HeadObject(ctx context.Context, key string) (int64, error) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	}
+
+	result, err := s.client.HeadObject(ctx, input)
+	if err != nil {
+		return 0, fmt.Errorf("failed to head object in S3: %w", err)
+	}
+
+	var size int64
+	if result.ContentLength != nil {
+		size = *result.ContentLength
+	}
+
+	return size, nil
 }
 
 func (s *s3ServiceImpl) Delete(ctx context.Context, key string) error {

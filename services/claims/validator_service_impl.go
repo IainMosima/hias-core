@@ -47,8 +47,23 @@ func (s *validatorServiceImpl) ValidateClaim(ctx context.Context, claim *entity.
 	member, err := s.memberRepo.GetByID(ctx, claim.MemberID)
 	if err != nil {
 		errors = append(errors, "Member not found")
-	} else if member.PolicyID != claim.PolicyID {
-		errors = append(errors, "Member does not belong to this policy")
+	} else {
+		if member.PolicyID != claim.PolicyID {
+			errors = append(errors, "Member does not belong to this policy")
+		}
+
+		// 2b. Member must be ACTIVE
+		if member.Status != string(shared.MemberStatusActive) {
+			errors = append(errors, fmt.Sprintf("Member is %s, must be ACTIVE", member.Status))
+		}
+
+		// 2c. Service date must be within member's coverage period
+		if member.CoverageStartDate != nil && claim.ServiceDate.Before(*member.CoverageStartDate) {
+			errors = append(errors, "Service date is before member coverage start date")
+		}
+		if member.CoverageEndDate != nil && claim.ServiceDate.After(*member.CoverageEndDate) {
+			errors = append(errors, "Service date is after member coverage end date")
+		}
 	}
 
 	// 3. Provider must exist and be ACTIVE

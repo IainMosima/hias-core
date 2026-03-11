@@ -35,10 +35,11 @@ const (
 type EndorsementStatus string
 
 const (
-	EndorsementStatusPending  EndorsementStatus = "PENDING"
-	EndorsementStatusApproved EndorsementStatus = "APPROVED"
-	EndorsementStatusRejected EndorsementStatus = "REJECTED"
-	EndorsementStatusApplied  EndorsementStatus = "APPLIED"
+	EndorsementStatusPending   EndorsementStatus = "PENDING"
+	EndorsementStatusApproved  EndorsementStatus = "APPROVED"
+	EndorsementStatusRejected  EndorsementStatus = "REJECTED"
+	EndorsementStatusApplied   EndorsementStatus = "APPLIED"
+	EndorsementStatusCancelled EndorsementStatus = "CANCELLED"
 )
 
 // RenewalStatus represents the status of a policy renewal
@@ -897,4 +898,15 @@ const (
 	AuditEntityTypeReportDefinition      AuditEntityType = "REPORT_DEFINITION"
 	AuditEntityTypeReportSchedule        AuditEntityType = "REPORT_SCHEDULE"
 	AuditEntityTypeGeneratedReport       AuditEntityType = "GENERATED_REPORT"
+	AuditEntityTypeDocument              AuditEntityType = "DOCUMENT"
+)
+
+// DocumentStatus represents the status of an uploaded document
+type DocumentStatus string
+
+const (
+	DocumentStatusPendingUpload DocumentStatus = "PENDING_UPLOAD"
+	DocumentStatusActive        DocumentStatus = "ACTIVE"
+	DocumentStatusUploadFailed  DocumentStatus = "UPLOAD_FAILED"
+	DocumentStatusDeleted       DocumentStatus = "DELETED"
 )

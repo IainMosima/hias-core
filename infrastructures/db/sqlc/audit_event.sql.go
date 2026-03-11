@@ -39,6 +39,17 @@ func (q *Queries) CountAuditEventsByEntity(ctx context.Context, arg CountAuditEv
 	return count, err
 }
 
+const countAuditEventsByUser = `-- name: CountAuditEventsByUser :one
+SELECT COUNT(*) FROM audit_events WHERE user_id = $1
+`
+
+func (q *Queries) CountAuditEventsByUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countAuditEventsByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAuditEvent = `-- name: CreateAuditEvent :one
 INSERT INTO audit_events (user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent, created_at

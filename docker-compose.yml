@@ -13,6 +13,7 @@ services:
       - hias_network
 
   hias-core:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile

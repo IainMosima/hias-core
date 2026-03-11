@@ -15,4 +15,5 @@ type AuditRepository interface {
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*entity.AuditEvent, error)
 	Count(ctx context.Context) (int64, error)
 	CountByEntity(ctx context.Context, entityType string, entityID uuid.UUID) (int64, error)
+	CountByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 }

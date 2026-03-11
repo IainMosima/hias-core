@@ -40,38 +40,65 @@ func (r *policyRepository) Create(ctx context.Context, policy *entity.Policy) (*
 }
 
 func (r *policyRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Policy, error) {
-	dbPolicy, err := r.store.GetPolicyByID(ctx, id)
+	row, err := r.store.GetPolicyByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get policy by ID: %w", err)
 	}
-	return sqlcPolicyToDomain(dbPolicy), nil
+	p := sqlcPolicyToDomain(db.Policy{
+		ID: row.ID, PlanID: row.PlanID, PolicyholderName: row.PolicyholderName,
+		PolicyholderEmail: row.PolicyholderEmail, PolicyholderPhone: row.PolicyholderPhone,
+		PolicyNumber: row.PolicyNumber, Status: row.Status, StartDate: row.StartDate,
+		EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
+		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+	})
+	p.PlanName = row.PlanName
+	return p, nil
 }
 
 func (r *policyRepository) GetByNumber(ctx context.Context, number string) (*entity.Policy, error) {
-	dbPolicy, err := r.store.GetPolicyByNumber(ctx, number)
+	row, err := r.store.GetPolicyByNumber(ctx, number)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get policy by number: %w", err)
 	}
-	return sqlcPolicyToDomain(dbPolicy), nil
+	p := sqlcPolicyToDomain(db.Policy{
+		ID: row.ID, PlanID: row.PlanID, PolicyholderName: row.PolicyholderName,
+		PolicyholderEmail: row.PolicyholderEmail, PolicyholderPhone: row.PolicyholderPhone,
+		PolicyNumber: row.PolicyNumber, Status: row.Status, StartDate: row.StartDate,
+		EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
+		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+	})
+	p.PlanName = row.PlanName
+	return p, nil
 }
 
 func (r *policyRepository) List(ctx context.Context, limit, offset int) ([]*entity.Policy, error) {
-	dbPolicies, err := r.store.ListPolicies(ctx, db.ListPoliciesParams{
+	rows, err := r.store.ListPolicies(ctx, db.ListPoliciesParams{
 		Limit:  int32(limit),
 		Offset: int32(offset),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list policies: %w", err)
 	}
-	policies := make([]*entity.Policy, len(dbPolicies))
-	for i, p := range dbPolicies {
-		policies[i] = sqlcPolicyToDomain(p)
+	policies := make([]*entity.Policy, len(rows))
+	for i, row := range rows {
+		p := sqlcPolicyToDomain(db.Policy{
+			ID: row.ID, PlanID: row.PlanID, PolicyholderName: row.PolicyholderName,
+			PolicyholderEmail: row.PolicyholderEmail, PolicyholderPhone: row.PolicyholderPhone,
+			PolicyNumber: row.PolicyNumber, Status: row.Status, StartDate: row.StartDate,
+			EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
+			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+		})
+		p.PlanName = row.PlanName
+		policies[i] = p
 	}
 	return policies, nil
 }
 
 func (r *policyRepository) ListByStatus(ctx context.Context, status string, limit, offset int) ([]*entity.Policy, error) {
-	dbPolicies, err := r.store.ListPoliciesByStatus(ctx, db.ListPoliciesByStatusParams{
+	rows, err := r.store.ListPoliciesByStatus(ctx, db.ListPoliciesByStatusParams{
 		Status: status,
 		Limit:  int32(limit),
 		Offset: int32(offset),
@@ -79,9 +106,18 @@ func (r *policyRepository) ListByStatus(ctx context.Context, status string, limi
 	if err != nil {
 		return nil, fmt.Errorf("failed to list policies by status: %w", err)
 	}
-	policies := make([]*entity.Policy, len(dbPolicies))
-	for i, p := range dbPolicies {
-		policies[i] = sqlcPolicyToDomain(p)
+	policies := make([]*entity.Policy, len(rows))
+	for i, row := range rows {
+		p := sqlcPolicyToDomain(db.Policy{
+			ID: row.ID, PlanID: row.PlanID, PolicyholderName: row.PolicyholderName,
+			PolicyholderEmail: row.PolicyholderEmail, PolicyholderPhone: row.PolicyholderPhone,
+			PolicyNumber: row.PolicyNumber, Status: row.Status, StartDate: row.StartDate,
+			EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
+			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+		})
+		p.PlanName = row.PlanName
+		policies[i] = p
 	}
 	return policies, nil
 }
@@ -224,7 +260,7 @@ func sqlcPolicyToDomain(p db.Policy) *entity.Policy {
 }
 
 func (r *policyRepository) ListFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string, limit, offset int) ([]*entity.Policy, error) {
-	dbPolicies, err := r.store.ListPoliciesFiltered(ctx, db.ListPoliciesFilteredParams{
+	rows, err := r.store.ListPoliciesFiltered(ctx, db.ListPoliciesFilteredParams{
 		DateFrom:    timePtrToPgtypeTimestamptz(dateFrom),
 		DateTo:      timePtrToPgtypeTimestamptz(dateTo),
 		Search:      search,
@@ -234,9 +270,18 @@ func (r *policyRepository) ListFiltered(ctx context.Context, dateFrom, dateTo *t
 	if err != nil {
 		return nil, fmt.Errorf("failed to list policies filtered: %w", err)
 	}
-	policies := make([]*entity.Policy, len(dbPolicies))
-	for i, p := range dbPolicies {
-		policies[i] = sqlcPolicyToDomain(p)
+	policies := make([]*entity.Policy, len(rows))
+	for i, row := range rows {
+		p := sqlcPolicyToDomain(db.Policy{
+			ID: row.ID, PlanID: row.PlanID, PolicyholderName: row.PolicyholderName,
+			PolicyholderEmail: row.PolicyholderEmail, PolicyholderPhone: row.PolicyholderPhone,
+			PolicyNumber: row.PolicyNumber, Status: row.Status, StartDate: row.StartDate,
+			EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
+			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+		})
+		p.PlanName = row.PlanName
+		policies[i] = p
 	}
 	return policies, nil
 }

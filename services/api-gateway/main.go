@@ -19,6 +19,7 @@ import (
 	"github.com/bitbiz/hias-core/services/api-gateway/handlers"
 	"github.com/bitbiz/hias-core/services/api-gateway/routes"
 	"github.com/bitbiz/hias-core/services/audit"
+	documentSvc "github.com/bitbiz/hias-core/services/document"
 	awsSvc "github.com/bitbiz/hias-core/shared/aws"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -53,11 +54,6 @@ func main() {
 	cfg, _, err := configs.LoadConfig("./configs")
 	if err != nil {
 		log.Printf("Warning: Could not load local config: %v", err)
-	}
-
-	// Try SSM parameters overlay
-	if err := configs.LoadSSMParameters(&cfg); err != nil {
-		log.Printf("Warning: Could not load SSM parameters: %v", err)
 	}
 
 	// 2. Database connection
@@ -192,6 +188,9 @@ func main() {
 	reinsurerStatementRepo := repository.NewReinsurerStatementRepository(store)
 	treatyAlertRepo := repository.NewTreatyAlertRepository(store)
 
+	// Document repository
+	documentRepo := repository.NewDocumentRepository(store)
+
 	// Reporting repositories
 	reportRepo := reportingInfra.NewReportRepository(store)
 	reportDataRepo := reportingInfra.NewReportDataRepository(store)
@@ -229,6 +228,12 @@ func main() {
 		}
 	}
 
+	// Document upload service
+	docSvc := documentSvc.NewDocumentService(documentRepo, s3Svc, auditSvc, documentSvc.DocumentServiceConfig{
+		MaxFileSize:  cfg.AWSS3MaxFileSize,
+		AllowedTypes: cfg.AWSS3AllowedTypes,
+	})
+
 	// PDF generator and policy document service (created before policySvc to avoid circular deps)
 	pdfGenerator := documents.NewPDFGenerator()
 	policyDocSvc := policy.NewPolicyDocumentService(policyDocumentRepo, policyRepo, memberRepo, planRepo, benefitRepo, renewalRepo, preauthRepo, providerRepo, pdfGenerator, s3Svc, auditSvc, notifSvc)
@@ -243,7 +248,7 @@ func main() {
 	// Policy services
 	memberSvc := policy.NewMemberService(memberRepo, policyRepo, planRepo, premiumRuleRepo, premiumRuleSvc, underwritingFlagRepo, underwritingRuleRepo, creditNoteSvc, auditSvc)
 	policySvc := policy.NewPolicyService(policyRepo, planRepo, memberRepo, premiumRuleSvc, policyDocSvc, creditNoteSvc, auditSvc)
-	endorsementSvc := policy.NewEndorsementService(endorsementRepo, policyRepo, memberRepo, memberSvc, policySvc, premiumRuleSvc, auditSvc)
+	endorsementSvc := policy.NewEndorsementService(endorsementRepo, policyRepo, memberRepo, memberSvc, policySvc, premiumRuleSvc, planRepo, policyDocSvc, auditSvc)
 	renewalSvc := policy.NewRenewalService(renewalRepo, policyRepo, memberRepo, claimRepo, premiumRuleSvc, premiumRuleRepo, planRepo, underwritingFlagRepo, auditSvc)
 	underwritingSvc := policy.NewUnderwritingService(underwritingRepo, policyRepo, memberRepo, underwritingRuleRepo, underwritingFlagRepo, auditSvc)
 
@@ -355,8 +360,8 @@ func main() {
 		// Reporting
 		Report: handlers.NewReportHandler(reportSvc),
 
-		// Documents (standalone)
-		Document: handlers.NewDocumentHandler(store, s3Svc),
+		// Documents (standalone + uploads)
+		Document: handlers.NewDocumentHandler(store, s3Svc, docSvc),
 	}
 
 	// 8. Scheduler (optional — only if enabled)

@@ -49,11 +49,20 @@ func (s *authServiceImpl) Login(ctx context.Context, req schema.LoginRequest) *s
 	// Get user from DB
 	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
+		log.Printf("[LOGIN] User not found for email=%s: %v", req.Email, err)
 		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "Invalid credentials", err)
+	}
+
+	log.Printf("[LOGIN] User found: id=%s email=%s status=%s hash_len=%d", user.ID, user.Email, user.Status, len(user.PasswordHash))
+
+	// Load role name (same pattern as GetUserByID in user_service_impl.go)
+	if role, roleErr := s.roleRepo.GetByID(ctx, user.RoleID); roleErr == nil {
+		user.RoleName = role.Name
 	}
 
 	// Verify password
 	if err := utils.CheckPassword(req.Password, user.PasswordHash); err != nil {
+		log.Printf("[LOGIN] Password mismatch for email=%s: %v", req.Email, err)
 		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "Invalid credentials", err)
 	}
 
@@ -96,16 +105,20 @@ func (s *authServiceImpl) Register(ctx context.Context, req schema.RegisterReque
 	if err != nil {
 		return schema.NewServiceErrorResponse[schema.RegisterResponse](http.StatusInternalServerError, "Registration failed", err)
 	}
+	log.Printf("[REGISTER] Password hashed: len=%d, starts_with=%s", len(passwordHash), passwordHash[:7])
 
 	// Find role
 	roleName := req.RoleName
 	if roleName == "" {
-		roleName = string(shared.UserRoleMember)
+		roleName = string(shared.UserRoleAdmin)
 	}
 	role, err := s.roleRepo.GetByName(ctx, roleName)
 	if err != nil {
-		log.Printf("Role not found: %s, using default", roleName)
-		role = &entity.Role{ID: uuid.Nil}
+		return schema.NewServiceErrorResponse[schema.RegisterResponse](
+			http.StatusBadRequest,
+			fmt.Sprintf("Role '%s' not found. Please ensure roles are seeded.", roleName),
+			err,
+		)
 	}
 
 	// Create user in DB
@@ -149,6 +162,11 @@ func (s *authServiceImpl) RefreshToken(ctx context.Context, req schema.RefreshTo
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return schema.NewServiceErrorResponse[schema.LoginResponse](http.StatusUnauthorized, "User not found", err)
+	}
+
+	// Load role name
+	if role, roleErr := s.roleRepo.GetByID(ctx, user.RoleID); roleErr == nil {
+		user.RoleName = role.Name
 	}
 
 	permissions := s.getPermissionStrings(ctx, user.RoleID)
