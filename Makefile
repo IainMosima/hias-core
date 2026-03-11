@@ -1,4 +1,4 @@
-DB_URL=postgresql://root:supersecret@localhost:5432/hias_db?sslmode=disable
+DB_URL=postgresql://postgres.fkavaynkpqgzifbftdvx:hzYWFL%24vSa9P%2Aii@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require
 
 postgres:
 	docker run --name hias-postgres -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=supersecret -d postgres:16-alpine

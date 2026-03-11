@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bitbiz/hias-core/configs"
+	"github.com/bitbiz/hias-core/infrastructures/cache"
 	db "github.com/bitbiz/hias-core/infrastructures/db/sqlc"
 	"github.com/bitbiz/hias-core/infrastructures/documents"
 	"github.com/bitbiz/hias-core/infrastructures/queue"
@@ -75,6 +76,19 @@ func main() {
 	log.Println("Connected to database")
 
 	store := db.NewStore(connPool)
+
+	// 2b. Redis / Cache (optional — graceful degradation if unavailable)
+	var cacheManager cache.CacheManager
+	if cfg.RedisURL != "" {
+		redisClient, redisErr := cache.NewRedisClient(cache.CacheConfig{RedisURL: cfg.RedisURL})
+		if redisErr != nil {
+			log.Printf("Warning: Cannot connect to Redis: %v — caching disabled", redisErr)
+		} else {
+			cacheManager = cache.NewRedisCacheManager(redisClient)
+			log.Println("Connected to Redis")
+		}
+	}
+	_ = cacheManager // available for future service injection
 
 	// 3. Auth infrastructure
 	tokenMaker, err := auth.NewPasetoMaker(cfg.TokenSymmetricKey)

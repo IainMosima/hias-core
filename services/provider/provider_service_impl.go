@@ -103,10 +103,10 @@ func (s *providerServiceImpl) ActivateProvider(ctx context.Context, id uuid.UUID
 	}
 
 	if provider.Status == string(shared.ProviderStatusActive) {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, "Provider is already active", nil)
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, "Provider is already active", fmt.Errorf("provider is already active"))
 	}
 	if provider.Status == string(shared.ProviderStatusPending) {
-		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, "Provider must complete credentialing before activation", nil)
+		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, "Provider must complete credentialing before activation", fmt.Errorf("provider must complete credentialing"))
 	}
 
 	updated, err := s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusActive))

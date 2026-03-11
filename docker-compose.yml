@@ -1,38 +1,4 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: hias_postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: supersecret
-      POSTGRES_DB: hias_db
-    volumes:
-      - hias_postgres_data:/var/lib/postgresql/data
-    networks:
-      - hias_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root -d hias_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:latest
-    container_name: hias_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - hias_redis_data:/data
-    networks:
-      - hias_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   localstack:
     image: localstack/localstack:latest
     container_name: hias_localstack
@@ -56,17 +22,13 @@ services:
       - "9090:9090"
     environment:
       ENVIRONMENT: development
-      DB_SOURCE: postgresql://root:supersecret@postgres:5432/hias_db?sslmode=disable
-      REDIS_URL: redis://redis:6379
+      DB_SOURCE: postgresql://postgres.fkavaynkpqgzifbftdvx:hzYWFL%24vSa9P%2Aii@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require
+      REDIS_URL: rediss://default:gQAAAAAAAQahAAIncDEyNDY3NTc1MzM3ZDg0NGJlYWM1ODgzYTdlNTg5M2VlNXAxNjcyMzM@healthy-marten-67233.upstash.io:6379
       AWS_REGION: af-south-1
       AWS_ENDPOINT_URL: http://localstack:4566
       HTTP_SERVER_ADDRESS: 0.0.0.0:8080
       GRPC_SERVER_ADDRESS: 0.0.0.0:9090
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
       localstack:
         condition: service_started
     networks:
@@ -74,8 +36,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  hias_postgres_data:
-  hias_redis_data:
   hias_localstack_data:
 
 networks:
