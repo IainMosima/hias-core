@@ -144,6 +144,17 @@ func (s *policyServiceImpl) ActivatePolicy(ctx context.Context, id uuid.UUID) *s
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, fmt.Sprintf("Cannot activate policy in %s status", policy.Status), nil)
 	}
 
+	// Gate activation on underwriting status
+	allowedUWStatuses := map[string]bool{
+		string(shared.PolicyUWStatusNotRequired):           true,
+		string(shared.PolicyUWStatusApproved):              true,
+		string(shared.PolicyUWStatusApprovedWithLoading):   true,
+		string(shared.PolicyUWStatusApprovedWithExclusion): true,
+	}
+	if !allowedUWStatuses[policy.UnderwritingStatus] {
+		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, fmt.Sprintf("Cannot activate: underwriting status is %s", policy.UnderwritingStatus), nil)
+	}
+
 	updated, err := s.policyRepo.ActivateWithTimestamp(ctx, id)
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusInternalServerError, "Failed to activate policy", err)
@@ -154,12 +165,39 @@ func (s *policyServiceImpl) ActivatePolicy(ctx context.Context, id uuid.UUID) *s
 		log.Printf("Failed to activate pending members for policy %s: %v", id, err)
 	}
 
-	// Auto-generate welcome letter and member cards (non-blocking)
+	// Auto-generate welcome letter, policy schedule, and member cards (non-blocking)
 	if s.policyDocSvc != nil {
 		go func() {
 			bgCtx := context.Background()
-			s.policyDocSvc.GenerateWelcomeLetter(bgCtx, id, uuid.Nil)
-			s.policyDocSvc.BulkGenerateMemberCards(bgCtx, id, uuid.Nil)
+			// Welcome letter
+			s.policyDocSvc.GenerateDocument(bgCtx, policySchema.GenerateDocumentRequest{
+				EntityType:     "policy",
+				EntityID:       id.String(),
+				DocumentType:   "WELCOME_LETTER",
+				GenerationMode: "AUTO",
+				GeneratedBy:    uuid.Nil,
+			})
+			// Policy schedule
+			s.policyDocSvc.GenerateDocument(bgCtx, policySchema.GenerateDocumentRequest{
+				EntityType:     "policy",
+				EntityID:       id.String(),
+				DocumentType:   "POLICY_SCHEDULE",
+				GenerationMode: "AUTO",
+				GeneratedBy:    uuid.Nil,
+			})
+			// Member cards for each active member
+			members, err := s.memberRepo.ListActiveByPolicy(bgCtx, id)
+			if err == nil {
+				for _, m := range members {
+					s.policyDocSvc.GenerateDocument(bgCtx, policySchema.GenerateDocumentRequest{
+						EntityType:     "member",
+						EntityID:       m.ID.String(),
+						DocumentType:   "MEMBER_CARD",
+						GenerationMode: "AUTO",
+						GeneratedBy:    uuid.Nil,
+					})
+				}
+			}
 		}()
 	}
 

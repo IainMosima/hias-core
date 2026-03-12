@@ -1,6 +1,7 @@
 package routes
 
 import (
+	claimRepo "github.com/bitbiz/hias-core/domains/claims/repository"
 	"github.com/bitbiz/hias-core/services/api-gateway/handlers"
 	"github.com/bitbiz/hias-core/services/api-gateway/middleware"
 	"github.com/bitbiz/hias-core/shared"
@@ -70,9 +71,14 @@ type Handlers struct {
 
 	// Documents (standalone)
 	Document *handlers.DocumentHandler
+
+	// Multi-channel claims intake
+	ExternalClaim *handlers.ExternalClaimHandler
+	DraftClaim    *handlers.DraftClaimHandler
+	APIPartner    *handlers.APIPartnerHandler
 }
 
-func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) {
+func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker, apiPartnerRepo claimRepo.APIPartnerRepository) {
 	// Swagger
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
@@ -91,6 +97,16 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 
 	// Public webhook
 	router.POST("/api/v1/webhooks/mpesa", h.Payment.ProcessWebhook)
+
+	// External claims (API Key auth)
+	if apiPartnerRepo != nil && h.ExternalClaim != nil {
+		external := router.Group("/api/v1/external")
+		external.Use(middleware.APIKeyAuthMiddleware(apiPartnerRepo))
+		{
+			external.POST("/claims", h.ExternalClaim.SubmitExternalClaim)
+			external.GET("/claims/:id/status", h.ExternalClaim.GetExternalClaimStatus)
+		}
+	}
 
 	// Authenticated routes
 	authenticated := router.Group("/api/v1")
@@ -219,6 +235,8 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			policies.POST("/:id/documents/welcome-letter", h.PolicyDocument.GenerateWelcomeLetter)
 			policies.POST("/:id/documents/policy-schedule", h.PolicyDocument.GeneratePolicySchedule)
 			policies.POST("/:id/documents/member-cards", h.PolicyDocument.BulkGenerateMemberCards)
+			policies.POST("/:id/documents/upload-url", h.PolicyDocument.RequestUploadURL)
+			policies.POST("/:id/documents/:docId/confirm-upload", h.PolicyDocument.ConfirmUpload)
 			policies.DELETE("/:id/documents/:docId", h.PolicyDocument.DeletePolicyDocument)
 
 			// Underwriting Flags (nested under policies)
@@ -323,6 +341,14 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			policyDocs.DELETE("/:id", h.PolicyDocument.DeleteDocument)
 		}
 
+		// Document Generation (unified V1)
+		docGen := authenticated.Group("/documents")
+		{
+			docGen.POST("/generate", h.PolicyDocument.GenerateDocument)
+			docGen.GET("/can-generate", h.PolicyDocument.CanGenerate)
+			docGen.GET("/availability", h.PolicyDocument.GetAvailability)
+		}
+
 		// Providers
 		providers := authenticated.Group("/providers")
 		{
@@ -417,6 +443,15 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			claims.POST("/:id/decline-letter", h.PolicyDocument.GenerateDeclineLetter)
 		}
 
+		// Draft Claims (nested under claims)
+		if h.DraftClaim != nil {
+			claims.POST("/drafts", h.DraftClaim.CreateDraft)
+			claims.GET("/drafts", h.DraftClaim.ListDrafts)
+			claims.PUT("/drafts/:id", h.DraftClaim.UpdateDraft)
+			claims.POST("/drafts/:id/submit", h.DraftClaim.SubmitDraft)
+			claims.DELETE("/drafts/:id", h.DraftClaim.DeleteDraft)
+		}
+
 		// Claim Documents (standalone for delete)
 		claimDocs := authenticated.Group("/claim-documents")
 		{
@@ -456,7 +491,9 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 		invoices := authenticated.Group("/invoices")
 		{
 			invoices.GET("", h.Invoice.ListInvoices)
+			invoices.POST("", h.Invoice.CreateInvoice)
 			invoices.GET("/:id", h.Invoice.GetInvoice)
+			invoices.GET("/:id/download", h.Invoice.DownloadInvoice)
 		}
 
 		// Payments
@@ -757,6 +794,20 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker) 
 			reports.GET("/dashboard", middleware.RequireRole(
 				string(shared.UserRoleAdmin), string(shared.UserRoleManager), string(shared.UserRoleFinance),
 			), h.Report.GetManagementDashboard)
+		}
+
+		// API Partners (admin-only)
+		if h.APIPartner != nil {
+			apiPartners := authenticated.Group("/api-partners")
+			apiPartners.Use(middleware.RequireRole(string(shared.UserRoleAdmin)))
+			{
+				apiPartners.GET("", h.APIPartner.List)
+				apiPartners.POST("", h.APIPartner.Create)
+				apiPartners.GET("/:id", h.APIPartner.Get)
+				apiPartners.PUT("/:id", h.APIPartner.Update)
+				apiPartners.PUT("/:id/deactivate", h.APIPartner.Deactivate)
+				apiPartners.POST("/:id/regenerate-key", h.APIPartner.RegenerateAPIKey)
+			}
 		}
 	}
 }

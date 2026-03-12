@@ -51,6 +51,7 @@ func (r *policyRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.P
 		EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
 		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+		UnderwritingStatus: row.UnderwritingStatus,
 	})
 	p.PlanName = row.PlanName
 	return p, nil
@@ -68,6 +69,7 @@ func (r *policyRepository) GetByNumber(ctx context.Context, number string) (*ent
 		EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
 		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+		UnderwritingStatus: row.UnderwritingStatus,
 	})
 	p.PlanName = row.PlanName
 	return p, nil
@@ -90,6 +92,7 @@ func (r *policyRepository) List(ctx context.Context, limit, offset int) ([]*enti
 			EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
 			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+			UnderwritingStatus: row.UnderwritingStatus,
 		})
 		p.PlanName = row.PlanName
 		policies[i] = p
@@ -115,6 +118,7 @@ func (r *policyRepository) ListByStatus(ctx context.Context, status string, limi
 			EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
 			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+			UnderwritingStatus: row.UnderwritingStatus,
 		})
 		p.PlanName = row.PlanName
 		policies[i] = p
@@ -240,23 +244,35 @@ func sqlcPolicyToDomain(p db.Policy) *entity.Policy {
 		renewedFromID = &id
 	}
 	return &entity.Policy{
-		ID:                p.ID,
-		PlanID:            p.PlanID,
-		PolicyholderName:  p.PolicyholderName,
-		PolicyholderEmail: p.PolicyholderEmail,
-		PolicyholderPhone: p.PolicyholderPhone,
-		PolicyNumber:      p.PolicyNumber,
-		Status:            p.Status,
-		StartDate:         pgtypeTimestamptzToTime(p.StartDate),
-		EndDate:           pgtypeTimestamptzToTime(p.EndDate),
-		PremiumAmount:     p.PremiumAmount,
-		Currency:          p.Currency,
-		RenewedFromID:     renewedFromID,
-		ActivatedAt:       pgtypeTimestamptzToTimePtr(p.ActivatedAt),
-		CreatedBy:         pgtypeToUUID(p.CreatedBy),
-		CreatedAt:         p.CreatedAt,
-		UpdatedAt:         p.UpdatedAt,
+		ID:                 p.ID,
+		PlanID:             p.PlanID,
+		PolicyholderName:   p.PolicyholderName,
+		PolicyholderEmail:  p.PolicyholderEmail,
+		PolicyholderPhone:  p.PolicyholderPhone,
+		PolicyNumber:       p.PolicyNumber,
+		Status:             p.Status,
+		StartDate:          pgtypeTimestamptzToTime(p.StartDate),
+		EndDate:            pgtypeTimestamptzToTime(p.EndDate),
+		PremiumAmount:      p.PremiumAmount,
+		Currency:           p.Currency,
+		RenewedFromID:      renewedFromID,
+		ActivatedAt:        pgtypeTimestamptzToTimePtr(p.ActivatedAt),
+		UnderwritingStatus: p.UnderwritingStatus,
+		CreatedBy:          pgtypeToUUID(p.CreatedBy),
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
 	}
+}
+
+func (r *policyRepository) UpdateUnderwritingStatus(ctx context.Context, policyID uuid.UUID, status string) (*entity.Policy, error) {
+	dbPolicy, err := r.store.UpdatePolicyUnderwritingStatus(ctx, db.UpdatePolicyUnderwritingStatusParams{
+		ID:                 policyID,
+		UnderwritingStatus: status,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update policy underwriting status: %w", err)
+	}
+	return sqlcPolicyToDomain(dbPolicy), nil
 }
 
 func (r *policyRepository) ListFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string, limit, offset int) ([]*entity.Policy, error) {
@@ -279,6 +295,7 @@ func (r *policyRepository) ListFiltered(ctx context.Context, dateFrom, dateTo *t
 			EndDate: row.EndDate, PremiumAmount: row.PremiumAmount, Currency: row.Currency,
 			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			RenewedFromID: row.RenewedFromID, ActivatedAt: row.ActivatedAt,
+			UnderwritingStatus: row.UnderwritingStatus,
 		})
 		p.PlanName = row.PlanName
 		policies[i] = p

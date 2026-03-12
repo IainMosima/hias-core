@@ -4,8 +4,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bitbiz/hias-core/domains/billing/entity"
 	"github.com/bitbiz/hias-core/domains/billing/repository"
 	billingSchema "github.com/bitbiz/hias-core/domains/billing/schema"
+	policyRepo "github.com/bitbiz/hias-core/domains/policy/repository"
+	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -13,10 +16,11 @@ import (
 
 type InvoiceHandler struct {
 	invoiceRepo repository.InvoiceRepository
+	policyRepo  policyRepo.PolicyRepository
 }
 
-func NewInvoiceHandler(invoiceRepo repository.InvoiceRepository) *InvoiceHandler {
-	return &InvoiceHandler{invoiceRepo: invoiceRepo}
+func NewInvoiceHandler(invoiceRepo repository.InvoiceRepository, policyRepo policyRepo.PolicyRepository) *InvoiceHandler {
+	return &InvoiceHandler{invoiceRepo: invoiceRepo, policyRepo: policyRepo}
 }
 
 // GetInvoice godoc
@@ -37,7 +41,7 @@ func (h *InvoiceHandler) GetInvoice(ctx *gin.Context) {
 		return
 	}
 
-	invoice, err := h.invoiceRepo.GetByID(ctx.Request.Context(), id)
+	invoice, err := h.invoiceRepo.GetWithPolicy(ctx.Request.Context(), id)
 	if err != nil {
 		utils.RespondError(ctx, http.StatusNotFound, "Invoice not found")
 		return
@@ -85,7 +89,7 @@ func (h *InvoiceHandler) ListInvoices(ctx *gin.Context) {
 			}
 		}
 
-		invoices, err := h.invoiceRepo.ListFiltered(ctx.Request.Context(), dateFrom, dateTo, pagination.PageSize, offset)
+		invoices, err := h.invoiceRepo.ListFilteredWithPolicy(ctx.Request.Context(), dateFrom, dateTo, pagination.PageSize, offset)
 		if err != nil {
 			utils.RespondError(ctx, http.StatusInternalServerError, "Failed to list invoices")
 			return
@@ -101,7 +105,7 @@ func (h *InvoiceHandler) ListInvoices(ctx *gin.Context) {
 		return
 	}
 
-	invoices, err := h.invoiceRepo.List(ctx.Request.Context(), pagination.PageSize, offset)
+	invoices, err := h.invoiceRepo.ListWithPolicy(ctx.Request.Context(), pagination.PageSize, offset)
 	if err != nil {
 		utils.RespondError(ctx, http.StatusInternalServerError, "Failed to list invoices")
 		return
@@ -114,4 +118,89 @@ func (h *InvoiceHandler) ListInvoices(ctx *gin.Context) {
 
 	count, _ := h.invoiceRepo.Count(ctx.Request.Context())
 	utils.RespondPaginated(ctx, "Invoices retrieved", responses, pagination.Page, pagination.PageSize, count)
+}
+
+// CreateInvoice godoc
+// @Summary      Create a new invoice
+// @Description  Create an invoice manually for a given policy
+// @Tags         Invoices
+// @Accept       json
+// @Produce      json
+// @Param        request body billingSchema.CreateInvoiceRequest true "Create Invoice Request"
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/invoices [post]
+func (h *InvoiceHandler) CreateInvoice(ctx *gin.Context) {
+	var req billingSchema.CreateInvoiceRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	policyID, err := uuid.Parse(req.PolicyID)
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid policy ID")
+		return
+	}
+
+	policy, err := h.policyRepo.GetByID(ctx.Request.Context(), policyID)
+	if err != nil {
+		utils.RespondError(ctx, http.StatusNotFound, "Policy not found")
+		return
+	}
+
+	if shared.PolicyStatus(policy.Status) != shared.PolicyStatusActive {
+		utils.RespondError(ctx, http.StatusBadRequest, "Policy must be ACTIVE to create an invoice")
+		return
+	}
+
+	currency := req.Currency
+	if currency == "" {
+		currency = "KES"
+	}
+
+	now := time.Now()
+	billingStart := now
+	billingEnd := now.AddDate(0, 1, 0)
+	if req.BillingPeriodStart != nil {
+		billingStart = *req.BillingPeriodStart
+	}
+	if req.BillingPeriodEnd != nil {
+		billingEnd = *req.BillingPeriodEnd
+	}
+
+	invoice := &entity.Invoice{
+		PolicyID:           policyID,
+		InvoiceNumber:      utils.GenerateInvoiceNumber(),
+		Amount:             req.Amount,
+		Currency:           currency,
+		DueDate:            req.DueDate,
+		Status:             string(shared.InvoiceStatusPending),
+		BillingPeriodStart: billingStart,
+		BillingPeriodEnd:   billingEnd,
+		Notes:              req.Notes,
+	}
+
+	created, err := h.invoiceRepo.Create(ctx.Request.Context(), invoice)
+	if err != nil {
+		utils.RespondError(ctx, http.StatusInternalServerError, "Failed to create invoice")
+		return
+	}
+
+	utils.RespondSuccess(ctx, http.StatusCreated, "Invoice created", billingSchema.ToInvoiceResponse(created))
+}
+
+// DownloadInvoice godoc
+// @Summary      Download invoice PDF
+// @Description  Download an invoice as a PDF document (not yet implemented)
+// @Tags         Invoices
+// @Produce      json
+// @Param        id path string true "Invoice ID"
+// @Success      200 {file} file
+// @Failure      501 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/invoices/{id}/download [get]
+func (h *InvoiceHandler) DownloadInvoice(ctx *gin.Context) {
+	ctx.JSON(http.StatusNotImplemented, gin.H{"message": "Invoice PDF generation not yet available"})
 }

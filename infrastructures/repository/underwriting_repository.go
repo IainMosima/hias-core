@@ -35,15 +35,22 @@ func (r *underwritingRepository) Create(ctx context.Context, a *entity.Underwrit
 	if err != nil {
 		return nil, fmt.Errorf("failed to create underwriting assessment: %w", err)
 	}
-	return sqlcUnderwritingToDomain(dbA), nil
+	return sqlcUnderwritingToDomain(dbA, ""), nil
 }
 
 func (r *underwritingRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.UnderwritingAssessment, error) {
-	dbA, err := r.store.GetUnderwritingByID(ctx, id)
+	row, err := r.store.GetUnderwritingByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get underwriting assessment: %w", err)
 	}
-	return sqlcUnderwritingToDomain(dbA), nil
+	return sqlcUnderwritingToDomain(db.UnderwritingAssessment{
+		ID: row.ID, PolicyID: row.PolicyID, MemberID: row.MemberID,
+		Status: row.Status, Questionnaire: row.Questionnaire,
+		MedicalDeclarations: row.MedicalDeclarations, RiskScore: row.RiskScore,
+		RiskFlags: row.RiskFlags, DecisionReason: row.DecisionReason,
+		AssessedBy: row.AssessedBy, AssessedAt: row.AssessedAt,
+		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}, row.AssessedByName), nil
 }
 
 func (r *underwritingRepository) GetByPolicyID(ctx context.Context, policyID uuid.UUID) ([]*entity.UnderwritingAssessment, error) {
@@ -52,18 +59,32 @@ func (r *underwritingRepository) GetByPolicyID(ctx context.Context, policyID uui
 		return nil, fmt.Errorf("failed to list underwriting by policy: %w", err)
 	}
 	result := make([]*entity.UnderwritingAssessment, len(dbAs))
-	for i, a := range dbAs {
-		result[i] = sqlcUnderwritingToDomain(a)
+	for i, row := range dbAs {
+		result[i] = sqlcUnderwritingToDomain(db.UnderwritingAssessment{
+			ID: row.ID, PolicyID: row.PolicyID, MemberID: row.MemberID,
+			Status: row.Status, Questionnaire: row.Questionnaire,
+			MedicalDeclarations: row.MedicalDeclarations, RiskScore: row.RiskScore,
+			RiskFlags: row.RiskFlags, DecisionReason: row.DecisionReason,
+			AssessedBy: row.AssessedBy, AssessedAt: row.AssessedAt,
+			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		}, row.AssessedByName)
 	}
 	return result, nil
 }
 
 func (r *underwritingRepository) GetByMemberID(ctx context.Context, memberID uuid.UUID) (*entity.UnderwritingAssessment, error) {
-	dbA, err := r.store.GetUnderwritingByMember(ctx, uuidToPgtype(memberID))
+	row, err := r.store.GetUnderwritingByMember(ctx, uuidToPgtype(memberID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get underwriting by member: %w", err)
 	}
-	return sqlcUnderwritingToDomain(dbA), nil
+	return sqlcUnderwritingToDomain(db.UnderwritingAssessment{
+		ID: row.ID, PolicyID: row.PolicyID, MemberID: row.MemberID,
+		Status: row.Status, Questionnaire: row.Questionnaire,
+		MedicalDeclarations: row.MedicalDeclarations, RiskScore: row.RiskScore,
+		RiskFlags: row.RiskFlags, DecisionReason: row.DecisionReason,
+		AssessedBy: row.AssessedBy, AssessedAt: row.AssessedAt,
+		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}, row.AssessedByName), nil
 }
 
 func (r *underwritingRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*entity.UnderwritingAssessment, error) {
@@ -74,7 +95,7 @@ func (r *underwritingRepository) UpdateStatus(ctx context.Context, id uuid.UUID,
 	if err != nil {
 		return nil, fmt.Errorf("failed to update underwriting status: %w", err)
 	}
-	return sqlcUnderwritingToDomain(dbA), nil
+	return sqlcUnderwritingToDomain(dbA, ""), nil
 }
 
 func (r *underwritingRepository) Update(ctx context.Context, a *entity.UnderwritingAssessment) (*entity.UnderwritingAssessment, error) {
@@ -94,10 +115,10 @@ func (r *underwritingRepository) Update(ctx context.Context, a *entity.Underwrit
 	if err != nil {
 		return nil, fmt.Errorf("failed to update underwriting: %w", err)
 	}
-	return sqlcUnderwritingToDomain(dbA), nil
+	return sqlcUnderwritingToDomain(dbA, ""), nil
 }
 
-func sqlcUnderwritingToDomain(a db.UnderwritingAssessment) *entity.UnderwritingAssessment {
+func sqlcUnderwritingToDomain(a db.UnderwritingAssessment, assessedByName string) *entity.UnderwritingAssessment {
 	var riskScore int
 	if a.RiskScore.Valid {
 		riskScore = int(a.RiskScore.Int32)
@@ -125,6 +146,7 @@ func sqlcUnderwritingToDomain(a db.UnderwritingAssessment) *entity.UnderwritingA
 		RiskFlags:           riskFlags,
 		DecisionReason:      a.DecisionReason.String,
 		AssessedBy:          pgtypeToUUID(a.AssessedBy),
+		AssessedByName:      assessedByName,
 		AssessedAt:          pgtypeTimestamptzToTimePtr(a.AssessedAt),
 		CreatedBy:           a.CreatedBy,
 		CreatedAt:           a.CreatedAt,

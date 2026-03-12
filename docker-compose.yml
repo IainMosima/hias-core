@@ -1,17 +1,4 @@
 services:
-  localstack:
-    image: localstack/localstack:latest
-    container_name: hias_localstack
-    ports:
-      - "4566:4566"
-    environment:
-      SERVICES: sqs,s3
-      DEFAULT_REGION: af-south-1
-    volumes:
-      - hias_localstack_data:/var/lib/localstack
-    networks:
-      - hias_network
-
   hias-core:
     platform: linux/amd64
     build:
@@ -21,23 +8,15 @@ services:
     ports:
       - "8080:8080"
       - "9090:9090"
+    env_file:
+      - configs/app.env
     environment:
-      ENVIRONMENT: development
-      DB_SOURCE: postgresql://postgres.fkavaynkpqgzifbftdvx:hzYWFL%24vSa9P%2Aii@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require
-      REDIS_URL: rediss://default:gQAAAAAAAQahAAIncDEyNDY3NTc1MzM3ZDg0NGJlYWM1ODgzYTdlNTg5M2VlNXAxNjcyMzM@healthy-marten-67233.upstash.io:6379
-      AWS_REGION: af-south-1
-      AWS_ENDPOINT_URL: http://localstack:4566
-      HTTP_SERVER_ADDRESS: 0.0.0.0:8080
-      GRPC_SERVER_ADDRESS: 0.0.0.0:9090
-    depends_on:
-      localstack:
-        condition: service_started
+      # AWS credentials from .env (not in app.env for security)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     networks:
       - hias_network
     restart: unless-stopped
-
-volumes:
-  hias_localstack_data:
 
 networks:
   hias_network:

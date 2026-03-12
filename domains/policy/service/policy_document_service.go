@@ -18,4 +18,13 @@ type PolicyDocumentService interface {
 	BulkGenerateMemberCards(ctx context.Context, policyID uuid.UUID, generatedBy uuid.UUID) *schema.ServiceResponse[[]policySchema.PolicyDocumentResponse]
 	GenerateLOU(ctx context.Context, preauthID uuid.UUID, generatedBy uuid.UUID) *schema.ServiceResponse[policySchema.PolicyDocumentResponse]
 	GenerateDeclineLetter(ctx context.Context, policyID uuid.UUID, memberName, claimNumber, rejectionReason string, generatedBy uuid.UUID) *schema.ServiceResponse[policySchema.PolicyDocumentResponse]
+
+	// V1 unified document generation
+	GenerateDocument(ctx context.Context, req policySchema.GenerateDocumentRequest) *schema.ServiceResponse[policySchema.PolicyDocumentResponse]
+	CanGenerateDocument(ctx context.Context, entityType string, entityID uuid.UUID, docType string) *schema.ServiceResponse[policySchema.DocumentReadinessResponse]
+	GetDocumentAvailability(ctx context.Context, entityType string, entityID uuid.UUID) *schema.ServiceResponse[[]policySchema.DocumentAvailabilityItem]
+
+	// Upload flow
+	RequestUploadURL(ctx context.Context, policyID uuid.UUID, req policySchema.UploadPolicyDocumentURLRequest, uploadedBy uuid.UUID) *schema.ServiceResponse[policySchema.PolicyDocumentUploadURLResponse]
+	ConfirmUpload(ctx context.Context, documentID uuid.UUID, uploadedBy uuid.UUID) *schema.ServiceResponse[policySchema.PolicyDocumentResponse]
 }

@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	uuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -57,12 +58,33 @@ func (q *Queries) CreateUnderwritingAssessment(ctx context.Context, arg CreateUn
 }
 
 const getUnderwritingByID = `-- name: GetUnderwritingByID :one
-SELECT id, policy_id, member_id, status, questionnaire, medical_declarations, risk_score, risk_flags, decision_reason, assessed_by, assessed_at, created_by, created_at, updated_at FROM underwriting_assessments WHERE id = $1
+SELECT ua.id, ua.policy_id, ua.member_id, ua.status, ua.questionnaire, ua.medical_declarations, ua.risk_score, ua.risk_flags, ua.decision_reason, ua.assessed_by, ua.assessed_at, ua.created_by, ua.created_at, ua.updated_at, COALESCE(u.name, '') AS assessed_by_name
+FROM underwriting_assessments ua
+LEFT JOIN users u ON u.id = ua.assessed_by
+WHERE ua.id = $1
 `
 
-func (q *Queries) GetUnderwritingByID(ctx context.Context, id uuid.UUID) (UnderwritingAssessment, error) {
+type GetUnderwritingByIDRow struct {
+	ID                  uuid.UUID          `json:"id"`
+	PolicyID            uuid.UUID          `json:"policy_id"`
+	MemberID            pgtype.UUID        `json:"member_id"`
+	Status              string             `json:"status"`
+	Questionnaire       json.RawMessage    `json:"questionnaire"`
+	MedicalDeclarations []byte             `json:"medical_declarations"`
+	RiskScore           pgtype.Int4        `json:"risk_score"`
+	RiskFlags           []byte             `json:"risk_flags"`
+	DecisionReason      pgtype.Text        `json:"decision_reason"`
+	AssessedBy          pgtype.UUID        `json:"assessed_by"`
+	AssessedAt          pgtype.Timestamptz `json:"assessed_at"`
+	CreatedBy           uuid.UUID          `json:"created_by"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+	AssessedByName      string             `json:"assessed_by_name"`
+}
+
+func (q *Queries) GetUnderwritingByID(ctx context.Context, id uuid.UUID) (GetUnderwritingByIDRow, error) {
 	row := q.db.QueryRow(ctx, getUnderwritingByID, id)
-	var i UnderwritingAssessment
+	var i GetUnderwritingByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.PolicyID,
@@ -78,17 +100,39 @@ func (q *Queries) GetUnderwritingByID(ctx context.Context, id uuid.UUID) (Underw
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AssessedByName,
 	)
 	return i, err
 }
 
 const getUnderwritingByMember = `-- name: GetUnderwritingByMember :one
-SELECT id, policy_id, member_id, status, questionnaire, medical_declarations, risk_score, risk_flags, decision_reason, assessed_by, assessed_at, created_by, created_at, updated_at FROM underwriting_assessments WHERE member_id = $1 ORDER BY created_at DESC LIMIT 1
+SELECT ua.id, ua.policy_id, ua.member_id, ua.status, ua.questionnaire, ua.medical_declarations, ua.risk_score, ua.risk_flags, ua.decision_reason, ua.assessed_by, ua.assessed_at, ua.created_by, ua.created_at, ua.updated_at, COALESCE(u.name, '') AS assessed_by_name
+FROM underwriting_assessments ua
+LEFT JOIN users u ON u.id = ua.assessed_by
+WHERE ua.member_id = $1 ORDER BY ua.created_at DESC LIMIT 1
 `
 
-func (q *Queries) GetUnderwritingByMember(ctx context.Context, memberID pgtype.UUID) (UnderwritingAssessment, error) {
+type GetUnderwritingByMemberRow struct {
+	ID                  uuid.UUID          `json:"id"`
+	PolicyID            uuid.UUID          `json:"policy_id"`
+	MemberID            pgtype.UUID        `json:"member_id"`
+	Status              string             `json:"status"`
+	Questionnaire       json.RawMessage    `json:"questionnaire"`
+	MedicalDeclarations []byte             `json:"medical_declarations"`
+	RiskScore           pgtype.Int4        `json:"risk_score"`
+	RiskFlags           []byte             `json:"risk_flags"`
+	DecisionReason      pgtype.Text        `json:"decision_reason"`
+	AssessedBy          pgtype.UUID        `json:"assessed_by"`
+	AssessedAt          pgtype.Timestamptz `json:"assessed_at"`
+	CreatedBy           uuid.UUID          `json:"created_by"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+	AssessedByName      string             `json:"assessed_by_name"`
+}
+
+func (q *Queries) GetUnderwritingByMember(ctx context.Context, memberID pgtype.UUID) (GetUnderwritingByMemberRow, error) {
 	row := q.db.QueryRow(ctx, getUnderwritingByMember, memberID)
-	var i UnderwritingAssessment
+	var i GetUnderwritingByMemberRow
 	err := row.Scan(
 		&i.ID,
 		&i.PolicyID,
@@ -104,23 +148,45 @@ func (q *Queries) GetUnderwritingByMember(ctx context.Context, memberID pgtype.U
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AssessedByName,
 	)
 	return i, err
 }
 
 const listUnderwritingByPolicy = `-- name: ListUnderwritingByPolicy :many
-SELECT id, policy_id, member_id, status, questionnaire, medical_declarations, risk_score, risk_flags, decision_reason, assessed_by, assessed_at, created_by, created_at, updated_at FROM underwriting_assessments WHERE policy_id = $1 ORDER BY created_at DESC
+SELECT ua.id, ua.policy_id, ua.member_id, ua.status, ua.questionnaire, ua.medical_declarations, ua.risk_score, ua.risk_flags, ua.decision_reason, ua.assessed_by, ua.assessed_at, ua.created_by, ua.created_at, ua.updated_at, COALESCE(u.name, '') AS assessed_by_name
+FROM underwriting_assessments ua
+LEFT JOIN users u ON u.id = ua.assessed_by
+WHERE ua.policy_id = $1 ORDER BY ua.created_at DESC
 `
 
-func (q *Queries) ListUnderwritingByPolicy(ctx context.Context, policyID uuid.UUID) ([]UnderwritingAssessment, error) {
+type ListUnderwritingByPolicyRow struct {
+	ID                  uuid.UUID          `json:"id"`
+	PolicyID            uuid.UUID          `json:"policy_id"`
+	MemberID            pgtype.UUID        `json:"member_id"`
+	Status              string             `json:"status"`
+	Questionnaire       json.RawMessage    `json:"questionnaire"`
+	MedicalDeclarations []byte             `json:"medical_declarations"`
+	RiskScore           pgtype.Int4        `json:"risk_score"`
+	RiskFlags           []byte             `json:"risk_flags"`
+	DecisionReason      pgtype.Text        `json:"decision_reason"`
+	AssessedBy          pgtype.UUID        `json:"assessed_by"`
+	AssessedAt          pgtype.Timestamptz `json:"assessed_at"`
+	CreatedBy           uuid.UUID          `json:"created_by"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+	AssessedByName      string             `json:"assessed_by_name"`
+}
+
+func (q *Queries) ListUnderwritingByPolicy(ctx context.Context, policyID uuid.UUID) ([]ListUnderwritingByPolicyRow, error) {
 	rows, err := q.db.Query(ctx, listUnderwritingByPolicy, policyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []UnderwritingAssessment{}
+	items := []ListUnderwritingByPolicyRow{}
 	for rows.Next() {
-		var i UnderwritingAssessment
+		var i ListUnderwritingByPolicyRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PolicyID,
@@ -136,6 +202,7 @@ func (q *Queries) ListUnderwritingByPolicy(ctx context.Context, policyID uuid.UU
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AssessedByName,
 		); err != nil {
 			return nil, err
 		}

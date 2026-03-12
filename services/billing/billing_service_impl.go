@@ -13,6 +13,7 @@ import (
 	"github.com/bitbiz/hias-core/domains/identity/schema"
 	policyRepo "github.com/bitbiz/hias-core/domains/policy/repository"
 	"github.com/bitbiz/hias-core/shared"
+	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
 )
 
@@ -43,7 +44,7 @@ func (s *billingServiceImpl) GenerateInvoice(ctx context.Context, policyID strin
 	}
 
 	now := time.Now()
-	invoiceNumber := fmt.Sprintf("INV-%d-%06d", now.Year(), now.UnixNano()%1000000)
+	invoiceNumber := utils.GenerateInvoiceNumber()
 
 	invoice := &entity.Invoice{
 		PolicyID:           pid,

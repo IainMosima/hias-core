@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	claimService "github.com/bitbiz/hias-core/domains/claims/service"
+	policySchema "github.com/bitbiz/hias-core/domains/policy/schema"
 	"github.com/bitbiz/hias-core/domains/policy/service"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/gin-gonic/gin"
@@ -301,6 +302,171 @@ func (h *PolicyDocumentHandler) GenerateDeclineLetter(ctx *gin.Context) {
 	}
 
 	resp := h.policyDocSvc.GenerateDeclineLetter(ctx.Request.Context(), claim.PolicyID, "", claim.ClaimNumber, claim.RejectionReason, getUserID(ctx))
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+// --- Upload Flow Endpoints ---
+
+// RequestUploadURL godoc
+// @Summary      Request a presigned upload URL for a policy document
+// @Description  Creates a pending document record and returns a presigned PUT URL
+// @Tags         PolicyDocuments
+// @Accept       json
+// @Produce      json
+// @Param        id   path string true "Policy ID"
+// @Param        body body policySchema.UploadPolicyDocumentURLRequest true "Upload request"
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/documents/upload-url [post]
+func (h *PolicyDocumentHandler) RequestUploadURL(ctx *gin.Context) {
+	policyID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid policy ID")
+		return
+	}
+
+	var req policySchema.UploadPolicyDocumentURLRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	resp := h.policyDocSvc.RequestUploadURL(ctx.Request.Context(), policyID, req, getUserID(ctx))
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+// ConfirmUpload godoc
+// @Summary      Confirm a policy document upload
+// @Description  Verifies the file exists in S3 and updates the document status to GENERATED
+// @Tags         PolicyDocuments
+// @Accept       json
+// @Produce      json
+// @Param        id    path string true "Policy ID"
+// @Param        docId path string true "Document ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/policies/{id}/documents/{docId}/confirm-upload [post]
+func (h *PolicyDocumentHandler) ConfirmUpload(ctx *gin.Context) {
+	docID, err := uuid.Parse(ctx.Param("docId"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid document ID")
+		return
+	}
+
+	resp := h.policyDocSvc.ConfirmUpload(ctx.Request.Context(), docID, getUserID(ctx))
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+// --- V1 Unified Document Generation Endpoints ---
+
+// GenerateDocument godoc
+// @Summary      Generate a document
+// @Description  Generate any document type for a given entity
+// @Tags         PolicyDocuments
+// @Accept       json
+// @Produce      json
+// @Param        body body policySchema.GenerateDocumentRequest true "Generate document request"
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/documents/generate [post]
+func (h *PolicyDocumentHandler) GenerateDocument(ctx *gin.Context) {
+	var req policySchema.GenerateDocumentRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	req.GenerationMode = "MANUAL"
+	req.GeneratedBy = getUserID(ctx)
+
+	resp := h.policyDocSvc.GenerateDocument(ctx.Request.Context(), req)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+// CanGenerate godoc
+// @Summary      Check if a document can be generated
+// @Description  Check readiness for generating a specific document type
+// @Tags         PolicyDocuments
+// @Accept       json
+// @Produce      json
+// @Param        entity_type query string true "Entity type"
+// @Param        entity_id query string true "Entity ID"
+// @Param        document_type query string true "Document type"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/documents/can-generate [get]
+func (h *PolicyDocumentHandler) CanGenerate(ctx *gin.Context) {
+	entityType := ctx.Query("entity_type")
+	entityIDStr := ctx.Query("entity_id")
+	docType := ctx.Query("document_type")
+
+	if entityType == "" || entityIDStr == "" || docType == "" {
+		utils.RespondError(ctx, http.StatusBadRequest, "entity_type, entity_id, and document_type are required")
+		return
+	}
+
+	entityID, err := uuid.Parse(entityIDStr)
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid entity_id")
+		return
+	}
+
+	resp := h.policyDocSvc.CanGenerateDocument(ctx.Request.Context(), entityType, entityID, docType)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+// GetAvailability godoc
+// @Summary      Get document availability
+// @Description  Get availability of all applicable document types for an entity
+// @Tags         PolicyDocuments
+// @Accept       json
+// @Produce      json
+// @Param        entity_type query string true "Entity type"
+// @Param        entity_id query string true "Entity ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/documents/availability [get]
+func (h *PolicyDocumentHandler) GetAvailability(ctx *gin.Context) {
+	entityType := ctx.Query("entity_type")
+	entityIDStr := ctx.Query("entity_id")
+
+	if entityType == "" || entityIDStr == "" {
+		utils.RespondError(ctx, http.StatusBadRequest, "entity_type and entity_id are required")
+		return
+	}
+
+	entityID, err := uuid.Parse(entityIDStr)
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid entity_id")
+		return
+	}
+
+	resp := h.policyDocSvc.GetDocumentAvailability(ctx.Request.Context(), entityType, entityID)
 	if resp.Error != nil {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return

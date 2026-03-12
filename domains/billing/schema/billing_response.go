@@ -16,6 +16,8 @@ type InvoiceResponse struct {
 	Status             string    `json:"status"`
 	BillingPeriodStart time.Time `json:"billing_period_start"`
 	BillingPeriodEnd   time.Time `json:"billing_period_end"`
+	PolicyNumber       string    `json:"policy_number,omitempty"`
+	PolicyholderName   string    `json:"policyholder_name,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 }
 
@@ -52,7 +54,9 @@ func ToInvoiceResponse(i *entity.Invoice) InvoiceResponse {
 		ID: i.ID, PolicyID: i.PolicyID, InvoiceNumber: i.InvoiceNumber,
 		Amount: i.Amount, Currency: i.Currency, DueDate: i.DueDate,
 		Status: i.Status, BillingPeriodStart: i.BillingPeriodStart,
-		BillingPeriodEnd: i.BillingPeriodEnd, CreatedAt: i.CreatedAt,
+		BillingPeriodEnd: i.BillingPeriodEnd,
+		PolicyNumber:     i.PolicyNumber, PolicyholderName: i.PolicyholderName,
+		CreatedAt: i.CreatedAt,
 	}
 }
 

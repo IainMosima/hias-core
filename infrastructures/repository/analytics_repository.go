@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	domainRepo "github.com/bitbiz/hias-core/domains/analytics/repository"
 	db "github.com/bitbiz/hias-core/infrastructures/db/sqlc"
+	"github.com/jackc/pgx/v5"
 )
 
 type analyticsRepository struct {
@@ -40,6 +42,9 @@ func (r *analyticsRepository) GetApprovalRate(ctx context.Context, start, end ti
 		EndDate:   end,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("failed to get approval rate: %w", err)
 	}
 	return float64(rate), nil
@@ -76,6 +81,9 @@ func (r *analyticsRepository) GetLossRatio(ctx context.Context, start, end time.
 		EndDate:   end,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("failed to get loss ratio: %w", err)
 	}
 	return float64(ratio), nil
@@ -87,6 +95,9 @@ func (r *analyticsRepository) GetFraudRate(ctx context.Context, start, end time.
 		EndDate:   end,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("failed to get fraud rate: %w", err)
 	}
 	return float64(rate), nil
@@ -120,6 +131,9 @@ func (r *analyticsRepository) GetTotalPremiumCollected(ctx context.Context, star
 		EndDate:   end,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("failed to get total premium collected: %w", err)
 	}
 	return amount, nil
@@ -131,6 +145,9 @@ func (r *analyticsRepository) GetTotalClaimsPaid(ctx context.Context, start, end
 		EndDate:   end,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("failed to get total claims paid: %w", err)
 	}
 	return amount, nil
@@ -164,6 +181,9 @@ func (r *analyticsRepository) GetTotalMemberCount(ctx context.Context, start, en
 		EndDate:   end,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("failed to get total member count: %w", err)
 	}
 	return count, nil
@@ -175,6 +195,9 @@ func (r *analyticsRepository) GetRenewalRate(ctx context.Context, start, end tim
 		EndDate:   end,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("failed to get renewal rate: %w", err)
 	}
 	switch v := rate.(type) {

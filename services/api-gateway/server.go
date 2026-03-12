@@ -10,6 +10,7 @@ import (
 	"time"
 
 	auditService "github.com/bitbiz/hias-core/domains/audit/service"
+	claimRepo "github.com/bitbiz/hias-core/domains/claims/repository"
 	"github.com/bitbiz/hias-core/services/api-gateway/middleware"
 	"github.com/bitbiz/hias-core/services/api-gateway/routes"
 	"github.com/bitbiz/hias-core/shared/auth"
@@ -17,12 +18,13 @@ import (
 )
 
 type Server struct {
-	router     *gin.Engine
-	httpServer *http.Server
-	tokenMaker auth.TokenMaker
+	router         *gin.Engine
+	httpServer     *http.Server
+	tokenMaker     auth.TokenMaker
+	apiPartnerRepo claimRepo.APIPartnerRepository
 }
 
-func NewServer(tokenMaker auth.TokenMaker, allowedOrigins string, auditSvc auditService.AuditService) *Server {
+func NewServer(tokenMaker auth.TokenMaker, allowedOrigins string, auditSvc auditService.AuditService, apiPartnerRepo claimRepo.APIPartnerRepository) *Server {
 	router := gin.Default()
 
 	// Global middleware
@@ -34,13 +36,14 @@ func NewServer(tokenMaker auth.TokenMaker, allowedOrigins string, auditSvc audit
 	router.Use(middleware.AuditMiddleware(auditSvc))
 
 	return &Server{
-		router:     router,
-		tokenMaker: tokenMaker,
+		router:         router,
+		tokenMaker:     tokenMaker,
+		apiPartnerRepo: apiPartnerRepo,
 	}
 }
 
 func (s *Server) RegisterRoutes(h routes.Handlers) {
-	routes.RegisterRoutes(s.router, h, s.tokenMaker)
+	routes.RegisterRoutes(s.router, h, s.tokenMaker, s.apiPartnerRepo)
 }
 
 func (s *Server) Start(address string) error {

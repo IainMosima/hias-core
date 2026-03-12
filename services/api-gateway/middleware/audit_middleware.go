@@ -5,6 +5,7 @@ import (
 	"log"
 
 	auditService "github.com/bitbiz/hias-core/domains/audit/service"
+	"github.com/bitbiz/hias-core/shared"
 	"github.com/bitbiz/hias-core/shared/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -42,7 +43,7 @@ func AuditMiddleware(auditSvc auditService.AuditService) gin.HandlerFunc {
 				userID,
 				"API",
 				uuid.Nil,
-				"API_CALL",
+				string(shared.AuditActionAPICall),
 				nil,
 				newValue,
 				ctx.ClientIP(),

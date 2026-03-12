@@ -4,16 +4,17 @@ SELECT
     COUNT(CASE WHEN status = 'APPROVED' THEN 1 END) as approved_claims,
     COUNT(CASE WHEN status = 'REJECTED' THEN 1 END) as rejected_claims,
     COUNT(CASE WHEN status = 'MANUAL_REVIEW' THEN 1 END) as manual_review_claims,
-    COUNT(CASE WHEN status = 'PAID' THEN 1 END) as paid_claims
+    COUNT(CASE WHEN status IN ('PAID', 'PART_PAID') THEN 1 END) as paid_claims
 FROM claims
 WHERE created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
 
 -- name: GetApprovalRate :one
-SELECT
+SELECT (
     CASE WHEN COUNT(*) > 0
-        THEN (COUNT(CASE WHEN status IN ('APPROVED', 'PAID') THEN 1 END) * 100.0 / COUNT(*))
+        THEN (COUNT(CASE WHEN status IN ('APPROVED', 'PAID') THEN 1 END) * 100 / COUNT(*))
         ELSE 0
-    END as approval_rate
+    END
+)::bigint as approval_rate
 FROM claims
 WHERE status NOT IN ('RECEIVED', 'VALIDATED')
   AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
@@ -26,28 +27,29 @@ WHERE status IN ('APPROVED', 'REJECTED', 'PAID')
   AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
 
 -- name: GetLossRatio :one
-SELECT
-    CASE WHEN COALESCE(premium.total, 0) > 0
-        THEN (COALESCE(SUM(c.approved_amount), 0) * 100.0 / premium.total)
-        ELSE 0
-    END as loss_ratio
-FROM claims c
-CROSS JOIN (
-    SELECT COALESCE(SUM(pay.amount), 0) as total
-    FROM payments pay
-    WHERE pay.type = 'PREMIUM' AND pay.status = 'CONFIRMED'
-      AND pay.created_at >= sqlc.arg('start_date') AND pay.created_at <= sqlc.arg('end_date')
-) premium
-WHERE c.status IN ('APPROVED', 'PAID')
-  AND c.created_at >= sqlc.arg('start_date') AND c.created_at <= sqlc.arg('end_date')
-GROUP BY premium.total;
+SELECT COALESCE(
+    (SELECT CASE WHEN p.premium_total > 0
+        THEN (c.claims_total * 100 / p.premium_total)::bigint
+        ELSE 0 END
+    FROM (
+        SELECT COALESCE(SUM(COALESCE(NULLIF(cl.vetted_amount, 0), cl.approved_amount)), 0) as claims_total
+        FROM claims cl WHERE cl.status IN ('APPROVED', 'PAID', 'PART_PAID', 'VETTED')
+        AND cl.created_at >= sqlc.arg('start_date') AND cl.created_at <= sqlc.arg('end_date')
+    ) c,
+    (
+        SELECT COALESCE(SUM(pay.amount), 0) as premium_total
+        FROM payments pay WHERE pay.type = 'PREMIUM' AND pay.status = 'CONFIRMED'
+        AND pay.created_at >= sqlc.arg('start_date') AND pay.created_at <= sqlc.arg('end_date')
+    ) p),
+0)::bigint as loss_ratio;
 
 -- name: GetFraudRate :one
-SELECT
+SELECT (
     CASE WHEN COUNT(DISTINCT c.id) > 0
-        THEN (COUNT(DISTINCT ff.claim_id) * 100.0 / COUNT(DISTINCT c.id))
+        THEN (COUNT(DISTINCT ff.claim_id) * 100 / COUNT(DISTINCT c.id))
         ELSE 0
-    END as fraud_rate
+    END
+)::bigint as fraud_rate
 FROM claims c
 LEFT JOIN fraud_flags ff ON ff.claim_id = c.id
 WHERE c.created_at >= sqlc.arg('start_date') AND c.created_at <= sqlc.arg('end_date');
@@ -72,7 +74,7 @@ WHERE type = 'PREMIUM' AND status = 'CONFIRMED'
   AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
 
 -- name: GetTotalClaimsPaid :one
-SELECT COALESCE(SUM(approved_amount), 0)::bigint as total_paid
+SELECT COALESCE(SUM(COALESCE(NULLIF(vetted_amount, 0), approved_amount)), 0)::bigint as total_paid
 FROM claims
-WHERE status = 'PAID'
+WHERE status IN ('PAID', 'PART_PAID')
   AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');

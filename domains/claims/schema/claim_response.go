@@ -28,6 +28,11 @@ type ClaimResponse struct {
 	VettedAt             *time.Time            `json:"vetted_at,omitempty"`
 	SLABreachAt          *time.Time            `json:"sla_breach_at,omitempty"`
 	RejectionReason      string                `json:"rejection_reason,omitempty"`
+	ClaimSource          string                `json:"claim_source"`
+	IdempotencyKey       string                `json:"idempotency_key,omitempty"`
+	ExternalClaimID      string                `json:"external_claim_id,omitempty"`
+	IsDraft              bool                  `json:"is_draft"`
+	DraftCompletedAt     *time.Time            `json:"draft_completed_at,omitempty"`
 	LineItems            []LineItemResponse    `json:"line_items,omitempty"`
 	Decision             *AdjudicationResponse `json:"decision,omitempty"`
 	FraudFlags           []FraudFlagResponse   `json:"fraud_flags,omitempty"`
@@ -78,6 +83,9 @@ func ToClaimResponse(c *claimEntity.Claim) ClaimResponse {
 		VettedBy: c.VettedBy, VettedAt: c.VettedAt,
 		SLABreachAt: c.SLABreachAt,
 		Notes:       c.Notes, RejectionReason: c.RejectionReason,
+		ClaimSource: c.ClaimSource, IdempotencyKey: c.IdempotencyKey,
+		ExternalClaimID: c.ExternalClaimID,
+		IsDraft:         c.IsDraft, DraftCompletedAt: c.DraftCompletedAt,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }

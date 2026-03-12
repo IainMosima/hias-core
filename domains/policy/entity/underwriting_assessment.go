@@ -18,6 +18,7 @@ type UnderwritingAssessment struct {
 	RiskFlags           json.RawMessage `json:"risk_flags"`
 	DecisionReason      string          `json:"decision_reason"`
 	AssessedBy          uuid.UUID       `json:"assessed_by"`
+	AssessedByName      string          `json:"assessed_by_name,omitempty"`
 	AssessedAt          *time.Time      `json:"assessed_at,omitempty"`
 	CreatedBy           uuid.UUID       `json:"created_by"`
 	CreatedAt           time.Time       `json:"created_at"`

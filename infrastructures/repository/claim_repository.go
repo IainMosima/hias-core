@@ -371,6 +371,103 @@ func (r *claimRepository) ListTimeline(ctx context.Context, claimID uuid.UUID) (
 	return entries, nil
 }
 
+func (r *claimRepository) GetByIdempotencyKey(ctx context.Context, key string) (*entity.Claim, error) {
+	dbClaim, err := r.store.GetClaimByIdempotencyKey(ctx, stringToPgtypeText(key))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get claim by idempotency key: %w", err)
+	}
+	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) GetByExternalClaimID(ctx context.Context, externalID string) (*entity.Claim, error) {
+	dbClaim, err := r.store.GetClaimByExternalClaimID(ctx, stringToPgtypeText(externalID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get claim by external claim ID: %w", err)
+	}
+	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) CreateDraft(ctx context.Context, claim *entity.Claim) (*entity.Claim, error) {
+	dbClaim, err := r.store.CreateDraftClaim(ctx, db.CreateDraftClaimParams{
+		ClaimNumber:    claim.ClaimNumber,
+		PolicyID:       claim.PolicyID,
+		MemberID:       claim.MemberID,
+		ProviderID:     claim.ProviderID,
+		PreauthID:      uuidToPgtype(claim.PreAuthID),
+		Status:         claim.Status,
+		TotalAmount:    claim.TotalAmount,
+		DiagnosisCodes: claim.DiagnosisCodes,
+		ServiceDate:    claim.ServiceDate,
+		AdmissionDate:  timePtrToPgtypeTimestamptz(claim.AdmissionDate),
+		DischargeDate:  timePtrToPgtypeTimestamptz(claim.DischargeDate),
+		Notes:          claim.Notes,
+		CreatedBy:      uuidToPgtype(claim.CreatedBy),
+		ClaimType:      claim.ClaimType,
+		SlaBreachAt:    timePtrToPgtypeTimestamptz(claim.SLABreachAt),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create draft claim: %w", err)
+	}
+	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) UpdateDraft(ctx context.Context, claim *entity.Claim) (*entity.Claim, error) {
+	dbClaim, err := r.store.UpdateDraftClaim(ctx, db.UpdateDraftClaimParams{
+		ID:             claim.ID,
+		PolicyID:       claim.PolicyID,
+		MemberID:       claim.MemberID,
+		ProviderID:     claim.ProviderID,
+		PreauthID:      uuidToPgtype(claim.PreAuthID),
+		DiagnosisCodes: claim.DiagnosisCodes,
+		ServiceDate:    claim.ServiceDate,
+		Notes:          claim.Notes,
+		ClaimType:      claim.ClaimType,
+		TotalAmount:    claim.TotalAmount,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update draft claim: %w", err)
+	}
+	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) ListDrafts(ctx context.Context, createdBy uuid.UUID, limit, offset int) ([]*entity.Claim, error) {
+	dbClaims, err := r.store.ListDraftClaims(ctx, db.ListDraftClaimsParams{
+		CreatedBy: uuidToPgtype(createdBy),
+		Limit:     int32(limit),
+		Offset:    int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list draft claims: %w", err)
+	}
+	claims := make([]*entity.Claim, len(dbClaims))
+	for i, c := range dbClaims {
+		claims[i] = sqlcClaimToDomain(c)
+	}
+	return claims, nil
+}
+
+func (r *claimRepository) CompleteDraft(ctx context.Context, id uuid.UUID) (*entity.Claim, error) {
+	dbClaim, err := r.store.CompleteDraftClaim(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to complete draft claim: %w", err)
+	}
+	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) DeleteDraft(ctx context.Context, id uuid.UUID) error {
+	return r.store.DeleteDraftClaim(ctx, id)
+}
+
+func (r *claimRepository) UpdateClaimSource(ctx context.Context, id uuid.UUID, claimSource, idempotencyKey, externalClaimID string, sourceMetadata []byte) error {
+	return r.store.UpdateClaimSource(ctx, db.UpdateClaimSourceParams{
+		ID:              id,
+		ClaimSource:     claimSource,
+		IdempotencyKey:  stringToPgtypeText(idempotencyKey),
+		ExternalClaimID: stringToPgtypeText(externalClaimID),
+		SourceMetadata:  sourceMetadata,
+	})
+}
+
 func sqlcClaimToDomain(c db.Claim) *entity.Claim {
 	return &entity.Claim{
 		ID:                   c.ID,
@@ -396,6 +493,12 @@ func sqlcClaimToDomain(c db.Claim) *entity.Claim {
 		SLABreachAt:          pgtypeTimestamptzToTimePtr(c.SlaBreachAt),
 		RejectionReason:      c.RejectionReason.String,
 		EscalatedTo:          c.EscalatedTo.String,
+		ClaimSource:          c.ClaimSource,
+		IdempotencyKey:       c.IdempotencyKey.String,
+		ExternalClaimID:      c.ExternalClaimID.String,
+		SourceMetadata:       c.SourceMetadata,
+		IsDraft:              c.IsDraft,
+		DraftCompletedAt:     pgtypeTimestamptzToTimePtr(c.DraftCompletedAt),
 		CreatedBy:            pgtypeToUUID(c.CreatedBy),
 		CreatedAt:            c.CreatedAt,
 		UpdatedAt:            c.UpdatedAt,

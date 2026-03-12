@@ -37,6 +37,23 @@ type AdjudicationRule struct {
 	UpdatedAt  time.Time       `json:"updated_at"`
 }
 
+type ApiPartner struct {
+	ID                 uuid.UUID   `json:"id"`
+	Name               string      `json:"name"`
+	PartnerType        string      `json:"partner_type"`
+	ApiKey             string      `json:"api_key"`
+	ApiSecretHash      string      `json:"api_secret_hash"`
+	ProviderID         pgtype.UUID `json:"provider_id"`
+	IsActive           bool        `json:"is_active"`
+	RateLimitPerMinute int32       `json:"rate_limit_per_minute"`
+	AllowedClaimTypes  []string    `json:"allowed_claim_types"`
+	WebhookUrl         pgtype.Text `json:"webhook_url"`
+	ContactEmail       pgtype.Text `json:"contact_email"`
+	Metadata           []byte      `json:"metadata"`
+	CreatedAt          time.Time   `json:"created_at"`
+	UpdatedAt          time.Time   `json:"updated_at"`
+}
+
 type ApprovalLimit struct {
 	ID                    uuid.UUID   `json:"id"`
 	RoleName              string      `json:"role_name"`
@@ -185,6 +202,12 @@ type Claim struct {
 	VettedAt             pgtype.Timestamptz `json:"vetted_at"`
 	SlaBreachAt          pgtype.Timestamptz `json:"sla_breach_at"`
 	EscalatedTo          pgtype.Text        `json:"escalated_to"`
+	ClaimSource          string             `json:"claim_source"`
+	IdempotencyKey       pgtype.Text        `json:"idempotency_key"`
+	ExternalClaimID      pgtype.Text        `json:"external_claim_id"`
+	SourceMetadata       json.RawMessage    `json:"source_metadata"`
+	IsDraft              bool               `json:"is_draft"`
+	DraftCompletedAt     pgtype.Timestamptz `json:"draft_completed_at"`
 }
 
 type ClaimDocument struct {
@@ -533,34 +556,44 @@ type Plan struct {
 }
 
 type Policy struct {
-	ID                uuid.UUID          `json:"id"`
-	PlanID            uuid.UUID          `json:"plan_id"`
-	PolicyholderName  string             `json:"policyholder_name"`
-	PolicyholderEmail string             `json:"policyholder_email"`
-	PolicyholderPhone string             `json:"policyholder_phone"`
-	PolicyNumber      string             `json:"policy_number"`
-	Status            string             `json:"status"`
-	StartDate         pgtype.Timestamptz `json:"start_date"`
-	EndDate           pgtype.Timestamptz `json:"end_date"`
-	PremiumAmount     int64              `json:"premium_amount"`
-	Currency          string             `json:"currency"`
-	CreatedBy         pgtype.UUID        `json:"created_by"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
-	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
+	ID                 uuid.UUID          `json:"id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	PolicyholderName   string             `json:"policyholder_name"`
+	PolicyholderEmail  string             `json:"policyholder_email"`
+	PolicyholderPhone  string             `json:"policyholder_phone"`
+	PolicyNumber       string             `json:"policy_number"`
+	Status             string             `json:"status"`
+	StartDate          pgtype.Timestamptz `json:"start_date"`
+	EndDate            pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount      int64              `json:"premium_amount"`
+	Currency           string             `json:"currency"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	RenewedFromID      pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt        pgtype.Timestamptz `json:"activated_at"`
+	UnderwritingStatus string             `json:"underwriting_status"`
 }
 
 type PolicyDocument struct {
-	ID           uuid.UUID   `json:"id"`
-	PolicyID     uuid.UUID   `json:"policy_id"`
-	MemberID     pgtype.UUID `json:"member_id"`
-	DocumentType string      `json:"document_type"`
-	FileName     string      `json:"file_name"`
-	FileSize     pgtype.Int8 `json:"file_size"`
-	S3Key        string      `json:"s3_key"`
-	GeneratedBy  uuid.UUID   `json:"generated_by"`
-	CreatedAt    time.Time   `json:"created_at"`
+	ID             uuid.UUID   `json:"id"`
+	PolicyID       uuid.UUID   `json:"policy_id"`
+	MemberID       pgtype.UUID `json:"member_id"`
+	DocumentType   string      `json:"document_type"`
+	FileName       string      `json:"file_name"`
+	FileSize       pgtype.Int8 `json:"file_size"`
+	S3Key          string      `json:"s3_key"`
+	GeneratedBy    uuid.UUID   `json:"generated_by"`
+	CreatedAt      time.Time   `json:"created_at"`
+	Version        int32       `json:"version"`
+	Status         string      `json:"status"`
+	GenerationMode string      `json:"generation_mode"`
+	EntityType     string      `json:"entity_type"`
+	EntityID       uuid.UUID   `json:"entity_id"`
+	SupersededBy   pgtype.UUID `json:"superseded_by"`
+	ErrorMessage   pgtype.Text `json:"error_message"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+	MimeType       string      `json:"mime_type"`
 }
 
 type PolicyRenewal struct {

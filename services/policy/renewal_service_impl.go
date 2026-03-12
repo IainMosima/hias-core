@@ -34,6 +34,7 @@ type renewalServiceImpl struct {
 	planRepo             productRepo.PlanRepository
 	underwritingFlagRepo repository.UnderwritingFlagRepository
 	auditSvc             auditService.AuditService
+	policyDocSvc         service.PolicyDocumentService
 }
 
 func NewRenewalService(
@@ -46,6 +47,7 @@ func NewRenewalService(
 	planRepo productRepo.PlanRepository,
 	underwritingFlagRepo repository.UnderwritingFlagRepository,
 	auditSvc auditService.AuditService,
+	policyDocSvc service.PolicyDocumentService,
 ) service.RenewalService {
 	return &renewalServiceImpl{
 		renewalRepo:          renewalRepo,
@@ -57,6 +59,7 @@ func NewRenewalService(
 		planRepo:             planRepo,
 		underwritingFlagRepo: underwritingFlagRepo,
 		auditSvc:             auditSvc,
+		policyDocSvc:         policyDocSvc,
 	}
 }
 
@@ -113,6 +116,20 @@ func (s *renewalServiceImpl) InitiateRenewal(ctx context.Context, req policySche
 	}
 
 	s.logAudit(ctx, createdBy, string(shared.AuditEntityTypeRenewal), created.ID, string(shared.AuditActionCreate))
+
+	// Auto-generate renewal notice (non-blocking)
+	if s.policyDocSvc != nil {
+		go func() {
+			bgCtx := context.Background()
+			s.policyDocSvc.GenerateDocument(bgCtx, policySchema.GenerateDocumentRequest{
+				EntityType:     string(shared.DocumentEntityTypeRenewal),
+				EntityID:       created.ID.String(),
+				DocumentType:   string(shared.PolicyDocumentTypeRenewalNotice),
+				GenerationMode: string(shared.GenerationModeAuto),
+				GeneratedBy:    createdBy,
+			})
+		}()
+	}
 
 	return schema.NewServiceResponse(policySchema.ToRenewalResponse(created), http.StatusCreated, "Renewal initiated")
 }

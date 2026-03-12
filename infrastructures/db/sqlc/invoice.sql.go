@@ -142,6 +142,54 @@ func (q *Queries) GetInvoiceByNumber(ctx context.Context, invoiceNumber string) 
 	return i, err
 }
 
+const getInvoiceWithPolicy = `-- name: GetInvoiceWithPolicy :one
+SELECT i.id, i.policy_id, i.invoice_number, i.amount, i.currency, i.due_date, i.status, i.billing_period_start, i.billing_period_end, i.notes, i.created_by, i.created_at, i.updated_at, p.policy_number, p.policyholder_name
+FROM invoices i
+JOIN policies p ON p.id = i.policy_id
+WHERE i.id = $1
+`
+
+type GetInvoiceWithPolicyRow struct {
+	ID                 uuid.UUID   `json:"id"`
+	PolicyID           uuid.UUID   `json:"policy_id"`
+	InvoiceNumber      string      `json:"invoice_number"`
+	Amount             int64       `json:"amount"`
+	Currency           string      `json:"currency"`
+	DueDate            time.Time   `json:"due_date"`
+	Status             string      `json:"status"`
+	BillingPeriodStart time.Time   `json:"billing_period_start"`
+	BillingPeriodEnd   time.Time   `json:"billing_period_end"`
+	Notes              string      `json:"notes"`
+	CreatedBy          pgtype.UUID `json:"created_by"`
+	CreatedAt          time.Time   `json:"created_at"`
+	UpdatedAt          time.Time   `json:"updated_at"`
+	PolicyNumber       string      `json:"policy_number"`
+	PolicyholderName   string      `json:"policyholder_name"`
+}
+
+func (q *Queries) GetInvoiceWithPolicy(ctx context.Context, id uuid.UUID) (GetInvoiceWithPolicyRow, error) {
+	row := q.db.QueryRow(ctx, getInvoiceWithPolicy, id)
+	var i GetInvoiceWithPolicyRow
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.InvoiceNumber,
+		&i.Amount,
+		&i.Currency,
+		&i.DueDate,
+		&i.Status,
+		&i.BillingPeriodStart,
+		&i.BillingPeriodEnd,
+		&i.Notes,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PolicyNumber,
+		&i.PolicyholderName,
+	)
+	return i, err
+}
+
 const listInvoices = `-- name: ListInvoices :many
 SELECT id, policy_id, invoice_number, amount, currency, due_date, status, billing_period_start, billing_period_end, notes, created_by, created_at, updated_at FROM invoices ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
@@ -316,6 +364,149 @@ func (q *Queries) ListInvoicesFiltered(ctx context.Context, arg ListInvoicesFilt
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvoicesFilteredWithPolicy = `-- name: ListInvoicesFilteredWithPolicy :many
+SELECT i.id, i.policy_id, i.invoice_number, i.amount, i.currency, i.due_date, i.status, i.billing_period_start, i.billing_period_end, i.notes, i.created_by, i.created_at, i.updated_at, p.policy_number, p.policyholder_name
+FROM invoices i
+JOIN policies p ON p.id = i.policy_id
+WHERE ($1::timestamptz IS NULL OR i.created_at >= $1)
+  AND ($2::timestamptz IS NULL OR i.created_at <= $2)
+ORDER BY i.created_at DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListInvoicesFilteredWithPolicyParams struct {
+	DateFrom    pgtype.Timestamptz `json:"date_from"`
+	DateTo      pgtype.Timestamptz `json:"date_to"`
+	QueryOffset int32              `json:"query_offset"`
+	QueryLimit  int32              `json:"query_limit"`
+}
+
+type ListInvoicesFilteredWithPolicyRow struct {
+	ID                 uuid.UUID   `json:"id"`
+	PolicyID           uuid.UUID   `json:"policy_id"`
+	InvoiceNumber      string      `json:"invoice_number"`
+	Amount             int64       `json:"amount"`
+	Currency           string      `json:"currency"`
+	DueDate            time.Time   `json:"due_date"`
+	Status             string      `json:"status"`
+	BillingPeriodStart time.Time   `json:"billing_period_start"`
+	BillingPeriodEnd   time.Time   `json:"billing_period_end"`
+	Notes              string      `json:"notes"`
+	CreatedBy          pgtype.UUID `json:"created_by"`
+	CreatedAt          time.Time   `json:"created_at"`
+	UpdatedAt          time.Time   `json:"updated_at"`
+	PolicyNumber       string      `json:"policy_number"`
+	PolicyholderName   string      `json:"policyholder_name"`
+}
+
+func (q *Queries) ListInvoicesFilteredWithPolicy(ctx context.Context, arg ListInvoicesFilteredWithPolicyParams) ([]ListInvoicesFilteredWithPolicyRow, error) {
+	rows, err := q.db.Query(ctx, listInvoicesFilteredWithPolicy,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.QueryOffset,
+		arg.QueryLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInvoicesFilteredWithPolicyRow{}
+	for rows.Next() {
+		var i ListInvoicesFilteredWithPolicyRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.InvoiceNumber,
+			&i.Amount,
+			&i.Currency,
+			&i.DueDate,
+			&i.Status,
+			&i.BillingPeriodStart,
+			&i.BillingPeriodEnd,
+			&i.Notes,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PolicyNumber,
+			&i.PolicyholderName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvoicesWithPolicy = `-- name: ListInvoicesWithPolicy :many
+SELECT i.id, i.policy_id, i.invoice_number, i.amount, i.currency, i.due_date, i.status, i.billing_period_start, i.billing_period_end, i.notes, i.created_by, i.created_at, i.updated_at, p.policy_number, p.policyholder_name
+FROM invoices i
+JOIN policies p ON p.id = i.policy_id
+ORDER BY i.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListInvoicesWithPolicyParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListInvoicesWithPolicyRow struct {
+	ID                 uuid.UUID   `json:"id"`
+	PolicyID           uuid.UUID   `json:"policy_id"`
+	InvoiceNumber      string      `json:"invoice_number"`
+	Amount             int64       `json:"amount"`
+	Currency           string      `json:"currency"`
+	DueDate            time.Time   `json:"due_date"`
+	Status             string      `json:"status"`
+	BillingPeriodStart time.Time   `json:"billing_period_start"`
+	BillingPeriodEnd   time.Time   `json:"billing_period_end"`
+	Notes              string      `json:"notes"`
+	CreatedBy          pgtype.UUID `json:"created_by"`
+	CreatedAt          time.Time   `json:"created_at"`
+	UpdatedAt          time.Time   `json:"updated_at"`
+	PolicyNumber       string      `json:"policy_number"`
+	PolicyholderName   string      `json:"policyholder_name"`
+}
+
+func (q *Queries) ListInvoicesWithPolicy(ctx context.Context, arg ListInvoicesWithPolicyParams) ([]ListInvoicesWithPolicyRow, error) {
+	rows, err := q.db.Query(ctx, listInvoicesWithPolicy, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInvoicesWithPolicyRow{}
+	for rows.Next() {
+		var i ListInvoicesWithPolicyRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.InvoiceNumber,
+			&i.Amount,
+			&i.Currency,
+			&i.DueDate,
+			&i.Status,
+			&i.BillingPeriodStart,
+			&i.BillingPeriodEnd,
+			&i.Notes,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PolicyNumber,
+			&i.PolicyholderName,
 		); err != nil {
 			return nil, err
 		}

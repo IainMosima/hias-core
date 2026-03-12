@@ -7,14 +7,53 @@ package db
 
 import (
 	"context"
+	"time"
 
 	uuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const confirmPolicyDocumentUpload = `-- name: ConfirmPolicyDocumentUpload :one
+UPDATE policy_documents
+SET status = 'GENERATED', file_size = $2, updated_at = NOW()
+WHERE id = $1
+RETURNING id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at, version, status, generation_mode, entity_type, entity_id, superseded_by, error_message, updated_at, mime_type
+`
+
+type ConfirmPolicyDocumentUploadParams struct {
+	ID       uuid.UUID   `json:"id"`
+	FileSize pgtype.Int8 `json:"file_size"`
+}
+
+func (q *Queries) ConfirmPolicyDocumentUpload(ctx context.Context, arg ConfirmPolicyDocumentUploadParams) (PolicyDocument, error) {
+	row := q.db.QueryRow(ctx, confirmPolicyDocumentUpload, arg.ID, arg.FileSize)
+	var i PolicyDocument
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.MemberID,
+		&i.DocumentType,
+		&i.FileName,
+		&i.FileSize,
+		&i.S3Key,
+		&i.GeneratedBy,
+		&i.CreatedAt,
+		&i.Version,
+		&i.Status,
+		&i.GenerationMode,
+		&i.EntityType,
+		&i.EntityID,
+		&i.SupersededBy,
+		&i.ErrorMessage,
+		&i.UpdatedAt,
+		&i.MimeType,
+	)
+	return i, err
+}
+
 const createPolicyDocument = `-- name: CreatePolicyDocument :one
 INSERT INTO policy_documents (policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at, version, status, generation_mode, entity_type, entity_id, superseded_by, error_message, updated_at, mime_type
 `
 
 type CreatePolicyDocumentParams struct {
@@ -48,6 +87,79 @@ func (q *Queries) CreatePolicyDocument(ctx context.Context, arg CreatePolicyDocu
 		&i.S3Key,
 		&i.GeneratedBy,
 		&i.CreatedAt,
+		&i.Version,
+		&i.Status,
+		&i.GenerationMode,
+		&i.EntityType,
+		&i.EntityID,
+		&i.SupersededBy,
+		&i.ErrorMessage,
+		&i.UpdatedAt,
+		&i.MimeType,
+	)
+	return i, err
+}
+
+const createPolicyDocumentV2 = `-- name: CreatePolicyDocumentV2 :one
+INSERT INTO policy_documents (
+    policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by,
+    version, status, generation_mode, entity_type, entity_id, mime_type
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at, version, status, generation_mode, entity_type, entity_id, superseded_by, error_message, updated_at, mime_type
+`
+
+type CreatePolicyDocumentV2Params struct {
+	PolicyID       uuid.UUID   `json:"policy_id"`
+	MemberID       pgtype.UUID `json:"member_id"`
+	DocumentType   string      `json:"document_type"`
+	FileName       string      `json:"file_name"`
+	FileSize       pgtype.Int8 `json:"file_size"`
+	S3Key          string      `json:"s3_key"`
+	GeneratedBy    uuid.UUID   `json:"generated_by"`
+	Version        int32       `json:"version"`
+	Status         string      `json:"status"`
+	GenerationMode string      `json:"generation_mode"`
+	EntityType     string      `json:"entity_type"`
+	EntityID       uuid.UUID   `json:"entity_id"`
+	MimeType       string      `json:"mime_type"`
+}
+
+func (q *Queries) CreatePolicyDocumentV2(ctx context.Context, arg CreatePolicyDocumentV2Params) (PolicyDocument, error) {
+	row := q.db.QueryRow(ctx, createPolicyDocumentV2,
+		arg.PolicyID,
+		arg.MemberID,
+		arg.DocumentType,
+		arg.FileName,
+		arg.FileSize,
+		arg.S3Key,
+		arg.GeneratedBy,
+		arg.Version,
+		arg.Status,
+		arg.GenerationMode,
+		arg.EntityType,
+		arg.EntityID,
+		arg.MimeType,
+	)
+	var i PolicyDocument
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.MemberID,
+		&i.DocumentType,
+		&i.FileName,
+		&i.FileSize,
+		&i.S3Key,
+		&i.GeneratedBy,
+		&i.CreatedAt,
+		&i.Version,
+		&i.Status,
+		&i.GenerationMode,
+		&i.EntityType,
+		&i.EntityID,
+		&i.SupersededBy,
+		&i.ErrorMessage,
+		&i.UpdatedAt,
+		&i.MimeType,
 	)
 	return i, err
 }
@@ -61,13 +173,46 @@ func (q *Queries) DeletePolicyDocument(ctx context.Context, id uuid.UUID) error 
 	return err
 }
 
-const getPolicyDocumentByID = `-- name: GetPolicyDocumentByID :one
-SELECT id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at FROM policy_documents WHERE id = $1
+const getLatestDocumentByEntity = `-- name: GetLatestDocumentByEntity :one
+SELECT pd.id, pd.policy_id, pd.member_id, pd.document_type, pd.file_name, pd.file_size, pd.s3_key, pd.generated_by, pd.created_at, pd.version, pd.status, pd.generation_mode, pd.entity_type, pd.entity_id, pd.superseded_by, pd.error_message, pd.updated_at, pd.mime_type, COALESCE(u.name, '') AS generated_by_name
+FROM policy_documents pd
+LEFT JOIN users u ON u.id = pd.generated_by
+WHERE pd.entity_type = $1 AND pd.entity_id = $2 AND pd.document_type = $3 AND pd.status = 'GENERATED'
+ORDER BY pd.version DESC
+LIMIT 1
 `
 
-func (q *Queries) GetPolicyDocumentByID(ctx context.Context, id uuid.UUID) (PolicyDocument, error) {
-	row := q.db.QueryRow(ctx, getPolicyDocumentByID, id)
-	var i PolicyDocument
+type GetLatestDocumentByEntityParams struct {
+	EntityType   string    `json:"entity_type"`
+	EntityID     uuid.UUID `json:"entity_id"`
+	DocumentType string    `json:"document_type"`
+}
+
+type GetLatestDocumentByEntityRow struct {
+	ID              uuid.UUID   `json:"id"`
+	PolicyID        uuid.UUID   `json:"policy_id"`
+	MemberID        pgtype.UUID `json:"member_id"`
+	DocumentType    string      `json:"document_type"`
+	FileName        string      `json:"file_name"`
+	FileSize        pgtype.Int8 `json:"file_size"`
+	S3Key           string      `json:"s3_key"`
+	GeneratedBy     uuid.UUID   `json:"generated_by"`
+	CreatedAt       time.Time   `json:"created_at"`
+	Version         int32       `json:"version"`
+	Status          string      `json:"status"`
+	GenerationMode  string      `json:"generation_mode"`
+	EntityType      string      `json:"entity_type"`
+	EntityID        uuid.UUID   `json:"entity_id"`
+	SupersededBy    pgtype.UUID `json:"superseded_by"`
+	ErrorMessage    pgtype.Text `json:"error_message"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+	MimeType        string      `json:"mime_type"`
+	GeneratedByName string      `json:"generated_by_name"`
+}
+
+func (q *Queries) GetLatestDocumentByEntity(ctx context.Context, arg GetLatestDocumentByEntityParams) (GetLatestDocumentByEntityRow, error) {
+	row := q.db.QueryRow(ctx, getLatestDocumentByEntity, arg.EntityType, arg.EntityID, arg.DocumentType)
+	var i GetLatestDocumentByEntityRow
 	err := row.Scan(
 		&i.ID,
 		&i.PolicyID,
@@ -78,23 +223,139 @@ func (q *Queries) GetPolicyDocumentByID(ctx context.Context, id uuid.UUID) (Poli
 		&i.S3Key,
 		&i.GeneratedBy,
 		&i.CreatedAt,
+		&i.Version,
+		&i.Status,
+		&i.GenerationMode,
+		&i.EntityType,
+		&i.EntityID,
+		&i.SupersededBy,
+		&i.ErrorMessage,
+		&i.UpdatedAt,
+		&i.MimeType,
+		&i.GeneratedByName,
 	)
 	return i, err
 }
 
-const listPolicyDocumentsByMember = `-- name: ListPolicyDocumentsByMember :many
-SELECT id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at FROM policy_documents WHERE member_id = $1 ORDER BY created_at DESC
+const getNextDocumentVersion = `-- name: GetNextDocumentVersion :one
+SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+FROM policy_documents
+WHERE entity_type = $1 AND entity_id = $2 AND document_type = $3
 `
 
-func (q *Queries) ListPolicyDocumentsByMember(ctx context.Context, memberID pgtype.UUID) ([]PolicyDocument, error) {
-	rows, err := q.db.Query(ctx, listPolicyDocumentsByMember, memberID)
+type GetNextDocumentVersionParams struct {
+	EntityType   string    `json:"entity_type"`
+	EntityID     uuid.UUID `json:"entity_id"`
+	DocumentType string    `json:"document_type"`
+}
+
+func (q *Queries) GetNextDocumentVersion(ctx context.Context, arg GetNextDocumentVersionParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getNextDocumentVersion, arg.EntityType, arg.EntityID, arg.DocumentType)
+	var next_version int32
+	err := row.Scan(&next_version)
+	return next_version, err
+}
+
+const getPolicyDocumentByID = `-- name: GetPolicyDocumentByID :one
+SELECT pd.id, pd.policy_id, pd.member_id, pd.document_type, pd.file_name, pd.file_size, pd.s3_key, pd.generated_by, pd.created_at, pd.version, pd.status, pd.generation_mode, pd.entity_type, pd.entity_id, pd.superseded_by, pd.error_message, pd.updated_at, pd.mime_type, COALESCE(u.name, '') AS generated_by_name
+FROM policy_documents pd
+LEFT JOIN users u ON u.id = pd.generated_by
+WHERE pd.id = $1
+`
+
+type GetPolicyDocumentByIDRow struct {
+	ID              uuid.UUID   `json:"id"`
+	PolicyID        uuid.UUID   `json:"policy_id"`
+	MemberID        pgtype.UUID `json:"member_id"`
+	DocumentType    string      `json:"document_type"`
+	FileName        string      `json:"file_name"`
+	FileSize        pgtype.Int8 `json:"file_size"`
+	S3Key           string      `json:"s3_key"`
+	GeneratedBy     uuid.UUID   `json:"generated_by"`
+	CreatedAt       time.Time   `json:"created_at"`
+	Version         int32       `json:"version"`
+	Status          string      `json:"status"`
+	GenerationMode  string      `json:"generation_mode"`
+	EntityType      string      `json:"entity_type"`
+	EntityID        uuid.UUID   `json:"entity_id"`
+	SupersededBy    pgtype.UUID `json:"superseded_by"`
+	ErrorMessage    pgtype.Text `json:"error_message"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+	MimeType        string      `json:"mime_type"`
+	GeneratedByName string      `json:"generated_by_name"`
+}
+
+func (q *Queries) GetPolicyDocumentByID(ctx context.Context, id uuid.UUID) (GetPolicyDocumentByIDRow, error) {
+	row := q.db.QueryRow(ctx, getPolicyDocumentByID, id)
+	var i GetPolicyDocumentByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.MemberID,
+		&i.DocumentType,
+		&i.FileName,
+		&i.FileSize,
+		&i.S3Key,
+		&i.GeneratedBy,
+		&i.CreatedAt,
+		&i.Version,
+		&i.Status,
+		&i.GenerationMode,
+		&i.EntityType,
+		&i.EntityID,
+		&i.SupersededBy,
+		&i.ErrorMessage,
+		&i.UpdatedAt,
+		&i.MimeType,
+		&i.GeneratedByName,
+	)
+	return i, err
+}
+
+const listPolicyDocumentsByEntity = `-- name: ListPolicyDocumentsByEntity :many
+SELECT pd.id, pd.policy_id, pd.member_id, pd.document_type, pd.file_name, pd.file_size, pd.s3_key, pd.generated_by, pd.created_at, pd.version, pd.status, pd.generation_mode, pd.entity_type, pd.entity_id, pd.superseded_by, pd.error_message, pd.updated_at, pd.mime_type, COALESCE(u.name, '') AS generated_by_name
+FROM policy_documents pd
+LEFT JOIN users u ON u.id = pd.generated_by
+WHERE pd.entity_type = $1 AND pd.entity_id = $2
+ORDER BY pd.document_type, pd.version DESC
+`
+
+type ListPolicyDocumentsByEntityParams struct {
+	EntityType string    `json:"entity_type"`
+	EntityID   uuid.UUID `json:"entity_id"`
+}
+
+type ListPolicyDocumentsByEntityRow struct {
+	ID              uuid.UUID   `json:"id"`
+	PolicyID        uuid.UUID   `json:"policy_id"`
+	MemberID        pgtype.UUID `json:"member_id"`
+	DocumentType    string      `json:"document_type"`
+	FileName        string      `json:"file_name"`
+	FileSize        pgtype.Int8 `json:"file_size"`
+	S3Key           string      `json:"s3_key"`
+	GeneratedBy     uuid.UUID   `json:"generated_by"`
+	CreatedAt       time.Time   `json:"created_at"`
+	Version         int32       `json:"version"`
+	Status          string      `json:"status"`
+	GenerationMode  string      `json:"generation_mode"`
+	EntityType      string      `json:"entity_type"`
+	EntityID        uuid.UUID   `json:"entity_id"`
+	SupersededBy    pgtype.UUID `json:"superseded_by"`
+	ErrorMessage    pgtype.Text `json:"error_message"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+	MimeType        string      `json:"mime_type"`
+	GeneratedByName string      `json:"generated_by_name"`
+}
+
+func (q *Queries) ListPolicyDocumentsByEntity(ctx context.Context, arg ListPolicyDocumentsByEntityParams) ([]ListPolicyDocumentsByEntityRow, error) {
+	rows, err := q.db.Query(ctx, listPolicyDocumentsByEntity, arg.EntityType, arg.EntityID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PolicyDocument{}
+	items := []ListPolicyDocumentsByEntityRow{}
 	for rows.Next() {
-		var i PolicyDocument
+		var i ListPolicyDocumentsByEntityRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PolicyID,
@@ -105,6 +366,85 @@ func (q *Queries) ListPolicyDocumentsByMember(ctx context.Context, memberID pgty
 			&i.S3Key,
 			&i.GeneratedBy,
 			&i.CreatedAt,
+			&i.Version,
+			&i.Status,
+			&i.GenerationMode,
+			&i.EntityType,
+			&i.EntityID,
+			&i.SupersededBy,
+			&i.ErrorMessage,
+			&i.UpdatedAt,
+			&i.MimeType,
+			&i.GeneratedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPolicyDocumentsByMember = `-- name: ListPolicyDocumentsByMember :many
+SELECT pd.id, pd.policy_id, pd.member_id, pd.document_type, pd.file_name, pd.file_size, pd.s3_key, pd.generated_by, pd.created_at, pd.version, pd.status, pd.generation_mode, pd.entity_type, pd.entity_id, pd.superseded_by, pd.error_message, pd.updated_at, pd.mime_type, COALESCE(u.name, '') AS generated_by_name
+FROM policy_documents pd
+LEFT JOIN users u ON u.id = pd.generated_by
+WHERE pd.member_id = $1 ORDER BY pd.created_at DESC
+`
+
+type ListPolicyDocumentsByMemberRow struct {
+	ID              uuid.UUID   `json:"id"`
+	PolicyID        uuid.UUID   `json:"policy_id"`
+	MemberID        pgtype.UUID `json:"member_id"`
+	DocumentType    string      `json:"document_type"`
+	FileName        string      `json:"file_name"`
+	FileSize        pgtype.Int8 `json:"file_size"`
+	S3Key           string      `json:"s3_key"`
+	GeneratedBy     uuid.UUID   `json:"generated_by"`
+	CreatedAt       time.Time   `json:"created_at"`
+	Version         int32       `json:"version"`
+	Status          string      `json:"status"`
+	GenerationMode  string      `json:"generation_mode"`
+	EntityType      string      `json:"entity_type"`
+	EntityID        uuid.UUID   `json:"entity_id"`
+	SupersededBy    pgtype.UUID `json:"superseded_by"`
+	ErrorMessage    pgtype.Text `json:"error_message"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+	MimeType        string      `json:"mime_type"`
+	GeneratedByName string      `json:"generated_by_name"`
+}
+
+func (q *Queries) ListPolicyDocumentsByMember(ctx context.Context, memberID pgtype.UUID) ([]ListPolicyDocumentsByMemberRow, error) {
+	rows, err := q.db.Query(ctx, listPolicyDocumentsByMember, memberID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPolicyDocumentsByMemberRow{}
+	for rows.Next() {
+		var i ListPolicyDocumentsByMemberRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.MemberID,
+			&i.DocumentType,
+			&i.FileName,
+			&i.FileSize,
+			&i.S3Key,
+			&i.GeneratedBy,
+			&i.CreatedAt,
+			&i.Version,
+			&i.Status,
+			&i.GenerationMode,
+			&i.EntityType,
+			&i.EntityID,
+			&i.SupersededBy,
+			&i.ErrorMessage,
+			&i.UpdatedAt,
+			&i.MimeType,
+			&i.GeneratedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -117,18 +457,43 @@ func (q *Queries) ListPolicyDocumentsByMember(ctx context.Context, memberID pgty
 }
 
 const listPolicyDocumentsByPolicy = `-- name: ListPolicyDocumentsByPolicy :many
-SELECT id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at FROM policy_documents WHERE policy_id = $1 ORDER BY created_at DESC
+SELECT pd.id, pd.policy_id, pd.member_id, pd.document_type, pd.file_name, pd.file_size, pd.s3_key, pd.generated_by, pd.created_at, pd.version, pd.status, pd.generation_mode, pd.entity_type, pd.entity_id, pd.superseded_by, pd.error_message, pd.updated_at, pd.mime_type, COALESCE(u.name, '') AS generated_by_name
+FROM policy_documents pd
+LEFT JOIN users u ON u.id = pd.generated_by
+WHERE pd.policy_id = $1 ORDER BY pd.created_at DESC
 `
 
-func (q *Queries) ListPolicyDocumentsByPolicy(ctx context.Context, policyID uuid.UUID) ([]PolicyDocument, error) {
+type ListPolicyDocumentsByPolicyRow struct {
+	ID              uuid.UUID   `json:"id"`
+	PolicyID        uuid.UUID   `json:"policy_id"`
+	MemberID        pgtype.UUID `json:"member_id"`
+	DocumentType    string      `json:"document_type"`
+	FileName        string      `json:"file_name"`
+	FileSize        pgtype.Int8 `json:"file_size"`
+	S3Key           string      `json:"s3_key"`
+	GeneratedBy     uuid.UUID   `json:"generated_by"`
+	CreatedAt       time.Time   `json:"created_at"`
+	Version         int32       `json:"version"`
+	Status          string      `json:"status"`
+	GenerationMode  string      `json:"generation_mode"`
+	EntityType      string      `json:"entity_type"`
+	EntityID        uuid.UUID   `json:"entity_id"`
+	SupersededBy    pgtype.UUID `json:"superseded_by"`
+	ErrorMessage    pgtype.Text `json:"error_message"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+	MimeType        string      `json:"mime_type"`
+	GeneratedByName string      `json:"generated_by_name"`
+}
+
+func (q *Queries) ListPolicyDocumentsByPolicy(ctx context.Context, policyID uuid.UUID) ([]ListPolicyDocumentsByPolicyRow, error) {
 	rows, err := q.db.Query(ctx, listPolicyDocumentsByPolicy, policyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PolicyDocument{}
+	items := []ListPolicyDocumentsByPolicyRow{}
 	for rows.Next() {
-		var i PolicyDocument
+		var i ListPolicyDocumentsByPolicyRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PolicyID,
@@ -139,6 +504,16 @@ func (q *Queries) ListPolicyDocumentsByPolicy(ctx context.Context, policyID uuid
 			&i.S3Key,
 			&i.GeneratedBy,
 			&i.CreatedAt,
+			&i.Version,
+			&i.Status,
+			&i.GenerationMode,
+			&i.EntityType,
+			&i.EntityID,
+			&i.SupersededBy,
+			&i.ErrorMessage,
+			&i.UpdatedAt,
+			&i.MimeType,
+			&i.GeneratedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -148,4 +523,106 @@ func (q *Queries) ListPolicyDocumentsByPolicy(ctx context.Context, policyID uuid
 		return nil, err
 	}
 	return items, nil
+}
+
+const supersedePolicyDocument = `-- name: SupersedePolicyDocument :exec
+UPDATE policy_documents
+SET superseded_by = $2, updated_at = NOW()
+WHERE id = $1
+`
+
+type SupersedePolicyDocumentParams struct {
+	ID           uuid.UUID   `json:"id"`
+	SupersededBy pgtype.UUID `json:"superseded_by"`
+}
+
+func (q *Queries) SupersedePolicyDocument(ctx context.Context, arg SupersedePolicyDocumentParams) error {
+	_, err := q.db.Exec(ctx, supersedePolicyDocument, arg.ID, arg.SupersededBy)
+	return err
+}
+
+const updatePolicyDocumentGenerated = `-- name: UpdatePolicyDocumentGenerated :one
+UPDATE policy_documents
+SET file_name = $2, file_size = $3, s3_key = $4, status = $5, updated_at = NOW()
+WHERE id = $1
+RETURNING id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at, version, status, generation_mode, entity_type, entity_id, superseded_by, error_message, updated_at, mime_type
+`
+
+type UpdatePolicyDocumentGeneratedParams struct {
+	ID       uuid.UUID   `json:"id"`
+	FileName string      `json:"file_name"`
+	FileSize pgtype.Int8 `json:"file_size"`
+	S3Key    string      `json:"s3_key"`
+	Status   string      `json:"status"`
+}
+
+func (q *Queries) UpdatePolicyDocumentGenerated(ctx context.Context, arg UpdatePolicyDocumentGeneratedParams) (PolicyDocument, error) {
+	row := q.db.QueryRow(ctx, updatePolicyDocumentGenerated,
+		arg.ID,
+		arg.FileName,
+		arg.FileSize,
+		arg.S3Key,
+		arg.Status,
+	)
+	var i PolicyDocument
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.MemberID,
+		&i.DocumentType,
+		&i.FileName,
+		&i.FileSize,
+		&i.S3Key,
+		&i.GeneratedBy,
+		&i.CreatedAt,
+		&i.Version,
+		&i.Status,
+		&i.GenerationMode,
+		&i.EntityType,
+		&i.EntityID,
+		&i.SupersededBy,
+		&i.ErrorMessage,
+		&i.UpdatedAt,
+		&i.MimeType,
+	)
+	return i, err
+}
+
+const updatePolicyDocumentStatus = `-- name: UpdatePolicyDocumentStatus :one
+UPDATE policy_documents
+SET status = $2, error_message = $3, updated_at = NOW()
+WHERE id = $1
+RETURNING id, policy_id, member_id, document_type, file_name, file_size, s3_key, generated_by, created_at, version, status, generation_mode, entity_type, entity_id, superseded_by, error_message, updated_at, mime_type
+`
+
+type UpdatePolicyDocumentStatusParams struct {
+	ID           uuid.UUID   `json:"id"`
+	Status       string      `json:"status"`
+	ErrorMessage pgtype.Text `json:"error_message"`
+}
+
+func (q *Queries) UpdatePolicyDocumentStatus(ctx context.Context, arg UpdatePolicyDocumentStatusParams) (PolicyDocument, error) {
+	row := q.db.QueryRow(ctx, updatePolicyDocumentStatus, arg.ID, arg.Status, arg.ErrorMessage)
+	var i PolicyDocument
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.MemberID,
+		&i.DocumentType,
+		&i.FileName,
+		&i.FileSize,
+		&i.S3Key,
+		&i.GeneratedBy,
+		&i.CreatedAt,
+		&i.Version,
+		&i.Status,
+		&i.GenerationMode,
+		&i.EntityType,
+		&i.EntityID,
+		&i.SupersededBy,
+		&i.ErrorMessage,
+		&i.UpdatedAt,
+		&i.MimeType,
+	)
+	return i, err
 }

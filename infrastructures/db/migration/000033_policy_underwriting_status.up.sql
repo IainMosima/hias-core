@@ -1,0 +1,3 @@
+ALTER TABLE policies ADD COLUMN underwriting_status VARCHAR(30) NOT NULL DEFAULT 'NOT_REQUIRED';
+
+ALTER TABLE underwriting_assessments ALTER COLUMN status TYPE VARCHAR(30);

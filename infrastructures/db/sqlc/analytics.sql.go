@@ -13,11 +13,12 @@ import (
 )
 
 const getApprovalRate = `-- name: GetApprovalRate :one
-SELECT
+SELECT (
     CASE WHEN COUNT(*) > 0
-        THEN (COUNT(CASE WHEN status IN ('APPROVED', 'PAID') THEN 1 END) * 100.0 / COUNT(*))
+        THEN (COUNT(CASE WHEN status IN ('APPROVED', 'PAID') THEN 1 END) * 100 / COUNT(*))
         ELSE 0
-    END as approval_rate
+    END
+)::bigint as approval_rate
 FROM claims
 WHERE status NOT IN ('RECEIVED', 'VALIDATED')
   AND created_at >= $1 AND created_at <= $2
@@ -28,9 +29,9 @@ type GetApprovalRateParams struct {
 	EndDate   time.Time `json:"end_date"`
 }
 
-func (q *Queries) GetApprovalRate(ctx context.Context, arg GetApprovalRateParams) (int32, error) {
+func (q *Queries) GetApprovalRate(ctx context.Context, arg GetApprovalRateParams) (int64, error) {
 	row := q.db.QueryRow(ctx, getApprovalRate, arg.StartDate, arg.EndDate)
-	var approval_rate int32
+	var approval_rate int64
 	err := row.Scan(&approval_rate)
 	return approval_rate, err
 }
@@ -61,7 +62,7 @@ SELECT
     COUNT(CASE WHEN status = 'APPROVED' THEN 1 END) as approved_claims,
     COUNT(CASE WHEN status = 'REJECTED' THEN 1 END) as rejected_claims,
     COUNT(CASE WHEN status = 'MANUAL_REVIEW' THEN 1 END) as manual_review_claims,
-    COUNT(CASE WHEN status = 'PAID' THEN 1 END) as paid_claims
+    COUNT(CASE WHEN status IN ('PAID', 'PART_PAID') THEN 1 END) as paid_claims
 FROM claims
 WHERE created_at >= $1 AND created_at <= $2
 `
@@ -93,11 +94,12 @@ func (q *Queries) GetClaimsVolume(ctx context.Context, arg GetClaimsVolumeParams
 }
 
 const getFraudRate = `-- name: GetFraudRate :one
-SELECT
+SELECT (
     CASE WHEN COUNT(DISTINCT c.id) > 0
-        THEN (COUNT(DISTINCT ff.claim_id) * 100.0 / COUNT(DISTINCT c.id))
+        THEN (COUNT(DISTINCT ff.claim_id) * 100 / COUNT(DISTINCT c.id))
         ELSE 0
-    END as fraud_rate
+    END
+)::bigint as fraud_rate
 FROM claims c
 LEFT JOIN fraud_flags ff ON ff.claim_id = c.id
 WHERE c.created_at >= $1 AND c.created_at <= $2
@@ -108,29 +110,29 @@ type GetFraudRateParams struct {
 	EndDate   time.Time `json:"end_date"`
 }
 
-func (q *Queries) GetFraudRate(ctx context.Context, arg GetFraudRateParams) (int32, error) {
+func (q *Queries) GetFraudRate(ctx context.Context, arg GetFraudRateParams) (int64, error) {
 	row := q.db.QueryRow(ctx, getFraudRate, arg.StartDate, arg.EndDate)
-	var fraud_rate int32
+	var fraud_rate int64
 	err := row.Scan(&fraud_rate)
 	return fraud_rate, err
 }
 
 const getLossRatio = `-- name: GetLossRatio :one
-SELECT
-    CASE WHEN COALESCE(premium.total, 0) > 0
-        THEN (COALESCE(SUM(c.approved_amount), 0) * 100.0 / premium.total)
-        ELSE 0
-    END as loss_ratio
-FROM claims c
-CROSS JOIN (
-    SELECT COALESCE(SUM(pay.amount), 0) as total
-    FROM payments pay
-    WHERE pay.type = 'PREMIUM' AND pay.status = 'CONFIRMED'
-      AND pay.created_at >= $1 AND pay.created_at <= $2
-) premium
-WHERE c.status IN ('APPROVED', 'PAID')
-  AND c.created_at >= $1 AND c.created_at <= $2
-GROUP BY premium.total
+SELECT COALESCE(
+    (SELECT CASE WHEN p.premium_total > 0
+        THEN (c.claims_total * 100 / p.premium_total)::bigint
+        ELSE 0 END
+    FROM (
+        SELECT COALESCE(SUM(COALESCE(NULLIF(cl.vetted_amount, 0), cl.approved_amount)), 0) as claims_total
+        FROM claims cl WHERE cl.status IN ('APPROVED', 'PAID', 'PART_PAID', 'VETTED')
+        AND cl.created_at >= $1 AND cl.created_at <= $2
+    ) c,
+    (
+        SELECT COALESCE(SUM(pay.amount), 0) as premium_total
+        FROM payments pay WHERE pay.type = 'PREMIUM' AND pay.status = 'CONFIRMED'
+        AND pay.created_at >= $1 AND pay.created_at <= $2
+    ) p),
+0)::bigint as loss_ratio
 `
 
 type GetLossRatioParams struct {
@@ -138,9 +140,9 @@ type GetLossRatioParams struct {
 	EndDate   time.Time `json:"end_date"`
 }
 
-func (q *Queries) GetLossRatio(ctx context.Context, arg GetLossRatioParams) (int32, error) {
+func (q *Queries) GetLossRatio(ctx context.Context, arg GetLossRatioParams) (int64, error) {
 	row := q.db.QueryRow(ctx, getLossRatio, arg.StartDate, arg.EndDate)
-	var loss_ratio int32
+	var loss_ratio int64
 	err := row.Scan(&loss_ratio)
 	return loss_ratio, err
 }
@@ -200,9 +202,9 @@ func (q *Queries) GetTopProviders(ctx context.Context, arg GetTopProvidersParams
 }
 
 const getTotalClaimsPaid = `-- name: GetTotalClaimsPaid :one
-SELECT COALESCE(SUM(approved_amount), 0)::bigint as total_paid
+SELECT COALESCE(SUM(COALESCE(NULLIF(vetted_amount, 0), approved_amount)), 0)::bigint as total_paid
 FROM claims
-WHERE status = 'PAID'
+WHERE status IN ('PAID', 'PART_PAID')
   AND created_at >= $1 AND created_at <= $2
 `
 

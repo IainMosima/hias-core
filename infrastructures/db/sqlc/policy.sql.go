@@ -15,7 +15,7 @@ import (
 
 const activatePolicyWithTimestamp = `-- name: ActivatePolicyWithTimestamp :one
 UPDATE policies SET status = 'ACTIVE', activated_at = NOW(), updated_at = NOW()
-WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
+WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status
 `
 
 func (q *Queries) ActivatePolicyWithTimestamp(ctx context.Context, id uuid.UUID) (Policy, error) {
@@ -38,6 +38,7 @@ func (q *Queries) ActivatePolicyWithTimestamp(ctx context.Context, id uuid.UUID)
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.UnderwritingStatus,
 	)
 	return i, err
 }
@@ -86,7 +87,7 @@ func (q *Queries) CountPoliciesFiltered(ctx context.Context, arg CountPoliciesFi
 
 const createPolicy = `-- name: CreatePolicy :one
 INSERT INTO policies (plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status
 `
 
 type CreatePolicyParams struct {
@@ -135,12 +136,13 @@ func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Pol
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.UnderwritingStatus,
 	)
 	return i, err
 }
 
 const getActivePoliciesForBilling = `-- name: GetActivePoliciesForBilling :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE status = 'ACTIVE' AND end_date > NOW()
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status FROM policies WHERE status = 'ACTIVE' AND end_date > NOW()
 `
 
 func (q *Queries) GetActivePoliciesForBilling(ctx context.Context) ([]Policy, error) {
@@ -169,6 +171,7 @@ func (q *Queries) GetActivePoliciesForBilling(ctx context.Context) ([]Policy, er
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.UnderwritingStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -197,7 +200,7 @@ func (q *Queries) GetActivePolicyCount(ctx context.Context, arg GetActivePolicyC
 }
 
 const getLapsedPoliciesForTermination = `-- name: GetLapsedPoliciesForTermination :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE status = 'LAPSED' AND updated_at < NOW() - INTERVAL '90 days'
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status FROM policies WHERE status = 'LAPSED' AND updated_at < NOW() - INTERVAL '90 days'
 `
 
 func (q *Queries) GetLapsedPoliciesForTermination(ctx context.Context) ([]Policy, error) {
@@ -226,6 +229,7 @@ func (q *Queries) GetLapsedPoliciesForTermination(ctx context.Context) ([]Policy
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.UnderwritingStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -254,7 +258,7 @@ func (q *Queries) GetLapsedPolicyCount(ctx context.Context, arg GetLapsedPolicyC
 }
 
 const getOverduePoliciesForLapse = `-- name: GetOverduePoliciesForLapse :many
-SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at FROM policies p
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, p.underwriting_status FROM policies p
 JOIN invoices i ON i.policy_id = p.id
 WHERE p.status = 'ACTIVE' AND i.status = 'OVERDUE' AND i.due_date < NOW() - INTERVAL '30 days'
 `
@@ -285,6 +289,7 @@ func (q *Queries) GetOverduePoliciesForLapse(ctx context.Context) ([]Policy, err
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.UnderwritingStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -297,29 +302,30 @@ func (q *Queries) GetOverduePoliciesForLapse(ctx context.Context) ([]Policy, err
 }
 
 const getPolicyByID = `-- name: GetPolicyByID :one
-SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
-JOIN plans pl ON pl.id = p.plan_id
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, p.underwriting_status, COALESCE(pl.name, '') AS plan_name FROM policies p
+LEFT JOIN plans pl ON pl.id = p.plan_id
 WHERE p.id = $1
 `
 
 type GetPolicyByIDRow struct {
-	ID                uuid.UUID          `json:"id"`
-	PlanID            uuid.UUID          `json:"plan_id"`
-	PolicyholderName  string             `json:"policyholder_name"`
-	PolicyholderEmail string             `json:"policyholder_email"`
-	PolicyholderPhone string             `json:"policyholder_phone"`
-	PolicyNumber      string             `json:"policy_number"`
-	Status            string             `json:"status"`
-	StartDate         pgtype.Timestamptz `json:"start_date"`
-	EndDate           pgtype.Timestamptz `json:"end_date"`
-	PremiumAmount     int64              `json:"premium_amount"`
-	Currency          string             `json:"currency"`
-	CreatedBy         pgtype.UUID        `json:"created_by"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
-	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
-	PlanName          string             `json:"plan_name"`
+	ID                 uuid.UUID          `json:"id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	PolicyholderName   string             `json:"policyholder_name"`
+	PolicyholderEmail  string             `json:"policyholder_email"`
+	PolicyholderPhone  string             `json:"policyholder_phone"`
+	PolicyNumber       string             `json:"policy_number"`
+	Status             string             `json:"status"`
+	StartDate          pgtype.Timestamptz `json:"start_date"`
+	EndDate            pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount      int64              `json:"premium_amount"`
+	Currency           string             `json:"currency"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	RenewedFromID      pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt        pgtype.Timestamptz `json:"activated_at"`
+	UnderwritingStatus string             `json:"underwriting_status"`
+	PlanName           string             `json:"plan_name"`
 }
 
 func (q *Queries) GetPolicyByID(ctx context.Context, id uuid.UUID) (GetPolicyByIDRow, error) {
@@ -342,35 +348,37 @@ func (q *Queries) GetPolicyByID(ctx context.Context, id uuid.UUID) (GetPolicyByI
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.UnderwritingStatus,
 		&i.PlanName,
 	)
 	return i, err
 }
 
 const getPolicyByNumber = `-- name: GetPolicyByNumber :one
-SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
-JOIN plans pl ON pl.id = p.plan_id
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, p.underwriting_status, COALESCE(pl.name, '') AS plan_name FROM policies p
+LEFT JOIN plans pl ON pl.id = p.plan_id
 WHERE p.policy_number = $1
 `
 
 type GetPolicyByNumberRow struct {
-	ID                uuid.UUID          `json:"id"`
-	PlanID            uuid.UUID          `json:"plan_id"`
-	PolicyholderName  string             `json:"policyholder_name"`
-	PolicyholderEmail string             `json:"policyholder_email"`
-	PolicyholderPhone string             `json:"policyholder_phone"`
-	PolicyNumber      string             `json:"policy_number"`
-	Status            string             `json:"status"`
-	StartDate         pgtype.Timestamptz `json:"start_date"`
-	EndDate           pgtype.Timestamptz `json:"end_date"`
-	PremiumAmount     int64              `json:"premium_amount"`
-	Currency          string             `json:"currency"`
-	CreatedBy         pgtype.UUID        `json:"created_by"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
-	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
-	PlanName          string             `json:"plan_name"`
+	ID                 uuid.UUID          `json:"id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	PolicyholderName   string             `json:"policyholder_name"`
+	PolicyholderEmail  string             `json:"policyholder_email"`
+	PolicyholderPhone  string             `json:"policyholder_phone"`
+	PolicyNumber       string             `json:"policy_number"`
+	Status             string             `json:"status"`
+	StartDate          pgtype.Timestamptz `json:"start_date"`
+	EndDate            pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount      int64              `json:"premium_amount"`
+	Currency           string             `json:"currency"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	RenewedFromID      pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt        pgtype.Timestamptz `json:"activated_at"`
+	UnderwritingStatus string             `json:"underwriting_status"`
+	PlanName           string             `json:"plan_name"`
 }
 
 func (q *Queries) GetPolicyByNumber(ctx context.Context, policyNumber string) (GetPolicyByNumberRow, error) {
@@ -393,6 +401,7 @@ func (q *Queries) GetPolicyByNumber(ctx context.Context, policyNumber string) (G
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.UnderwritingStatus,
 		&i.PlanName,
 	)
 	return i, err
@@ -433,8 +442,8 @@ func (q *Queries) GetTotalActiveMemberCount(ctx context.Context, arg GetTotalAct
 }
 
 const listPolicies = `-- name: ListPolicies :many
-SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
-JOIN plans pl ON pl.id = p.plan_id
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, p.underwriting_status, COALESCE(pl.name, '') AS plan_name FROM policies p
+LEFT JOIN plans pl ON pl.id = p.plan_id
 ORDER BY p.created_at DESC LIMIT $1 OFFSET $2
 `
 
@@ -444,23 +453,24 @@ type ListPoliciesParams struct {
 }
 
 type ListPoliciesRow struct {
-	ID                uuid.UUID          `json:"id"`
-	PlanID            uuid.UUID          `json:"plan_id"`
-	PolicyholderName  string             `json:"policyholder_name"`
-	PolicyholderEmail string             `json:"policyholder_email"`
-	PolicyholderPhone string             `json:"policyholder_phone"`
-	PolicyNumber      string             `json:"policy_number"`
-	Status            string             `json:"status"`
-	StartDate         pgtype.Timestamptz `json:"start_date"`
-	EndDate           pgtype.Timestamptz `json:"end_date"`
-	PremiumAmount     int64              `json:"premium_amount"`
-	Currency          string             `json:"currency"`
-	CreatedBy         pgtype.UUID        `json:"created_by"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
-	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
-	PlanName          string             `json:"plan_name"`
+	ID                 uuid.UUID          `json:"id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	PolicyholderName   string             `json:"policyholder_name"`
+	PolicyholderEmail  string             `json:"policyholder_email"`
+	PolicyholderPhone  string             `json:"policyholder_phone"`
+	PolicyNumber       string             `json:"policy_number"`
+	Status             string             `json:"status"`
+	StartDate          pgtype.Timestamptz `json:"start_date"`
+	EndDate            pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount      int64              `json:"premium_amount"`
+	Currency           string             `json:"currency"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	RenewedFromID      pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt        pgtype.Timestamptz `json:"activated_at"`
+	UnderwritingStatus string             `json:"underwriting_status"`
+	PlanName           string             `json:"plan_name"`
 }
 
 func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]ListPoliciesRow, error) {
@@ -489,6 +499,7 @@ func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]L
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.UnderwritingStatus,
 			&i.PlanName,
 		); err != nil {
 			return nil, err
@@ -502,8 +513,8 @@ func (q *Queries) ListPolicies(ctx context.Context, arg ListPoliciesParams) ([]L
 }
 
 const listPoliciesByStatus = `-- name: ListPoliciesByStatus :many
-SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
-JOIN plans pl ON pl.id = p.plan_id
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, p.underwriting_status, COALESCE(pl.name, '') AS plan_name FROM policies p
+LEFT JOIN plans pl ON pl.id = p.plan_id
 WHERE p.status = $1 ORDER BY p.created_at DESC LIMIT $2 OFFSET $3
 `
 
@@ -514,23 +525,24 @@ type ListPoliciesByStatusParams struct {
 }
 
 type ListPoliciesByStatusRow struct {
-	ID                uuid.UUID          `json:"id"`
-	PlanID            uuid.UUID          `json:"plan_id"`
-	PolicyholderName  string             `json:"policyholder_name"`
-	PolicyholderEmail string             `json:"policyholder_email"`
-	PolicyholderPhone string             `json:"policyholder_phone"`
-	PolicyNumber      string             `json:"policy_number"`
-	Status            string             `json:"status"`
-	StartDate         pgtype.Timestamptz `json:"start_date"`
-	EndDate           pgtype.Timestamptz `json:"end_date"`
-	PremiumAmount     int64              `json:"premium_amount"`
-	Currency          string             `json:"currency"`
-	CreatedBy         pgtype.UUID        `json:"created_by"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
-	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
-	PlanName          string             `json:"plan_name"`
+	ID                 uuid.UUID          `json:"id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	PolicyholderName   string             `json:"policyholder_name"`
+	PolicyholderEmail  string             `json:"policyholder_email"`
+	PolicyholderPhone  string             `json:"policyholder_phone"`
+	PolicyNumber       string             `json:"policy_number"`
+	Status             string             `json:"status"`
+	StartDate          pgtype.Timestamptz `json:"start_date"`
+	EndDate            pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount      int64              `json:"premium_amount"`
+	Currency           string             `json:"currency"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	RenewedFromID      pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt        pgtype.Timestamptz `json:"activated_at"`
+	UnderwritingStatus string             `json:"underwriting_status"`
+	PlanName           string             `json:"plan_name"`
 }
 
 func (q *Queries) ListPoliciesByStatus(ctx context.Context, arg ListPoliciesByStatusParams) ([]ListPoliciesByStatusRow, error) {
@@ -559,6 +571,7 @@ func (q *Queries) ListPoliciesByStatus(ctx context.Context, arg ListPoliciesBySt
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.UnderwritingStatus,
 			&i.PlanName,
 		); err != nil {
 			return nil, err
@@ -572,7 +585,7 @@ func (q *Queries) ListPoliciesByStatus(ctx context.Context, arg ListPoliciesBySt
 }
 
 const listPoliciesExpiringSoon = `-- name: ListPoliciesExpiringSoon :many
-SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at FROM policies WHERE status = 'ACTIVE' AND end_date BETWEEN NOW() AND NOW() + make_interval(days => $1::int) ORDER BY end_date ASC
+SELECT id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status FROM policies WHERE status = 'ACTIVE' AND end_date BETWEEN NOW() AND NOW() + make_interval(days => $1::int) ORDER BY end_date ASC
 `
 
 func (q *Queries) ListPoliciesExpiringSoon(ctx context.Context, days int32) ([]Policy, error) {
@@ -601,6 +614,7 @@ func (q *Queries) ListPoliciesExpiringSoon(ctx context.Context, days int32) ([]P
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.UnderwritingStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -613,8 +627,8 @@ func (q *Queries) ListPoliciesExpiringSoon(ctx context.Context, days int32) ([]P
 }
 
 const listPoliciesFiltered = `-- name: ListPoliciesFiltered :many
-SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, pl.name AS plan_name FROM policies p
-JOIN plans pl ON pl.id = p.plan_id
+SELECT p.id, p.plan_id, p.policyholder_name, p.policyholder_email, p.policyholder_phone, p.policy_number, p.status, p.start_date, p.end_date, p.premium_amount, p.currency, p.created_by, p.created_at, p.updated_at, p.renewed_from_id, p.activated_at, p.underwriting_status, COALESCE(pl.name, '') AS plan_name FROM policies p
+LEFT JOIN plans pl ON pl.id = p.plan_id
 WHERE ($1::timestamptz IS NULL OR p.created_at >= $1)
   AND ($2::timestamptz IS NULL OR p.created_at <= $2)
   AND ($3::text = '' OR (p.policy_number ILIKE '%' || $3 || '%' OR p.policyholder_name ILIKE '%' || $3 || '%' OR p.policyholder_email ILIKE '%' || $3 || '%'))
@@ -631,23 +645,24 @@ type ListPoliciesFilteredParams struct {
 }
 
 type ListPoliciesFilteredRow struct {
-	ID                uuid.UUID          `json:"id"`
-	PlanID            uuid.UUID          `json:"plan_id"`
-	PolicyholderName  string             `json:"policyholder_name"`
-	PolicyholderEmail string             `json:"policyholder_email"`
-	PolicyholderPhone string             `json:"policyholder_phone"`
-	PolicyNumber      string             `json:"policy_number"`
-	Status            string             `json:"status"`
-	StartDate         pgtype.Timestamptz `json:"start_date"`
-	EndDate           pgtype.Timestamptz `json:"end_date"`
-	PremiumAmount     int64              `json:"premium_amount"`
-	Currency          string             `json:"currency"`
-	CreatedBy         pgtype.UUID        `json:"created_by"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	RenewedFromID     pgtype.UUID        `json:"renewed_from_id"`
-	ActivatedAt       pgtype.Timestamptz `json:"activated_at"`
-	PlanName          string             `json:"plan_name"`
+	ID                 uuid.UUID          `json:"id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	PolicyholderName   string             `json:"policyholder_name"`
+	PolicyholderEmail  string             `json:"policyholder_email"`
+	PolicyholderPhone  string             `json:"policyholder_phone"`
+	PolicyNumber       string             `json:"policy_number"`
+	Status             string             `json:"status"`
+	StartDate          pgtype.Timestamptz `json:"start_date"`
+	EndDate            pgtype.Timestamptz `json:"end_date"`
+	PremiumAmount      int64              `json:"premium_amount"`
+	Currency           string             `json:"currency"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	RenewedFromID      pgtype.UUID        `json:"renewed_from_id"`
+	ActivatedAt        pgtype.Timestamptz `json:"activated_at"`
+	UnderwritingStatus string             `json:"underwriting_status"`
+	PlanName           string             `json:"plan_name"`
 }
 
 func (q *Queries) ListPoliciesFiltered(ctx context.Context, arg ListPoliciesFilteredParams) ([]ListPoliciesFilteredRow, error) {
@@ -682,6 +697,7 @@ func (q *Queries) ListPoliciesFiltered(ctx context.Context, arg ListPoliciesFilt
 			&i.UpdatedAt,
 			&i.RenewedFromID,
 			&i.ActivatedAt,
+			&i.UnderwritingStatus,
 			&i.PlanName,
 		); err != nil {
 			return nil, err
@@ -703,7 +719,7 @@ UPDATE policies SET
     end_date = COALESCE($5, end_date),
     premium_amount = COALESCE($6, premium_amount),
     updated_at = NOW()
-WHERE id = $7 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
+WHERE id = $7 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status
 `
 
 type UpdatePolicyParams struct {
@@ -744,12 +760,13 @@ func (q *Queries) UpdatePolicy(ctx context.Context, arg UpdatePolicyParams) (Pol
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.UnderwritingStatus,
 	)
 	return i, err
 }
 
 const updatePolicyPlanAndPremium = `-- name: UpdatePolicyPlanAndPremium :one
-UPDATE policies SET plan_id = $2, premium_amount = $3, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
+UPDATE policies SET plan_id = $2, premium_amount = $3, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status
 `
 
 type UpdatePolicyPlanAndPremiumParams struct {
@@ -778,12 +795,13 @@ func (q *Queries) UpdatePolicyPlanAndPremium(ctx context.Context, arg UpdatePoli
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.UnderwritingStatus,
 	)
 	return i, err
 }
 
 const updatePolicyStatus = `-- name: UpdatePolicyStatus :one
-UPDATE policies SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at
+UPDATE policies SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status
 `
 
 type UpdatePolicyStatusParams struct {
@@ -811,6 +829,41 @@ func (q *Queries) UpdatePolicyStatus(ctx context.Context, arg UpdatePolicyStatus
 		&i.UpdatedAt,
 		&i.RenewedFromID,
 		&i.ActivatedAt,
+		&i.UnderwritingStatus,
+	)
+	return i, err
+}
+
+const updatePolicyUnderwritingStatus = `-- name: UpdatePolicyUnderwritingStatus :one
+UPDATE policies SET underwriting_status = $2, updated_at = NOW() WHERE id = $1 RETURNING id, plan_id, policyholder_name, policyholder_email, policyholder_phone, policy_number, status, start_date, end_date, premium_amount, currency, created_by, created_at, updated_at, renewed_from_id, activated_at, underwriting_status
+`
+
+type UpdatePolicyUnderwritingStatusParams struct {
+	ID                 uuid.UUID `json:"id"`
+	UnderwritingStatus string    `json:"underwriting_status"`
+}
+
+func (q *Queries) UpdatePolicyUnderwritingStatus(ctx context.Context, arg UpdatePolicyUnderwritingStatusParams) (Policy, error) {
+	row := q.db.QueryRow(ctx, updatePolicyUnderwritingStatus, arg.ID, arg.UnderwritingStatus)
+	var i Policy
+	err := row.Scan(
+		&i.ID,
+		&i.PlanID,
+		&i.PolicyholderName,
+		&i.PolicyholderEmail,
+		&i.PolicyholderPhone,
+		&i.PolicyNumber,
+		&i.Status,
+		&i.StartDate,
+		&i.EndDate,
+		&i.PremiumAmount,
+		&i.Currency,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RenewedFromID,
+		&i.ActivatedAt,
+		&i.UnderwritingStatus,
 	)
 	return i, err
 }

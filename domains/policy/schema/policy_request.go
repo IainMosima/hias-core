@@ -3,6 +3,8 @@ package schema
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type CreatePolicyRequest struct {
@@ -162,4 +164,21 @@ type UpdateUnderwritingRuleRequest struct {
 
 type ApplyCreditNoteRequest struct {
 	InvoiceID string `json:"invoice_id" binding:"required,uuid"`
+}
+
+type UploadPolicyDocumentURLRequest struct {
+	EntityType   string `json:"entity_type"`
+	EntityID     string `json:"entity_id"`
+	DocumentType string `json:"document_type" binding:"required"`
+	FileName     string `json:"file_name" binding:"required"`
+	FileSize     int64  `json:"file_size" binding:"required,gt=0"`
+	MimeType     string `json:"mime_type" binding:"required"`
+}
+
+type GenerateDocumentRequest struct {
+	EntityType     string    `json:"entity_type" binding:"required"`
+	EntityID       string    `json:"entity_id" binding:"required,uuid"`
+	DocumentType   string    `json:"document_type" binding:"required"`
+	GenerationMode string    `json:"-"`
+	GeneratedBy    uuid.UUID `json:"-"`
 }

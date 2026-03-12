@@ -37,3 +37,25 @@ LIMIT sqlc.arg('query_limit') OFFSET sqlc.arg('query_offset');
 SELECT COUNT(*) FROM invoices
 WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
   AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'));
+
+-- name: GetInvoiceWithPolicy :one
+SELECT i.*, p.policy_number, p.policyholder_name
+FROM invoices i
+JOIN policies p ON p.id = i.policy_id
+WHERE i.id = $1;
+
+-- name: ListInvoicesWithPolicy :many
+SELECT i.*, p.policy_number, p.policyholder_name
+FROM invoices i
+JOIN policies p ON p.id = i.policy_id
+ORDER BY i.created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: ListInvoicesFilteredWithPolicy :many
+SELECT i.*, p.policy_number, p.policyholder_name
+FROM invoices i
+JOIN policies p ON p.id = i.policy_id
+WHERE (sqlc.narg('date_from')::timestamptz IS NULL OR i.created_at >= sqlc.narg('date_from'))
+  AND (sqlc.narg('date_to')::timestamptz IS NULL OR i.created_at <= sqlc.narg('date_to'))
+ORDER BY i.created_at DESC
+LIMIT sqlc.arg('query_limit') OFFSET sqlc.arg('query_offset');

@@ -1,11 +1,14 @@
 package schema
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type LoginResponse struct {
-	AccessToken          string    `json:"access_token"`
-	AccessTokenExpiresAt time.Time `json:"access_token_expires_at"`
-	RefreshToken         string    `json:"refresh_token,omitempty"`
+	AccessToken          string       `json:"access_token"`
+	AccessTokenExpiresAt time.Time    `json:"access_token_expires_at"`
+	RefreshToken         string       `json:"refresh_token,omitempty"`
 	User                 UserResponse `json:"user"`
 }
 
@@ -31,6 +34,9 @@ func NewServiceResponse[T any](data T, statusCode int, message string) *ServiceR
 }
 
 func NewServiceErrorResponse[T any](statusCode int, message string, err error) *ServiceResponse[T] {
+	if err == nil {
+		err = errors.New(message)
+	}
 	return &ServiceResponse[T]{
 		StatusCode: statusCode,
 		Message:    message,

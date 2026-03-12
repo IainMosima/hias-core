@@ -26,4 +26,5 @@ type PolicyRepository interface {
 	GetOverdueForLapse(ctx context.Context) ([]*entity.Policy, error)
 	ListFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string, limit, offset int) ([]*entity.Policy, error)
 	CountFiltered(ctx context.Context, dateFrom, dateTo *time.Time, search string) (int64, error)
+	UpdateUnderwritingStatus(ctx context.Context, policyID uuid.UUID, status string) (*entity.Policy, error)
 }

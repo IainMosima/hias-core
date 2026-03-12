@@ -1,0 +1,1 @@
+ALTER TABLE policy_documents ADD COLUMN mime_type VARCHAR(100) NOT NULL DEFAULT '';

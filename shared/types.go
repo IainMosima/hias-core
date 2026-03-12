@@ -57,10 +57,25 @@ const (
 type UnderwritingStatus string
 
 const (
-	UnderwritingStatusPending  UnderwritingStatus = "PENDING"
-	UnderwritingStatusApproved UnderwritingStatus = "APPROVED"
-	UnderwritingStatusDeclined UnderwritingStatus = "DECLINED"
-	UnderwritingStatusRefer    UnderwritingStatus = "REFER"
+	UnderwritingStatusPending               UnderwritingStatus = "PENDING"
+	UnderwritingStatusApproved              UnderwritingStatus = "APPROVED"
+	UnderwritingStatusDeclined              UnderwritingStatus = "DECLINED"
+	UnderwritingStatusRefer                 UnderwritingStatus = "REFER"
+	UnderwritingStatusApprovedWithLoading   UnderwritingStatus = "APPROVED_WITH_LOADING"
+	UnderwritingStatusApprovedWithExclusion UnderwritingStatus = "APPROVED_WITH_EXCLUSION"
+)
+
+// PolicyUnderwritingStatus represents the underwriting status on a policy
+type PolicyUnderwritingStatus string
+
+const (
+	PolicyUWStatusNotRequired           PolicyUnderwritingStatus = "NOT_REQUIRED"
+	PolicyUWStatusPending               PolicyUnderwritingStatus = "PENDING"
+	PolicyUWStatusInReview              PolicyUnderwritingStatus = "IN_REVIEW"
+	PolicyUWStatusApproved              PolicyUnderwritingStatus = "APPROVED"
+	PolicyUWStatusApprovedWithLoading   PolicyUnderwritingStatus = "APPROVED_WITH_LOADING"
+	PolicyUWStatusApprovedWithExclusion PolicyUnderwritingStatus = "APPROVED_WITH_EXCLUSION"
+	PolicyUWStatusDeclined              PolicyUnderwritingStatus = "DECLINED"
 )
 
 // PolicyDocumentType represents the type of generated policy document
@@ -74,6 +89,37 @@ const (
 	PolicyDocumentTypeEndorsement    PolicyDocumentType = "ENDORSEMENT"
 	PolicyDocumentTypeLOU            PolicyDocumentType = "LOU"
 	PolicyDocumentTypeDeclineLetter  PolicyDocumentType = "DECLINE_LETTER"
+)
+
+// GeneratedDocStatus represents the status of a generated document
+type GeneratedDocStatus string
+
+const (
+	GeneratedDocStatusPending       GeneratedDocStatus = "PENDING"
+	GeneratedDocStatusPendingUpload GeneratedDocStatus = "PENDING_UPLOAD"
+	GeneratedDocStatusGenerated     GeneratedDocStatus = "GENERATED"
+	GeneratedDocStatusFailed        GeneratedDocStatus = "FAILED"
+)
+
+// GenerationMode represents how a document was generated
+type GenerationMode string
+
+const (
+	GenerationModeAuto   GenerationMode = "AUTO"
+	GenerationModeManual GenerationMode = "MANUAL"
+	GenerationModeUpload GenerationMode = "UPLOAD"
+)
+
+// DocumentEntityType represents the entity type a document belongs to
+type DocumentEntityType string
+
+const (
+	DocumentEntityTypePolicy      DocumentEntityType = "policy"
+	DocumentEntityTypeMember      DocumentEntityType = "member"
+	DocumentEntityTypeEndorsement DocumentEntityType = "endorsement"
+	DocumentEntityTypeRenewal     DocumentEntityType = "renewal"
+	DocumentEntityTypePreauth     DocumentEntityType = "preauth"
+	DocumentEntityTypeClaim       DocumentEntityType = "claim"
 )
 
 // ProviderStatus represents the status of a provider
@@ -354,6 +400,7 @@ const (
 	AuditActionUpdate      AuditAction = "UPDATE"
 	AuditActionDelete      AuditAction = "DELETE"
 	AuditActionStateChange AuditAction = "STATE_CHANGE"
+	AuditActionAPICall     AuditAction = "API_CALL"
 )
 
 // AuditEntityType represents the type of entity being audited
@@ -899,6 +946,38 @@ const (
 	AuditEntityTypeReportSchedule        AuditEntityType = "REPORT_SCHEDULE"
 	AuditEntityTypeGeneratedReport       AuditEntityType = "GENERATED_REPORT"
 	AuditEntityTypeDocument              AuditEntityType = "DOCUMENT"
+	AuditEntityTypeAPIPartner            AuditEntityType = "API_PARTNER"
+)
+
+// ClaimSource represents the source channel of a claim
+type ClaimSource string
+
+const (
+	ClaimSourceInternal       ClaimSource = "INTERNAL"
+	ClaimSourceProviderPortal ClaimSource = "PROVIDER_PORTAL"
+	ClaimSourcePartnerAPI     ClaimSource = "PARTNER_API"
+	ClaimSourceCSVImport      ClaimSource = "CSV_IMPORT"
+)
+
+// PartnerType represents the type of API partner
+type PartnerType string
+
+const (
+	PartnerTypeProvider       PartnerType = "PROVIDER"
+	PartnerTypePartnerNetwork PartnerType = "PARTNER_NETWORK"
+	PartnerTypeTPA            PartnerType = "TPA"
+)
+
+// ExternalClaimStatus represents simplified external-facing claim statuses
+type ExternalClaimStatus string
+
+const (
+	ExternalStatusReceived    ExternalClaimStatus = "RECEIVED"
+	ExternalStatusProcessing  ExternalClaimStatus = "PROCESSING"
+	ExternalStatusUnderReview ExternalClaimStatus = "UNDER_REVIEW"
+	ExternalStatusApproved    ExternalClaimStatus = "APPROVED"
+	ExternalStatusRejected    ExternalClaimStatus = "REJECTED"
+	ExternalStatusSettled     ExternalClaimStatus = "SETTLED"
 )
 
 // DocumentStatus represents the status of an uploaded document

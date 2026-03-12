@@ -36,4 +36,12 @@ type ClaimRepository interface {
 	CountFiltered(ctx context.Context, status string, dateFrom, dateTo *time.Time, search string) (int64, error)
 	CreateStatusHistory(ctx context.Context, claimID uuid.UUID, fromStatus, toStatus, action, notes string, performedBy uuid.UUID) error
 	ListTimeline(ctx context.Context, claimID uuid.UUID) ([]*entity.ClaimStatusHistory, error)
+	GetByIdempotencyKey(ctx context.Context, key string) (*entity.Claim, error)
+	GetByExternalClaimID(ctx context.Context, externalID string) (*entity.Claim, error)
+	CreateDraft(ctx context.Context, claim *entity.Claim) (*entity.Claim, error)
+	UpdateDraft(ctx context.Context, claim *entity.Claim) (*entity.Claim, error)
+	ListDrafts(ctx context.Context, createdBy uuid.UUID, limit, offset int) ([]*entity.Claim, error)
+	CompleteDraft(ctx context.Context, id uuid.UUID) (*entity.Claim, error)
+	DeleteDraft(ctx context.Context, id uuid.UUID) error
+	UpdateClaimSource(ctx context.Context, id uuid.UUID, claimSource, idempotencyKey, externalClaimID string, sourceMetadata []byte) error
 }

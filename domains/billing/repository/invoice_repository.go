@@ -20,4 +20,7 @@ type InvoiceRepository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*entity.Invoice, error)
 	ListFiltered(ctx context.Context, dateFrom, dateTo *time.Time, limit, offset int) ([]*entity.Invoice, error)
 	CountFiltered(ctx context.Context, dateFrom, dateTo *time.Time) (int64, error)
+	GetWithPolicy(ctx context.Context, id uuid.UUID) (*entity.Invoice, error)
+	ListWithPolicy(ctx context.Context, limit, offset int) ([]*entity.Invoice, error)
+	ListFilteredWithPolicy(ctx context.Context, dateFrom, dateTo *time.Time, limit, offset int) ([]*entity.Invoice, error)
 }

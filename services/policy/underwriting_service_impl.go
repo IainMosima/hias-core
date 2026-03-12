@@ -85,6 +85,11 @@ func (s *underwritingServiceImpl) SubmitAssessment(ctx context.Context, req poli
 		CreatedBy:           createdBy,
 	}
 
+	// Set policy underwriting status to PENDING
+	if _, uwErr := s.policyRepo.UpdateUnderwritingStatus(ctx, policyID, string(shared.PolicyUWStatusPending)); uwErr != nil {
+		log.Printf("Warning: failed to set policy underwriting status to PENDING: %v", uwErr)
+	}
+
 	created, err := s.underwritingRepo.Create(ctx, assessment)
 	if err != nil {
 		return schema.NewServiceErrorResponse[policySchema.UnderwritingResponse](http.StatusInternalServerError, "Failed to submit assessment", err)
@@ -264,6 +269,12 @@ func (s *underwritingServiceImpl) evaluateRules(ctx context.Context, assessment 
 	if _, err := s.underwritingRepo.Update(ctx, assessment); err != nil {
 		log.Printf("Warning: failed to update assessment with rules result: %v", err)
 	}
+
+	// Sync underwriting status to policy
+	policyUWStatus := assessmentStatusToPolicyUWStatus(status)
+	if _, err := s.policyRepo.UpdateUnderwritingStatus(ctx, assessment.PolicyID, policyUWStatus); err != nil {
+		log.Printf("Warning: failed to sync underwriting status to policy: %v", err)
+	}
 }
 
 func (s *underwritingServiceImpl) GetAssessment(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[policySchema.UnderwritingResponse] {
@@ -298,12 +309,14 @@ func (s *underwritingServiceImpl) ReviewAssessment(ctx context.Context, id uuid.
 	}
 
 	validStatuses := map[string]bool{
-		string(shared.UnderwritingStatusApproved): true,
-		string(shared.UnderwritingStatusDeclined): true,
-		string(shared.UnderwritingStatusRefer):    true,
+		string(shared.UnderwritingStatusApproved):              true,
+		string(shared.UnderwritingStatusDeclined):              true,
+		string(shared.UnderwritingStatusRefer):                 true,
+		string(shared.UnderwritingStatusApprovedWithLoading):   true,
+		string(shared.UnderwritingStatusApprovedWithExclusion): true,
 	}
 	if !validStatuses[req.Status] {
-		return schema.NewServiceErrorResponse[policySchema.UnderwritingResponse](http.StatusBadRequest, "Invalid status; must be APPROVED, DECLINED, or REFER", nil)
+		return schema.NewServiceErrorResponse[policySchema.UnderwritingResponse](http.StatusBadRequest, "Invalid status; must be APPROVED, DECLINED, REFER, APPROVED_WITH_LOADING, or APPROVED_WITH_EXCLUSION", nil)
 	}
 
 	now := time.Now()
@@ -318,9 +331,33 @@ func (s *underwritingServiceImpl) ReviewAssessment(ctx context.Context, id uuid.
 		return schema.NewServiceErrorResponse[policySchema.UnderwritingResponse](http.StatusInternalServerError, "Failed to review assessment", err)
 	}
 
+	// Sync underwriting status to policy
+	policyUWStatus := assessmentStatusToPolicyUWStatus(req.Status)
+	if _, uwErr := s.policyRepo.UpdateUnderwritingStatus(ctx, assessment.PolicyID, policyUWStatus); uwErr != nil {
+		log.Printf("Warning: failed to sync underwriting status to policy on review: %v", uwErr)
+	}
+
 	s.logAudit(ctx, assessedBy, string(shared.AuditEntityTypeUnderwriting), id, string(shared.AuditActionUpdate))
 
 	return schema.NewServiceResponse(policySchema.ToUnderwritingResponse(updated), http.StatusOK, "Assessment reviewed")
+}
+
+// assessmentStatusToPolicyUWStatus maps an assessment status to the corresponding policy underwriting status.
+func assessmentStatusToPolicyUWStatus(assessmentStatus string) string {
+	switch assessmentStatus {
+	case string(shared.UnderwritingStatusApproved):
+		return string(shared.PolicyUWStatusApproved)
+	case string(shared.UnderwritingStatusDeclined):
+		return string(shared.PolicyUWStatusDeclined)
+	case string(shared.UnderwritingStatusRefer):
+		return string(shared.PolicyUWStatusInReview)
+	case string(shared.UnderwritingStatusApprovedWithLoading):
+		return string(shared.PolicyUWStatusApprovedWithLoading)
+	case string(shared.UnderwritingStatusApprovedWithExclusion):
+		return string(shared.PolicyUWStatusApprovedWithExclusion)
+	default:
+		return string(shared.PolicyUWStatusPending)
+	}
 }
 
 func underwritingCalculateMemberAge(dob time.Time) int {

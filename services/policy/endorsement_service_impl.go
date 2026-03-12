@@ -439,11 +439,26 @@ func (s *endorsementServiceImpl) ApplyEndorsement(ctx context.Context, id uuid.U
 
 	s.logAudit(ctx, endorsement.ApprovedBy, string(shared.AuditEntityTypeEndorsement), id, string(shared.AuditActionStateChange))
 
-	// Generate endorsement letter
+	// Auto-generate endorsement letter and re-generate policy schedule
 	if s.policyDocSvc != nil {
 		go func() {
 			bgCtx := context.Background()
-			s.policyDocSvc.GenerateWelcomeLetter(bgCtx, endorsement.PolicyID, endorsement.ApprovedBy)
+			// Endorsement letter
+			s.policyDocSvc.GenerateDocument(bgCtx, policySchema.GenerateDocumentRequest{
+				EntityType:     "endorsement",
+				EntityID:       id.String(),
+				DocumentType:   "ENDORSEMENT",
+				GenerationMode: "AUTO",
+				GeneratedBy:    endorsement.ApprovedBy,
+			})
+			// Re-generate policy schedule (new version)
+			s.policyDocSvc.GenerateDocument(bgCtx, policySchema.GenerateDocumentRequest{
+				EntityType:     "policy",
+				EntityID:       endorsement.PolicyID.String(),
+				DocumentType:   "POLICY_SCHEDULE",
+				GenerationMode: "AUTO",
+				GeneratedBy:    endorsement.ApprovedBy,
+			})
 		}()
 	}
 

@@ -3,13 +3,22 @@ INSERT INTO underwriting_assessments (policy_id, member_id, status, questionnair
 VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: GetUnderwritingByID :one
-SELECT * FROM underwriting_assessments WHERE id = $1;
+SELECT ua.*, COALESCE(u.name, '') AS assessed_by_name
+FROM underwriting_assessments ua
+LEFT JOIN users u ON u.id = ua.assessed_by
+WHERE ua.id = $1;
 
 -- name: ListUnderwritingByPolicy :many
-SELECT * FROM underwriting_assessments WHERE policy_id = $1 ORDER BY created_at DESC;
+SELECT ua.*, COALESCE(u.name, '') AS assessed_by_name
+FROM underwriting_assessments ua
+LEFT JOIN users u ON u.id = ua.assessed_by
+WHERE ua.policy_id = $1 ORDER BY ua.created_at DESC;
 
 -- name: GetUnderwritingByMember :one
-SELECT * FROM underwriting_assessments WHERE member_id = $1 ORDER BY created_at DESC LIMIT 1;
+SELECT ua.*, COALESCE(u.name, '') AS assessed_by_name
+FROM underwriting_assessments ua
+LEFT JOIN users u ON u.id = ua.assessed_by
+WHERE ua.member_id = $1 ORDER BY ua.created_at DESC LIMIT 1;
 
 -- name: UpdateUnderwritingStatus :one
 UPDATE underwriting_assessments SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *;

@@ -118,3 +118,45 @@ WHERE (sqlc.arg('status_filter')::text = '' OR status = sqlc.arg('status_filter'
   AND (sqlc.narg('date_from')::timestamptz IS NULL OR created_at >= sqlc.narg('date_from'))
   AND (sqlc.narg('date_to')::timestamptz IS NULL OR created_at <= sqlc.narg('date_to'))
   AND (sqlc.arg('search')::text = '' OR (claim_number ILIKE '%' || sqlc.arg('search') || '%' OR status ILIKE '%' || sqlc.arg('search') || '%'));
+
+-- name: GetClaimByIdempotencyKey :one
+SELECT * FROM claims WHERE idempotency_key = $1;
+
+-- name: GetClaimByExternalClaimID :one
+SELECT * FROM claims WHERE external_claim_id = $1;
+
+-- name: CreateDraftClaim :one
+INSERT INTO claims (claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, diagnosis_codes, service_date, admission_date, discharge_date, notes, created_by, claim_type, sla_breach_at, claim_source, is_draft)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'INTERNAL', true) RETURNING *;
+
+-- name: UpdateDraftClaim :one
+UPDATE claims SET
+    policy_id = $2,
+    member_id = $3,
+    provider_id = $4,
+    preauth_id = $5,
+    diagnosis_codes = $6,
+    service_date = $7,
+    notes = $8,
+    claim_type = $9,
+    total_amount = $10,
+    updated_at = NOW()
+WHERE id = $1 AND is_draft = true RETURNING *;
+
+-- name: ListDraftClaims :many
+SELECT * FROM claims WHERE is_draft = true AND created_by = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3;
+
+-- name: CompleteDraftClaim :one
+UPDATE claims SET is_draft = false, draft_completed_at = NOW(), updated_at = NOW() WHERE id = $1 AND is_draft = true RETURNING *;
+
+-- name: DeleteDraftClaim :exec
+DELETE FROM claims WHERE id = $1 AND is_draft = true;
+
+-- name: UpdateClaimSource :exec
+UPDATE claims SET
+    claim_source = $2,
+    idempotency_key = $3,
+    external_claim_id = $4,
+    source_metadata = $5,
+    updated_at = NOW()
+WHERE id = $1;

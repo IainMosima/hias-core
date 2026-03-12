@@ -1,0 +1,402 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "HIAS Core - SQS Queues with DLQs, IAM Roles, and CloudWatch Alarms"
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: hias
+    Description: Project name prefix for resources
+
+Resources:
+  # ============================================================
+  # Dead Letter Queues
+  # ============================================================
+
+  DocumentProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-document-processing-dlq"
+      MessageRetentionPeriod: 1209600 # 14 days
+
+  ExtractionResultsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-extraction-results-dlq"
+      MessageRetentionPeriod: 1209600
+
+  ClaimProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-claim-processing-dlq"
+      MessageRetentionPeriod: 1209600
+
+  PaymentEventsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-payment-events-dlq"
+      MessageRetentionPeriod: 1209600
+
+  NotificationEventsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-notification-events-dlq"
+      MessageRetentionPeriod: 1209600
+
+  # ============================================================
+  # Main Queues
+  # ============================================================
+
+  DocumentProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-document-processing"
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DocumentProcessingDLQ.Arn
+        maxReceiveCount: 3
+
+  ExtractionResultsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-extraction-results"
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ExtractionResultsDLQ.Arn
+        maxReceiveCount: 3
+
+  ClaimProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-claim-processing"
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ClaimProcessingDLQ.Arn
+        maxReceiveCount: 3
+
+  PaymentEventsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-payment-events"
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PaymentEventsDLQ.Arn
+        maxReceiveCount: 3
+
+  NotificationEventsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-notification-events"
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt NotificationEventsDLQ.Arn
+        maxReceiveCount: 3
+
+  # ============================================================
+  # IAM Roles
+  # ============================================================
+
+  BackendConsumerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-backend-consumer-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${ProjectName}-sqs-consumer-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !GetAtt DocumentProcessingQueue.Arn
+                  - !GetAtt ExtractionResultsQueue.Arn
+                  - !GetAtt ClaimProcessingQueue.Arn
+                  - !GetAtt PaymentEventsQueue.Arn
+                  - !GetAtt NotificationEventsQueue.Arn
+
+  PublisherRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-publisher-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${ProjectName}-sqs-publisher-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt DocumentProcessingQueue.Arn
+                  - !GetAtt ExtractionResultsQueue.Arn
+                  - !GetAtt ClaimProcessingQueue.Arn
+                  - !GetAtt PaymentEventsQueue.Arn
+                  - !GetAtt NotificationEventsQueue.Arn
+
+  # ============================================================
+  # CloudWatch Alarms — DLQ Message Count
+  # ============================================================
+
+  DocumentProcessingDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-document-processing-dlq-messages"
+      AlarmDescription: "Messages in document-processing DLQ"
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DocumentProcessingDLQ.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  ExtractionResultsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-extraction-results-dlq-messages"
+      AlarmDescription: "Messages in extraction-results DLQ"
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ExtractionResultsDLQ.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  ClaimProcessingDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-claim-processing-dlq-messages"
+      AlarmDescription: "Messages in claim-processing DLQ"
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ClaimProcessingDLQ.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  PaymentEventsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-payment-events-dlq-messages"
+      AlarmDescription: "Messages in payment-events DLQ"
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PaymentEventsDLQ.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  NotificationEventsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-notification-events-dlq-messages"
+      AlarmDescription: "Messages in notification-events DLQ"
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt NotificationEventsDLQ.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  # ============================================================
+  # CloudWatch Alarms — Message Age (oldest message > 1 hour)
+  # ============================================================
+
+  DocumentProcessingAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-document-processing-message-age"
+      AlarmDescription: "Oldest message in document-processing queue > 1 hour"
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DocumentProcessingQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3600
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  ExtractionResultsAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-extraction-results-message-age"
+      AlarmDescription: "Oldest message in extraction-results queue > 1 hour"
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ExtractionResultsQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3600
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  ClaimProcessingAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-claim-processing-message-age"
+      AlarmDescription: "Oldest message in claim-processing queue > 1 hour"
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ClaimProcessingQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3600
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  PaymentEventsAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-payment-events-message-age"
+      AlarmDescription: "Oldest message in payment-events queue > 1 hour"
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PaymentEventsQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3600
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+  NotificationEventsAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-notification-events-message-age"
+      AlarmDescription: "Oldest message in notification-events queue > 1 hour"
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt NotificationEventsQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3600
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+# ============================================================
+# Outputs
+# ============================================================
+
+Outputs:
+  DocumentProcessingQueueUrl:
+    Description: Document Processing Queue URL
+    Value: !Ref DocumentProcessingQueue
+    Export:
+      Name: !Sub "${ProjectName}-document-processing-queue-url"
+
+  DocumentProcessingQueueArn:
+    Description: Document Processing Queue ARN
+    Value: !GetAtt DocumentProcessingQueue.Arn
+    Export:
+      Name: !Sub "${ProjectName}-document-processing-queue-arn"
+
+  ExtractionResultsQueueUrl:
+    Description: Extraction Results Queue URL
+    Value: !Ref ExtractionResultsQueue
+    Export:
+      Name: !Sub "${ProjectName}-extraction-results-queue-url"
+
+  ExtractionResultsQueueArn:
+    Description: Extraction Results Queue ARN
+    Value: !GetAtt ExtractionResultsQueue.Arn
+    Export:
+      Name: !Sub "${ProjectName}-extraction-results-queue-arn"
+
+  ClaimProcessingQueueUrl:
+    Description: Claim Processing Queue URL
+    Value: !Ref ClaimProcessingQueue
+    Export:
+      Name: !Sub "${ProjectName}-claim-processing-queue-url"
+
+  ClaimProcessingQueueArn:
+    Description: Claim Processing Queue ARN
+    Value: !GetAtt ClaimProcessingQueue.Arn
+    Export:
+      Name: !Sub "${ProjectName}-claim-processing-queue-arn"
+
+  PaymentEventsQueueUrl:
+    Description: Payment Events Queue URL
+    Value: !Ref PaymentEventsQueue
+    Export:
+      Name: !Sub "${ProjectName}-payment-events-queue-url"
+
+  PaymentEventsQueueArn:
+    Description: Payment Events Queue ARN
+    Value: !GetAtt PaymentEventsQueue.Arn
+    Export:
+      Name: !Sub "${ProjectName}-payment-events-queue-arn"
+
+  NotificationEventsQueueUrl:
+    Description: Notification Events Queue URL
+    Value: !Ref NotificationEventsQueue
+    Export:
+      Name: !Sub "${ProjectName}-notification-events-queue-url"
+
+  NotificationEventsQueueArn:
+    Description: Notification Events Queue ARN
+    Value: !GetAtt NotificationEventsQueue.Arn
+    Export:
+      Name: !Sub "${ProjectName}-notification-events-queue-arn"
+
+  BackendConsumerRoleArn:
+    Description: Backend Consumer IAM Role ARN
+    Value: !GetAtt BackendConsumerRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-backend-consumer-role-arn"
+
+  PublisherRoleArn:
+    Description: Publisher IAM Role ARN
+    Value: !GetAtt PublisherRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-publisher-role-arn"

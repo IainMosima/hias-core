@@ -30,6 +30,12 @@ type Claim struct {
 	SLABreachAt          *time.Time      `json:"sla_breach_at,omitempty"`
 	RejectionReason      string          `json:"rejection_reason,omitempty"`
 	EscalatedTo          string          `json:"escalated_to,omitempty"`
+	ClaimSource          string          `json:"claim_source"`
+	IdempotencyKey       string          `json:"idempotency_key,omitempty"`
+	ExternalClaimID      string          `json:"external_claim_id,omitempty"`
+	SourceMetadata       json.RawMessage `json:"source_metadata,omitempty"`
+	IsDraft              bool            `json:"is_draft"`
+	DraftCompletedAt     *time.Time      `json:"draft_completed_at,omitempty"`
 	CreatedBy            uuid.UUID       `json:"created_by"`
 	CreatedAt            time.Time       `json:"created_at"`
 	UpdatedAt            time.Time       `json:"updated_at"`

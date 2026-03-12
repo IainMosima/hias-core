@@ -242,9 +242,9 @@ INSERT INTO claim_line_items (claim_id, procedure_code, procedure_name, diagnosi
 INSERT INTO adjudication_decisions (claim_id, decision, payable_amount, member_responsibility, reasons, rule_results, adjudicated_by, adjudicated_at) VALUES
   ('70000000-0000-0000-0000-000000000001', 'APPROVE', 1350000, 150000, '["Within benefit limits","Active policy"]', '[{"rule":"benefit_check","pass":true},{"rule":"policy_active","pass":true}]', '20000000-0000-0000-0000-000000000002', '2026-02-11');
 
--- CLM-2: James Mwangi @ City Medical — APPROVED (8,000 KES)
-INSERT INTO claims (id, claim_number, policy_id, member_id, provider_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, notes, claim_type, created_by) VALUES
-  ('70000000-0000-0000-0000-000000000002', 'CLM-2026-000002', '50000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', 'APPROVED', 800000, 760000, 40000, 40000, '["K29.7"]', '2026-02-15', 'Gastritis consultation and medication', 'DIRECT', '20000000-0000-0000-0000-000000000002')
+-- CLM-2: James Mwangi @ City Medical — VETTED (8,000 KES — vetted down to 7,200)
+INSERT INTO claims (id, claim_number, policy_id, member_id, provider_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, notes, claim_type, vetted_amount, vetted_by, vetted_at, created_by) VALUES
+  ('70000000-0000-0000-0000-000000000002', 'CLM-2026-000002', '50000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', 'VETTED', 800000, 760000, 40000, 40000, '["K29.7"]', '2026-02-15', 'Gastritis consultation and medication', 'DIRECT', 720000, '20000000-0000-0000-0000-000000000002', '2026-02-17', '20000000-0000-0000-0000-000000000002')
 ON CONFLICT (claim_number) DO NOTHING;
 
 INSERT INTO claim_line_items (claim_id, procedure_code, procedure_name, diagnosis_code, quantity, unit_price, total_price, approved_amount) VALUES
@@ -297,6 +297,54 @@ ON CONFLICT (claim_number) DO NOTHING;
 INSERT INTO claim_line_items (claim_id, procedure_code, procedure_name, diagnosis_code, quantity, unit_price, total_price, approved_amount) VALUES
   ('70000000-0000-0000-0000-000000000006', 'CONS-001', 'General Consultation',  'J03.9', 1, 250000, 250000, 0),
   ('70000000-0000-0000-0000-000000000006', 'PHARM-001','Antibiotics',           'J03.9', 1, 250000, 250000, 0);
+
+-- CLM-7: Jane Doe (spouse) @ Nairobi General — READY_FOR_PAYMENT (18,000 KES — approved, vetted, ready to pay)
+INSERT INTO claims (id, claim_number, policy_id, member_id, provider_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, notes, claim_type, vetted_amount, vetted_by, vetted_at, created_by) VALUES
+  ('70000000-0000-0000-0000-000000000007', 'CLM-2026-000007', '50000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000001', 'READY_FOR_PAYMENT', 1800000, 1620000, 180000, 180000, '["N39.0"]', '2026-02-12', 'Urinary tract infection — consultation, labs, and antibiotics', 'DIRECT', 1620000, '20000000-0000-0000-0000-000000000002', '2026-02-14', '20000000-0000-0000-0000-000000000002')
+ON CONFLICT (claim_number) DO NOTHING;
+
+INSERT INTO claim_line_items (claim_id, procedure_code, procedure_name, diagnosis_code, quantity, unit_price, total_price, approved_amount) VALUES
+  ('70000000-0000-0000-0000-000000000007', 'CONS-001', 'General Consultation',  'N39.0', 1, 300000,  300000,  300000),
+  ('70000000-0000-0000-0000-000000000007', 'LAB-002',  'Urinalysis',            'N39.0', 1, 100000,  100000,  100000),
+  ('70000000-0000-0000-0000-000000000007', 'LAB-001',  'Complete Blood Count',  'N39.0', 1, 150000,  150000,  150000),
+  ('70000000-0000-0000-0000-000000000007', 'PHARM-001','Antibiotics Course',    'N39.0', 1, 1250000, 1250000, 1070000);
+
+INSERT INTO adjudication_decisions (claim_id, decision, payable_amount, member_responsibility, reasons, rule_results, adjudicated_by, adjudicated_at) VALUES
+  ('70000000-0000-0000-0000-000000000007', 'APPROVE', 1620000, 180000, '["Within benefit limits","Active policy","Provider in network"]', '[{"rule":"benefit_check","pass":true},{"rule":"policy_active","pass":true},{"rule":"network_check","pass":true}]', '20000000-0000-0000-0000-000000000002', '2026-02-13');
+
+-- CLM-8: Mary Akinyi @ City Medical — PART_PAID (42,000 KES — partially paid to provider)
+INSERT INTO claims (id, claim_number, policy_id, member_id, provider_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, claim_type, vetted_amount, vetted_by, vetted_at, created_by) VALUES
+  ('70000000-0000-0000-0000-000000000008', 'CLM-2026-000008', '50000000-0000-0000-0000-000000000003', '60000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000002', 'PART_PAID', 4200000, 3780000, 420000, 420000, '["K35.8"]', '2026-02-05', '2026-02-05', '2026-02-08', 'Emergency appendectomy — 3-day inpatient stay', 'DIRECT', 3780000, '20000000-0000-0000-0000-000000000002', '2026-02-10', '20000000-0000-0000-0000-000000000002')
+ON CONFLICT (claim_number) DO NOTHING;
+
+INSERT INTO claim_line_items (claim_id, procedure_code, procedure_name, diagnosis_code, quantity, unit_price, total_price, approved_amount) VALUES
+  ('70000000-0000-0000-0000-000000000008', 'PROC-002', 'Appendectomy Surgery',   'K35.8', 1, 2500000, 2500000, 2250000),
+  ('70000000-0000-0000-0000-000000000008', 'ROOM-001', 'General Ward (per day)', 'K35.8', 3, 350000,  1050000, 1050000),
+  ('70000000-0000-0000-0000-000000000008', 'PHARM-002','Post-op Medication',     'K35.8', 1, 650000,  650000,  480000);
+
+INSERT INTO adjudication_decisions (claim_id, decision, payable_amount, member_responsibility, reasons, rule_results, adjudicated_by, adjudicated_at) VALUES
+  ('70000000-0000-0000-0000-000000000008', 'APPROVE', 3780000, 420000, '["Within inpatient benefit limits","Pre-auth PA-2026-000001 covers procedure"]', '[{"rule":"benefit_check","pass":true},{"rule":"preauth_check","pass":true}]', '20000000-0000-0000-0000-000000000002', '2026-02-09');
+
+-- CLM-9: Grace Mwangi @ Nairobi General — APPROVED (6,500 KES — approved, pending vetting)
+INSERT INTO claims (id, claim_number, policy_id, member_id, provider_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, notes, claim_type, created_by) VALUES
+  ('70000000-0000-0000-0000-000000000009', 'CLM-2026-000009', '50000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000001', 'APPROVED', 650000, 585000, 65000, 65000, '["J02.9"]', '2026-03-08', 'Acute pharyngitis — throat culture and treatment', 'DIRECT', '20000000-0000-0000-0000-000000000002')
+ON CONFLICT (claim_number) DO NOTHING;
+
+INSERT INTO claim_line_items (claim_id, procedure_code, procedure_name, diagnosis_code, quantity, unit_price, total_price, approved_amount) VALUES
+  ('70000000-0000-0000-0000-000000000009', 'CONS-001', 'General Consultation',  'J02.9', 1, 250000, 250000, 250000),
+  ('70000000-0000-0000-0000-000000000009', 'LAB-003',  'Throat Culture',        'J02.9', 1, 200000, 200000, 200000),
+  ('70000000-0000-0000-0000-000000000009', 'PHARM-001','Antibiotics',           'J02.9', 1, 200000, 200000, 135000);
+
+INSERT INTO adjudication_decisions (claim_id, decision, payable_amount, member_responsibility, reasons, rule_results, adjudicated_by, adjudicated_at) VALUES
+  ('70000000-0000-0000-0000-000000000009', 'APPROVE', 585000, 65000, '["Within benefit limits","Active policy"]', '[{"rule":"benefit_check","pass":true},{"rule":"policy_active","pass":true}]', '20000000-0000-0000-0000-000000000002', '2026-03-09');
+
+-- CLM-10: John Doe @ Wellness Pharmacy — VALIDATED (2,000 KES — just validated, awaiting adjudication)
+INSERT INTO claims (id, claim_number, policy_id, member_id, provider_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, notes, claim_type, created_by) VALUES
+  ('70000000-0000-0000-0000-000000000010', 'CLM-2026-000010', '50000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003', 'VALIDATED', 200000, 0, 0, 0, '["R50.9"]', '2026-03-10', 'Fever — over-the-counter medication', 'DIRECT', '20000000-0000-0000-0000-000000000002')
+ON CONFLICT (claim_number) DO NOTHING;
+
+INSERT INTO claim_line_items (claim_id, procedure_code, procedure_name, diagnosis_code, quantity, unit_price, total_price, approved_amount) VALUES
+  ('70000000-0000-0000-0000-000000000010', 'PHARM-001','Antipyretics',  'R50.9', 1, 200000, 200000, 0);
 
 -- ============================================================
 -- LAYER 7: SALES PIPELINE (Leads + Quotations)
@@ -364,6 +412,34 @@ INSERT INTO payments (id, claim_id, type, amount, currency, method, reference_nu
   ('91000000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000003', 'REMITTANCE', 350000, 'KES', 'BANK_TRANSFER', 'BNK-CLM-20260222-001', 'CONFIRMED', '2026-02-22', '20000000-0000-0000-0000-000000000004')
 ON CONFLICT (reference_number) DO NOTHING;
 
+-- Payment for CLM-8 (partial payment — 25,000 of 37,800 KES)
+INSERT INTO payments (id, claim_id, type, amount, currency, method, reference_number, status, paid_at, created_by) VALUES
+  ('91000000-0000-0000-0000-000000000004', '70000000-0000-0000-0000-000000000008', 'REMITTANCE', 2500000, 'KES', 'BANK_TRANSFER', 'BNK-CLM-20260212-001', 'CONFIRMED', '2026-02-12', '20000000-0000-0000-0000-000000000004')
+ON CONFLICT (reference_number) DO NOTHING;
+
+-- Remittance for CLM-3 (fully paid to Wellness Pharmacy)
+INSERT INTO remittances (id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, wht_rate, wht_amount, net_amount, created_by) VALUES
+  ('92000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003', '["70000000-0000-0000-0000-000000000003"]', 350000, 'KES', 'PAID', true, '2026-02-01', '2026-02-28', '91000000-0000-0000-0000-000000000003', 0.05, 17500, 332500, '20000000-0000-0000-0000-000000000004');
+
+-- Remittance for CLM-8 (partial — City Medical, pending remainder)
+INSERT INTO remittances (id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, wht_rate, wht_amount, net_amount, created_by) VALUES
+  ('92000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', '["70000000-0000-0000-0000-000000000008"]', 3780000, 'KES', 'PARTIAL', false, '2026-02-01', '2026-02-28', '91000000-0000-0000-0000-000000000004', 0.05, 125000, 2375000, '20000000-0000-0000-0000-000000000004');
+
+-- ============================================================
+-- LAYER 8b: FRAUD FLAGS
+-- ============================================================
+-- CLM-5 flagged for amount threshold (triggered manual review)
+INSERT INTO fraud_flags (claim_id, flag_type, severity, details, resolved, created_at) VALUES
+  ('70000000-0000-0000-0000-000000000005', 'AMOUNT_THRESHOLD', 'HIGH', 'Claim amount of KES 120,000 exceeds the auto-approval threshold of KES 100,000. MRI + 8 physiotherapy sessions flagged for review.', false, '2026-03-01');
+
+-- CLM-5 also flagged for frequency (same member, 2 claims in 3 weeks)
+INSERT INTO fraud_flags (claim_id, flag_type, severity, details, resolved, reference_claim_id, created_at) VALUES
+  ('70000000-0000-0000-0000-000000000005', 'FREQUENCY', 'MEDIUM', 'Member John Doe has 2 claims within 21 days. Previous claim CLM-2026-000001 on 2026-02-10.', false, '70000000-0000-0000-0000-000000000001', '2026-03-01');
+
+-- CLM-1 had a resolved duplicate flag
+INSERT INTO fraud_flags (claim_id, flag_type, severity, details, resolved, resolved_by, resolved_at, created_at) VALUES
+  ('70000000-0000-0000-0000-000000000001', 'DUPLICATE', 'LOW', 'Similar diagnosis code J06.9 submitted for same member within 30 days — reviewed and confirmed as separate visit.', true, '20000000-0000-0000-0000-000000000002', '2026-02-11', '2026-02-10');
+
 -- ============================================================
 -- LAYER 9: PRE-AUTHORIZATION
 -- ============================================================
@@ -387,14 +463,59 @@ INSERT INTO notifications (user_id, channel, type, subject, body, metadata, stat
 INSERT INTO endorsements (policy_id, endorsement_type, status, effective_date, changes, reason, premium_adjustment, requested_by, approved_by, approved_at, applied_at) VALUES
   ('50000000-0000-0000-0000-000000000002', 'MEMBER_ADDITION', 'APPROVED', '2026-02-01', '{"added_member": "Brian Mwangi", "relationship": "CHILD"}', 'Adding dependent child to family policy', 0, '20000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', '2026-01-28', '2026-02-01');
 
--- Claim status history (one entry per claim showing latest transition)
+-- Claim status history — full chains showing realistic lifecycle progression
 INSERT INTO claim_status_history (claim_id, from_status, to_status, action, notes, performed_by) VALUES
-  ('70000000-0000-0000-0000-000000000001', 'RECEIVED',      'ADJUDICATED',   'auto_adjudicate', 'Auto-adjudication completed',                          '20000000-0000-0000-0000-000000000002'),
-  ('70000000-0000-0000-0000-000000000002', 'ADJUDICATED',   'APPROVED',      'approve',         'Approved by claims officer',                            '20000000-0000-0000-0000-000000000002'),
-  ('70000000-0000-0000-0000-000000000003', 'APPROVED',      'PAID',          'process_payment', 'Payment processed via bank transfer',                   '20000000-0000-0000-0000-000000000004'),
-  ('70000000-0000-0000-0000-000000000004', 'RECEIVED',      'REJECTED',      'reject',          'Excluded benefit: cosmetic procedures',                 '20000000-0000-0000-0000-000000000002'),
-  ('70000000-0000-0000-0000-000000000005', 'RECEIVED',      'MANUAL_REVIEW', 'escalate',        'Amount exceeds auto-approval threshold',                '20000000-0000-0000-0000-000000000002'),
-  ('70000000-0000-0000-0000-000000000006', '',              'RECEIVED',      'submit',          'Claim submitted by provider',                           '20000000-0000-0000-0000-000000000002');
+  -- CLM-1: RECEIVED → VALIDATED → ADJUDICATED
+  ('70000000-0000-0000-0000-000000000001', '',              'RECEIVED',           'submit',          'Claim submitted',                                      '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000001', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility and coverage verified',                    '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000001', 'VALIDATED',     'ADJUDICATED',        'auto_adjudicate', 'Auto-adjudication completed — approved within limits', '20000000-0000-0000-0000-000000000002'),
+  -- CLM-2: RECEIVED → VALIDATED → ADJUDICATED → APPROVED → VETTED
+  ('70000000-0000-0000-0000-000000000002', '',              'RECEIVED',           'submit',          'Claim submitted',                                      '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000002', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility and coverage verified',                    '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000002', 'VALIDATED',     'ADJUDICATED',        'auto_adjudicate', 'Auto-adjudication completed',                          '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000002', 'ADJUDICATED',   'APPROVED',           'approve',         'Approved by claims officer',                           '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000002', 'APPROVED',      'VETTED',             'vet',             'Vetted down from 7,600 to 7,200 — pharmacy markup adjusted', '20000000-0000-0000-0000-000000000002'),
+  -- CLM-3: RECEIVED → VALIDATED → ADJUDICATED → APPROVED → VETTED → READY_FOR_PAYMENT → PAID
+  ('70000000-0000-0000-0000-000000000003', '',              'RECEIVED',           'submit',          'Claim submitted',                                      '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000003', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility verified',                                 '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000003', 'VALIDATED',     'ADJUDICATED',        'auto_adjudicate', 'Pharmacy claim auto-approved',                         '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000003', 'ADJUDICATED',   'APPROVED',           'approve',         'Approved — below co-pay threshold',                    '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000003', 'APPROVED',      'READY_FOR_PAYMENT',  'ready_for_payment','Marked ready for payment by finance',                  '20000000-0000-0000-0000-000000000004'),
+  ('70000000-0000-0000-0000-000000000003', 'READY_FOR_PAYMENT','PAID',            'process_payment', 'Payment processed via bank transfer to Wellness Pharmacy', '20000000-0000-0000-0000-000000000004'),
+  -- CLM-4: RECEIVED → VALIDATED → REJECTED
+  ('70000000-0000-0000-0000-000000000004', '',              'RECEIVED',           'submit',          'Claim submitted',                                      '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000004', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility verified',                                 '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000004', 'VALIDATED',     'REJECTED',           'reject',          'Excluded benefit: cosmetic procedures not covered',     '20000000-0000-0000-0000-000000000002'),
+  -- CLM-5: RECEIVED → VALIDATED → ADJUDICATED → MANUAL_REVIEW
+  ('70000000-0000-0000-0000-000000000005', '',              'RECEIVED',           'submit',          'Claim submitted',                                      '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000005', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility verified',                                 '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000005', 'VALIDATED',     'ADJUDICATED',        'auto_adjudicate', 'Escalated — amount exceeds auto-approval threshold',   '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000005', 'ADJUDICATED',   'MANUAL_REVIEW',      'escalate',        'Amount 120,000 KES exceeds 100,000 KES auto-limit',    '20000000-0000-0000-0000-000000000002'),
+  -- CLM-6: RECEIVED (just submitted)
+  ('70000000-0000-0000-0000-000000000006', '',              'RECEIVED',           'submit',          'Claim submitted — acute tonsillitis',                  '20000000-0000-0000-0000-000000000002'),
+  -- CLM-7: RECEIVED → VALIDATED → ADJUDICATED → APPROVED → VETTED → READY_FOR_PAYMENT
+  ('70000000-0000-0000-0000-000000000007', '',              'RECEIVED',           'submit',          'Claim submitted',                                      '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000007', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility verified',                                 '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000007', 'VALIDATED',     'ADJUDICATED',        'auto_adjudicate', 'Auto-adjudication completed',                          '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000007', 'ADJUDICATED',   'APPROVED',           'approve',         'Approved by claims officer',                           '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000007', 'APPROVED',      'VETTED',             'vet',             'Vetting confirmed — amounts verified',                 '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000007', 'VETTED',        'READY_FOR_PAYMENT',  'ready_for_payment','Marked ready for payment',                             '20000000-0000-0000-0000-000000000004'),
+  -- CLM-8: RECEIVED → VALIDATED → ADJUDICATED → APPROVED → VETTED → READY_FOR_PAYMENT → PART_PAID
+  ('70000000-0000-0000-0000-000000000008', '',              'RECEIVED',           'submit',          'Emergency appendectomy claim submitted',                '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000008', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility verified — pre-auth PA-2026-000001 matched','20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000008', 'VALIDATED',     'ADJUDICATED',        'auto_adjudicate', 'Auto-adjudication — pre-auth covers procedure',        '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000008', 'ADJUDICATED',   'APPROVED',           'approve',         'Approved — inpatient benefit limits verified',          '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000008', 'APPROVED',      'VETTED',             'vet',             'Vetted — room charges and surgery amounts confirmed',   '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000008', 'VETTED',        'READY_FOR_PAYMENT',  'ready_for_payment','Marked ready for payment',                             '20000000-0000-0000-0000-000000000004'),
+  ('70000000-0000-0000-0000-000000000008', 'READY_FOR_PAYMENT','PART_PAID',       'part_payment',    'Partial payment of 25,000 KES processed — remainder pending', '20000000-0000-0000-0000-000000000004'),
+  -- CLM-9: RECEIVED → VALIDATED → ADJUDICATED → APPROVED
+  ('70000000-0000-0000-0000-000000000009', '',              'RECEIVED',           'submit',          'Claim submitted',                                      '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000009', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility verified',                                 '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000009', 'VALIDATED',     'ADJUDICATED',        'auto_adjudicate', 'Auto-adjudication completed',                          '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000009', 'ADJUDICATED',   'APPROVED',           'approve',         'Approved by claims officer — pending vetting',          '20000000-0000-0000-0000-000000000002'),
+  -- CLM-10: RECEIVED → VALIDATED
+  ('70000000-0000-0000-0000-000000000010', '',              'RECEIVED',           'submit',          'Claim submitted — pharmacy purchase',                  '20000000-0000-0000-0000-000000000002'),
+  ('70000000-0000-0000-0000-000000000010', 'RECEIVED',      'VALIDATED',          'validate',        'Eligibility and coverage verified — awaiting adjudication', '20000000-0000-0000-0000-000000000002');
 
 -- ============================================================
 -- LAYER 12: PREMIUM MODEL ENHANCEMENTS
@@ -417,27 +538,102 @@ WHERE policy_id IN (SELECT id FROM policies WHERE status = 'DRAFT');
 -- ============================================================
 -- LAYER 13: AUDIT EVENTS
 -- ============================================================
-INSERT INTO audit_events (user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent) VALUES
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"policy_number":"POL-2026-000001","status":"DRAFT"}', '127.0.0.1', 'HIAS-Admin/1.0'),
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'UPDATE', '{"status":"DRAFT"}', '{"status":"ACTIVE"}', '127.0.0.1', 'HIAS-Admin/1.0'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"claim_number":"CLM-2026-000001","status":"RECEIVED"}', '127.0.0.1', 'HIAS-Admin/1.0'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'UPDATE', '{"status":"RECEIVED"}', '{"status":"ADJUDICATED"}', '127.0.0.1', 'HIAS-Admin/1.0'),
-  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"email":"jane@hias.co.ke","role":"ClaimsOfficer"}', '127.0.0.1', 'HIAS-Admin/1.0'),
-  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"member_number":"MBR-2026-000001","name":"John Doe"}', '127.0.0.1', 'HIAS-Admin/1.0'),
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"policy_number":"POL-2026-000002","status":"DRAFT"}', '127.0.0.1', 'HIAS-Admin/1.0'),
-  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"reference":"MPESA-REF-20260125-001","amount":250000}', '127.0.0.1', 'HIAS-Admin/1.0');
+INSERT INTO audit_events (user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent, created_at) VALUES
+  -- User management
+  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"email":"jane@hias.co.ke","role":"ClaimsOfficer"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:15:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"email":"peter@hias.co.ke","role":"Underwriter"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:22:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000004', 'CREATE', NULL, '{"email":"mary@hias.co.ke","role":"Finance"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:30:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000002', 'UPDATE', '{"status":"ACTIVE"}', '{"status":"ACTIVE","permissions":["claims:create","claims:read","claims:update"]}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 09:00:00+03'),
+
+  -- Member enrollment
+  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"member_number":"MBR-2026-000001","name":"John Doe","relationship":"PRINCIPAL"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"member_number":"MBR-2026-000002","name":"Jane Doe","relationship":"SPOUSE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:15:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"member_number":"MBR-2026-000003","name":"Grace Mwangi","relationship":"SPOUSE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:30:00+03'),
+
+  -- Policy lifecycle: POL-1 (DRAFT → ACTIVE)
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"policy_number":"POL-2026-000001","status":"DRAFT","plan":"Silver Family","premium":250000}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"PENDING_UNDERWRITING"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 09:05:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING_UNDERWRITING"}', '{"status":"ACTIVE","underwriting_decision":"APPROVED"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:30:00+03'),
+
+  -- Policy lifecycle: POL-2 (DRAFT → ACTIVE)
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"policy_number":"POL-2026-000002","status":"DRAFT","plan":"Gold Corporate","premium":500000}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-08 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"ACTIVE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-08 15:00:00+03'),
+
+  -- Premium payments
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"reference":"MPESA-REF-20260125-001","amount":250000,"type":"PREMIUM","method":"MPESA"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-01-25 13:45:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"CONFIRMED","confirmed_by":"MPESA callback"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-01-25 13:46:00+03'),
+
+  -- Claim CLM-1: Full lifecycle (RECEIVED → ADJUDICATED)
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"claim_number":"CLM-2026-000001","status":"RECEIVED","total_amount":1250000,"provider":"Nairobi Hospital"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:30:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED","validation":"passed document check"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:35:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":1125000,"co_pay":125000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 11:00:00+03'),
+
+  -- Claim CLM-2: Vetted claim
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"claim_number":"CLM-2026-000002","status":"RECEIVED","total_amount":850000,"provider":"Kenyatta National"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 14:10:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":765000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 16:30:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-13 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":680000,"vetted_by":"jane@hias.co.ke"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-14 10:15:00+03'),
+
+  -- Claim CLM-3: Full lifecycle to PAID
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"claim_number":"CLM-2026-000003","status":"RECEIVED","total_amount":350000,"provider":"Wellness Pharmacy"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 08:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 08:10:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":350000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 09:30:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":350000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"VETTED"}', '{"status":"READY_FOR_PAYMENT"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"READY_FOR_PAYMENT"}', '{"status":"PAID","payment_reference":"BNK-CLM-20260221-001"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-02-21 15:30:00+03'),
+
+  -- Claim CLM-4: Rejected
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000004', 'CREATE', NULL, '{"claim_number":"CLM-2026-000004","status":"RECEIVED","total_amount":180000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-25 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000004', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"REJECTED","rejection_reason":"Service not covered under policy exclusions"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-25 14:30:00+03'),
+
+  -- Claim CLM-8: Emergency appendectomy → PART_PAID
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'CREATE', NULL, '{"claim_number":"CLM-2026-000008","status":"RECEIVED","total_amount":4200000,"provider":"City Medical","type":"INPATIENT"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-05 16:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-05 16:20:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":3780000,"co_pay":420000}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-06 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-07 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":3780000}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-10 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"VETTED"}', '{"status":"READY_FOR_PAYMENT"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-10 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"READY_FOR_PAYMENT"}', '{"status":"PART_PAID","paid_amount":2500000,"remaining":1280000,"note":"Partial payment — remainder pending budget approval"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-02-12 16:00:00+03'),
+
+  -- Invoice lifecycle
+  ('20000000-0000-0000-0000-000000000004', 'invoice', '90000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"invoice_number":"INV-2026-000001","amount":250000,"policy":"POL-2026-000001"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-01-20 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'invoice', '90000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"PAID","payment_reference":"MPESA-REF-20260125-001"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-01-25 13:46:00+03'),
+
+  -- Document uploads
+  ('20000000-0000-0000-0000-000000000002', 'document','D0000000-0000-0000-0002-000000000001', 'CREATE', NULL, '{"file_name":"CLM-2026-000001-receipt.pdf","file_size":128000,"claim":"CLM-2026-000001"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:32:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'document','D0000000-0000-0000-0002-000000000006', 'CREATE', NULL, '{"file_name":"CLM-2026-000008-discharge.pdf","file_size":320000,"claim":"CLM-2026-000008"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-08 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'document','D0000000-0000-0000-0001-000000000001', 'CREATE', NULL, '{"file_name":"POL-2026-000001-schedule.pdf","document_type":"POLICY_SCHEDULE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:35:00+03'),
+
+  -- API calls (system-level audit)
+  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/claims/70000000-0000-0000-0000-000000000001","status_code":200}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 11:05:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'analytics','00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/analytics/dashboard","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-01 08:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'analytics','00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/analytics/kpis","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-01 08:01:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/policies/50000000-0000-0000-0000-000000000001","status_code":200}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-02 10:00:00+03'),
+
+  -- Recent activity (March 2026)
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"reference":"BNK-REF-20260301-001","amount":500000,"type":"PREMIUM","method":"BANK_TRANSFER"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-03-01 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"CONFIRMED"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-03-01 11:05:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000001', 'UPDATE', '{"phone":"+254700000001"}', '{"phone":"+254712345678","updated_field":"phone_number"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-05 09:30:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000002', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/users/20000000-0000-0000-0000-000000000002","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-10 14:00:00+03');
 
 -- ============================================================
 -- LAYER 14: DOCUMENTS (policy + claim)
 -- ============================================================
-INSERT INTO policy_documents (id, policy_id, document_type, file_name, file_size, s3_key, generated_by) VALUES
-  ('D0000000-0000-0000-0001-000000000001', '50000000-0000-0000-0000-000000000001', 'POLICY_SCHEDULE', 'POL-2026-000001-schedule.pdf', 245000, 'documents/policies/POL-2026-000001/schedule.pdf', '20000000-0000-0000-0000-000000000003'),
-  ('D0000000-0000-0000-0001-000000000002', '50000000-0000-0000-0000-000000000002', 'POLICY_SCHEDULE', 'POL-2026-000002-schedule.pdf', 312000, 'documents/policies/POL-2026-000002/schedule.pdf', '20000000-0000-0000-0000-000000000003')
+INSERT INTO policy_documents (id, policy_id, entity_type, entity_id, document_type, file_name, file_size, s3_key, generated_by) VALUES
+  ('D0000000-0000-0000-0001-000000000001', '50000000-0000-0000-0000-000000000001', 'policy', '50000000-0000-0000-0000-000000000001', 'POLICY_SCHEDULE', 'POL-2026-000001-schedule.pdf', 245000, 'documents/policies/POL-2026-000001/schedule.pdf', '20000000-0000-0000-0000-000000000003'),
+  ('D0000000-0000-0000-0001-000000000002', '50000000-0000-0000-0000-000000000002', 'policy', '50000000-0000-0000-0000-000000000002', 'POLICY_SCHEDULE', 'POL-2026-000002-schedule.pdf', 312000, 'documents/policies/POL-2026-000002/schedule.pdf', '20000000-0000-0000-0000-000000000003')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO claim_documents (id, claim_id, file_name, file_type, file_size, s3_key, uploaded_by, is_deleted) VALUES
-  ('D0000000-0000-0000-0002-000000000001', '70000000-0000-0000-0000-000000000001', 'CLM-2026-000001-receipt.pdf',  'application/pdf', 128000, 'documents/claims/CLM-2026-000001/receipt.pdf',  '20000000-0000-0000-0000-000000000002', false),
-  ('D0000000-0000-0000-0002-000000000002', '70000000-0000-0000-0000-000000000002', 'CLM-2026-000002-invoice.pdf', 'application/pdf', 156000, 'documents/claims/CLM-2026-000002/invoice.pdf', '20000000-0000-0000-0000-000000000002', false)
+  ('D0000000-0000-0000-0002-000000000001', '70000000-0000-0000-0000-000000000001', 'CLM-2026-000001-receipt.pdf',      'application/pdf', 128000, 'documents/claims/CLM-2026-000001/receipt.pdf',      '20000000-0000-0000-0000-000000000002', false),
+  ('D0000000-0000-0000-0002-000000000002', '70000000-0000-0000-0000-000000000002', 'CLM-2026-000002-invoice.pdf',     'application/pdf', 156000, 'documents/claims/CLM-2026-000002/invoice.pdf',     '20000000-0000-0000-0000-000000000002', false),
+  ('D0000000-0000-0000-0002-000000000003', '70000000-0000-0000-0000-000000000003', 'CLM-2026-000003-pharmacy-slip.pdf','application/pdf',  82000, 'documents/claims/CLM-2026-000003/pharmacy-slip.pdf','20000000-0000-0000-0000-000000000002', false),
+  ('D0000000-0000-0000-0002-000000000004', '70000000-0000-0000-0000-000000000005', 'CLM-2026-000005-mri-report.pdf',  'application/pdf', 450000, 'documents/claims/CLM-2026-000005/mri-report.pdf',  '20000000-0000-0000-0000-000000000002', false),
+  ('D0000000-0000-0000-0002-000000000005', '70000000-0000-0000-0000-000000000005', 'CLM-2026-000005-referral.pdf',    'application/pdf',  95000, 'documents/claims/CLM-2026-000005/referral.pdf',    '20000000-0000-0000-0000-000000000002', false),
+  ('D0000000-0000-0000-0002-000000000006', '70000000-0000-0000-0000-000000000008', 'CLM-2026-000008-discharge.pdf',   'application/pdf', 320000, 'documents/claims/CLM-2026-000008/discharge.pdf',   '20000000-0000-0000-0000-000000000002', false),
+  ('D0000000-0000-0000-0002-000000000007', '70000000-0000-0000-0000-000000000008', 'CLM-2026-000008-surgery-report.pdf','application/pdf',280000,'documents/claims/CLM-2026-000008/surgery-report.pdf','20000000-0000-0000-0000-000000000002', false)
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

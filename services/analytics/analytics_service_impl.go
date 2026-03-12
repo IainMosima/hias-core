@@ -136,16 +136,16 @@ func (s *analyticsServiceImpl) GetKPIs(ctx context.Context, period string) *sche
 	}
 
 	kpis := map[string]interface{}{
-		"approval_rate":     approvalRate,
-		"loss_ratio":        lossRatio,
-		"average_tat_hours": avgTAT,
-		"total_premium":     totalPremium,
-		"total_claims_paid": totalClaimsPaid,
-		"active_policies":   activePolicies,
-		"lapsed_policies":   lapsedPolicies,
-		"total_members":     totalMembers,
-		"renewal_rate":      renewalRate,
-		"period":            period,
+		"approval_rate":           approvalRate,
+		"loss_ratio":              lossRatio,
+		"average_tat_hours":       avgTAT,
+		"total_premium_collected": totalPremium,
+		"total_claims_paid":       totalClaimsPaid,
+		"active_policies":         activePolicies,
+		"lapsed_policies":         lapsedPolicies,
+		"total_members":           totalMembers,
+		"renewal_rate":            renewalRate,
+		"period":                  period,
 	}
 
 	return schema.NewServiceResponse[interface{}](kpis, http.StatusOK, "KPIs retrieved")

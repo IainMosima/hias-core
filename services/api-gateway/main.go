@@ -38,6 +38,7 @@ import (
 	"github.com/bitbiz/hias-core/shared/auth"
 
 	_ "github.com/bitbiz/hias-core/docs/swagger"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -60,7 +61,15 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.New(ctx, cfg.DBSource)
+	poolCfg, err := pgxpool.ParseConfig(cfg.DBSource)
+	if err != nil {
+		log.Fatalf("Cannot parse database config: %v", err)
+	}
+	// Use DescribeExec mode to avoid prepared statement cache conflicts with PgBouncer/Supabase pooler
+	// while still correctly encoding JSONB and other typed parameters
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeDescribeExec
+
+	connPool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		log.Fatalf("Cannot connect to database: %v", err)
 	}
@@ -163,6 +172,7 @@ func main() {
 	creditNoteRepo := repository.NewCreditNoteRepository(store)
 	caseRecordRepo := repository.NewCaseRecordRepository(store)
 	claimDocRepo := repository.NewClaimDocumentRepository(store)
+	apiPartnerRepo := repository.NewAPIPartnerRepository(store)
 	statementRepo := repository.NewProviderStatementRepository(store)
 
 	// Adjudication & Escalation rule repositories
@@ -236,7 +246,7 @@ func main() {
 
 	// PDF generator and policy document service (created before policySvc to avoid circular deps)
 	pdfGenerator := documents.NewPDFGenerator()
-	policyDocSvc := policy.NewPolicyDocumentService(policyDocumentRepo, policyRepo, memberRepo, planRepo, benefitRepo, renewalRepo, preauthRepo, providerRepo, pdfGenerator, s3Svc, auditSvc, notifSvc)
+	policyDocSvc := policy.NewPolicyDocumentService(policyDocumentRepo, policyRepo, memberRepo, planRepo, benefitRepo, renewalRepo, preauthRepo, providerRepo, pdfGenerator, s3Svc, auditSvc, notifSvc, endorsementRepo, claimRepo)
 
 	// Credit note service (created before policy services since they depend on it)
 	creditNoteSvc := billing.NewCreditNoteService(creditNoteRepo, invoiceRepo, auditSvc)
@@ -249,7 +259,7 @@ func main() {
 	memberSvc := policy.NewMemberService(memberRepo, policyRepo, planRepo, premiumRuleRepo, premiumRuleSvc, underwritingFlagRepo, underwritingRuleRepo, creditNoteSvc, auditSvc)
 	policySvc := policy.NewPolicyService(policyRepo, planRepo, memberRepo, premiumRuleSvc, policyDocSvc, creditNoteSvc, auditSvc)
 	endorsementSvc := policy.NewEndorsementService(endorsementRepo, policyRepo, memberRepo, memberSvc, policySvc, premiumRuleSvc, planRepo, policyDocSvc, auditSvc)
-	renewalSvc := policy.NewRenewalService(renewalRepo, policyRepo, memberRepo, claimRepo, premiumRuleSvc, premiumRuleRepo, planRepo, underwritingFlagRepo, auditSvc)
+	renewalSvc := policy.NewRenewalService(renewalRepo, policyRepo, memberRepo, claimRepo, premiumRuleSvc, premiumRuleRepo, planRepo, underwritingFlagRepo, auditSvc, policyDocSvc)
 	underwritingSvc := policy.NewUnderwritingService(underwritingRepo, policyRepo, memberRepo, underwritingRuleRepo, underwritingFlagRepo, auditSvc)
 
 	// Provider services
@@ -264,6 +274,9 @@ func main() {
 	// Adjudication & Escalation rule services
 	adjRuleSvc := claims.NewAdjudicationRuleService(adjudicationRuleRepo)
 	escRuleSvc := claims.NewEscalationRuleService(escalationRuleRepo)
+
+	// Claim intake service (multi-channel)
+	claimIntakeSvc := claims.NewClaimIntakeService(claimSvc, claimRepo, memberRepo, apiPartnerRepo)
 
 	// Case management service
 	caseSvc := claims.NewCaseService(caseRecordRepo, preauthRepo, auditSvc)
@@ -319,7 +332,7 @@ func main() {
 		RateCard:         handlers.NewRateCardHandler(rateCardRepo),
 		Claim:            handlers.NewClaimHandler(claimSvc),
 		PreAuth:          handlers.NewPreAuthHandler(preauthSvc),
-		Invoice:          handlers.NewInvoiceHandler(invoiceRepo),
+		Invoice:          handlers.NewInvoiceHandler(invoiceRepo, policyRepo),
 		Payment:          handlers.NewPaymentHandler(paymentSvc),
 		Remittance:       handlers.NewRemittanceHandler(remittanceSvc),
 		Installment:      handlers.NewInstallmentHandler(installmentSvc),
@@ -362,6 +375,11 @@ func main() {
 
 		// Documents (standalone + uploads)
 		Document: handlers.NewDocumentHandler(store, s3Svc, docSvc),
+
+		// Multi-channel claims intake
+		ExternalClaim: handlers.NewExternalClaimHandler(claimIntakeSvc),
+		DraftClaim:    handlers.NewDraftClaimHandler(claimIntakeSvc),
+		APIPartner:    handlers.NewAPIPartnerHandler(apiPartnerRepo),
 	}
 
 	// 8. Scheduler (optional — only if enabled)
@@ -479,7 +497,7 @@ func main() {
 	}
 
 	// 9. Server
-	server := NewServer(tokenMaker, cfg.AllowedOrigins, auditSvc)
+	server := NewServer(tokenMaker, cfg.AllowedOrigins, auditSvc, apiPartnerRepo)
 	server.RegisterRoutes(h)
 
 	// 10. Start

@@ -177,3 +177,65 @@ func (r *invoiceRepository) CountFiltered(ctx context.Context, dateFrom, dateTo 
 	}
 	return count, nil
 }
+
+func (r *invoiceRepository) GetWithPolicy(ctx context.Context, id uuid.UUID) (*entity.Invoice, error) {
+	row, err := r.store.GetInvoiceWithPolicy(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get invoice with policy: %w", err)
+	}
+	inv := &entity.Invoice{
+		ID: row.ID, PolicyID: row.PolicyID, InvoiceNumber: row.InvoiceNumber,
+		Amount: row.Amount, Currency: row.Currency, DueDate: row.DueDate,
+		Status: row.Status, BillingPeriodStart: row.BillingPeriodStart,
+		BillingPeriodEnd: row.BillingPeriodEnd, Notes: row.Notes,
+		CreatedBy: pgtypeToUUID(row.CreatedBy), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		PolicyNumber: row.PolicyNumber, PolicyholderName: row.PolicyholderName,
+	}
+	return inv, nil
+}
+
+func (r *invoiceRepository) ListWithPolicy(ctx context.Context, limit, offset int) ([]*entity.Invoice, error) {
+	rows, err := r.store.ListInvoicesWithPolicy(ctx, db.ListInvoicesWithPolicyParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list invoices with policy: %w", err)
+	}
+	invoices := make([]*entity.Invoice, len(rows))
+	for i, row := range rows {
+		invoices[i] = &entity.Invoice{
+			ID: row.ID, PolicyID: row.PolicyID, InvoiceNumber: row.InvoiceNumber,
+			Amount: row.Amount, Currency: row.Currency, DueDate: row.DueDate,
+			Status: row.Status, BillingPeriodStart: row.BillingPeriodStart,
+			BillingPeriodEnd: row.BillingPeriodEnd, Notes: row.Notes,
+			CreatedBy: pgtypeToUUID(row.CreatedBy), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			PolicyNumber: row.PolicyNumber, PolicyholderName: row.PolicyholderName,
+		}
+	}
+	return invoices, nil
+}
+
+func (r *invoiceRepository) ListFilteredWithPolicy(ctx context.Context, dateFrom, dateTo *time.Time, limit, offset int) ([]*entity.Invoice, error) {
+	rows, err := r.store.ListInvoicesFilteredWithPolicy(ctx, db.ListInvoicesFilteredWithPolicyParams{
+		DateFrom:    timePtrToPgtypeTimestamptz(dateFrom),
+		DateTo:      timePtrToPgtypeTimestamptz(dateTo),
+		QueryLimit:  int32(limit),
+		QueryOffset: int32(offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list invoices filtered with policy: %w", err)
+	}
+	invoices := make([]*entity.Invoice, len(rows))
+	for i, row := range rows {
+		invoices[i] = &entity.Invoice{
+			ID: row.ID, PolicyID: row.PolicyID, InvoiceNumber: row.InvoiceNumber,
+			Amount: row.Amount, Currency: row.Currency, DueDate: row.DueDate,
+			Status: row.Status, BillingPeriodStart: row.BillingPeriodStart,
+			BillingPeriodEnd: row.BillingPeriodEnd, Notes: row.Notes,
+			CreatedBy: pgtypeToUUID(row.CreatedBy), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			PolicyNumber: row.PolicyNumber, PolicyholderName: row.PolicyholderName,
+		}
+	}
+	return invoices, nil
+}

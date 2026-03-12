@@ -9,22 +9,23 @@ import (
 )
 
 type PolicyResponse struct {
-	ID                uuid.UUID  `json:"id"`
-	PlanID            uuid.UUID  `json:"plan_id"`
-	PlanName          string     `json:"plan_name"`
-	PolicyholderName  string     `json:"policyholder_name"`
-	PolicyholderEmail string     `json:"policyholder_email"`
-	PolicyholderPhone string     `json:"policyholder_phone"`
-	PolicyNumber      string     `json:"policy_number"`
-	Status            string     `json:"status"`
-	StartDate         time.Time  `json:"start_date"`
-	EndDate           time.Time  `json:"end_date"`
-	PremiumAmount     int64      `json:"premium_amount"`
-	Currency          string     `json:"currency"`
-	RenewedFromID     *uuid.UUID `json:"renewed_from_id,omitempty"`
-	ActivatedAt       *time.Time `json:"activated_at,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID                 uuid.UUID  `json:"id"`
+	PlanID             uuid.UUID  `json:"plan_id"`
+	PlanName           string     `json:"plan_name"`
+	PolicyholderName   string     `json:"policyholder_name"`
+	PolicyholderEmail  string     `json:"policyholder_email"`
+	PolicyholderPhone  string     `json:"policyholder_phone"`
+	PolicyNumber       string     `json:"policy_number"`
+	Status             string     `json:"status"`
+	StartDate          time.Time  `json:"start_date"`
+	EndDate            time.Time  `json:"end_date"`
+	PremiumAmount      int64      `json:"premium_amount"`
+	Currency           string     `json:"currency"`
+	RenewedFromID      *uuid.UUID `json:"renewed_from_id,omitempty"`
+	ActivatedAt        *time.Time `json:"activated_at,omitempty"`
+	UnderwritingStatus string     `json:"underwriting_status"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 type MemberResponse struct {
@@ -108,6 +109,7 @@ type UnderwritingResponse struct {
 	RiskFlags           json.RawMessage `json:"risk_flags"`
 	DecisionReason      string          `json:"decision_reason"`
 	AssessedBy          uuid.UUID       `json:"assessed_by,omitempty"`
+	AssessedByName      string          `json:"assessed_by_name,omitempty"`
 	AssessedAt          *time.Time      `json:"assessed_at,omitempty"`
 	CreatedBy           uuid.UUID       `json:"created_by"`
 	CreatedAt           time.Time       `json:"created_at"`
@@ -115,15 +117,48 @@ type UnderwritingResponse struct {
 }
 
 type PolicyDocumentResponse struct {
-	ID           uuid.UUID `json:"id"`
-	PolicyID     uuid.UUID `json:"policy_id"`
-	MemberID     uuid.UUID `json:"member_id,omitempty"`
-	DocumentType string    `json:"document_type"`
-	FileName     string    `json:"file_name"`
-	FileSize     int64     `json:"file_size"`
-	S3Key        string    `json:"s3_key"`
-	GeneratedBy  uuid.UUID `json:"generated_by"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID              uuid.UUID  `json:"id"`
+	PolicyID        uuid.UUID  `json:"policy_id"`
+	MemberID        uuid.UUID  `json:"member_id,omitempty"`
+	DocumentType    string     `json:"document_type"`
+	FileName        string     `json:"file_name"`
+	FileSize        int64      `json:"file_size"`
+	MimeType        string     `json:"mime_type,omitempty"`
+	S3Key           string     `json:"s3_key"`
+	GeneratedBy     uuid.UUID  `json:"generated_by"`
+	Version         int        `json:"version"`
+	Status          string     `json:"status"`
+	GenerationMode  string     `json:"generation_mode"`
+	EntityType      string     `json:"entity_type"`
+	EntityID        uuid.UUID  `json:"entity_id"`
+	SupersededBy    *uuid.UUID `json:"superseded_by,omitempty"`
+	ErrorMessage    string     `json:"error_message,omitempty"`
+	GeneratedByName string     `json:"generated_by_name,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+type PolicyDocumentUploadURLResponse struct {
+	DocumentID uuid.UUID `json:"document_id"`
+	UploadURL  string    `json:"upload_url"`
+	S3Key      string    `json:"s3_key"`
+	ExpiresIn  int64     `json:"expires_in"`
+}
+
+type DocumentReadinessResponse struct {
+	CanGenerate bool     `json:"can_generate"`
+	Errors      []string `json:"errors,omitempty"`
+}
+
+type DocumentAvailabilityItem struct {
+	DocumentType  string     `json:"document_type"`
+	Exists        bool       `json:"exists"`
+	CanGenerate   bool       `json:"can_generate"`
+	LatestStatus  string     `json:"latest_status,omitempty"`
+	LatestVersion int        `json:"latest_version"`
+	LatestFileURL string     `json:"latest_file_url,omitempty"`
+	GeneratedAt   *time.Time `json:"generated_at,omitempty"`
+	Errors        []string   `json:"errors,omitempty"`
 }
 
 func ToPolicyResponse(p *entity.Policy) PolicyResponse {
@@ -133,7 +168,8 @@ func ToPolicyResponse(p *entity.Policy) PolicyResponse {
 		PolicyNumber: p.PolicyNumber, Status: p.Status, StartDate: p.StartDate,
 		EndDate: p.EndDate, PremiumAmount: p.PremiumAmount, Currency: p.Currency,
 		RenewedFromID: p.RenewedFromID, ActivatedAt: p.ActivatedAt,
-		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		UnderwritingStatus: p.UnderwritingStatus,
+		CreatedAt:          p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }
 
@@ -179,7 +215,7 @@ func ToUnderwritingResponse(u *entity.UnderwritingAssessment) UnderwritingRespon
 		Status: u.Status, Questionnaire: u.Questionnaire,
 		MedicalDeclarations: u.MedicalDeclarations, RiskScore: u.RiskScore,
 		RiskFlags: u.RiskFlags, DecisionReason: u.DecisionReason,
-		AssessedBy: u.AssessedBy, AssessedAt: u.AssessedAt,
+		AssessedBy: u.AssessedBy, AssessedByName: u.AssessedByName, AssessedAt: u.AssessedAt,
 		CreatedBy: u.CreatedBy, CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt,
 	}
 }
@@ -188,8 +224,13 @@ func ToPolicyDocumentResponse(d *entity.PolicyDocument) PolicyDocumentResponse {
 	return PolicyDocumentResponse{
 		ID: d.ID, PolicyID: d.PolicyID, MemberID: d.MemberID,
 		DocumentType: d.DocumentType, FileName: d.FileName,
-		FileSize: d.FileSize, S3Key: d.S3Key,
-		GeneratedBy: d.GeneratedBy, CreatedAt: d.CreatedAt,
+		FileSize: d.FileSize, MimeType: d.MimeType, S3Key: d.S3Key,
+		GeneratedBy: d.GeneratedBy, Version: d.Version,
+		Status: d.Status, GenerationMode: d.GenerationMode,
+		EntityType: d.EntityType, EntityID: d.EntityID,
+		SupersededBy: d.SupersededBy, ErrorMessage: d.ErrorMessage,
+		GeneratedByName: d.GeneratedByName,
+		CreatedAt:       d.CreatedAt, UpdatedAt: d.UpdatedAt,
 	}
 }
 
