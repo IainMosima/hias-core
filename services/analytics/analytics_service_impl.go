@@ -31,6 +31,7 @@ func (s *analyticsServiceImpl) GetDashboard(ctx context.Context, period string) 
 	claimsVolume, err := s.analyticsRepo.GetClaimsVolume(ctx, start, end)
 	if err != nil {
 		log.Printf("Dashboard: failed to get claims volume: %v", err)
+		claimsVolume = &repository.ClaimsVolume{}
 	}
 	approvalRate, err := s.analyticsRepo.GetApprovalRate(ctx, start, end)
 	if err != nil {
@@ -76,6 +77,15 @@ func (s *analyticsServiceImpl) GetDashboard(ctx context.Context, period string) 
 	if err != nil {
 		log.Printf("Dashboard: failed to get renewal rate: %v", err)
 	}
+	documentStats, err := s.analyticsRepo.GetDocumentStats(ctx, start, end)
+	if err != nil {
+		log.Printf("Dashboard: failed to get document stats: %v", err)
+		documentStats = &repository.DocumentStats{}
+	}
+	totalDocuments, err := s.analyticsRepo.GetTotalDocumentCount(ctx, start, end)
+	if err != nil {
+		log.Printf("Dashboard: failed to get total documents: %v", err)
+	}
 
 	dashboard := analyticsSvc.DashboardData{
 		ClaimsVolume:    claimsVolume,
@@ -90,6 +100,8 @@ func (s *analyticsServiceImpl) GetDashboard(ctx context.Context, period string) 
 		LapsedPolicies:  lapsedPolicies,
 		TotalMembers:    totalMembers,
 		RenewalRate:     renewalRate,
+		TotalDocuments:  totalDocuments,
+		DocumentStats:   documentStats,
 	}
 
 	return schema.NewServiceResponse(dashboard, http.StatusOK, "Dashboard data retrieved")
@@ -134,6 +146,32 @@ func (s *analyticsServiceImpl) GetKPIs(ctx context.Context, period string) *sche
 	if err != nil {
 		log.Printf("KPIs: failed to get renewal rate: %v", err)
 	}
+	totalDocuments, err := s.analyticsRepo.GetTotalDocumentCount(ctx, start, end)
+	if err != nil {
+		log.Printf("KPIs: failed to get total documents: %v", err)
+	}
+	claimsVolume, err := s.analyticsRepo.GetClaimsVolume(ctx, start, end)
+	if err != nil {
+		log.Printf("KPIs: failed to get claims volume: %v", err)
+		claimsVolume = &repository.ClaimsVolume{}
+	}
+	totalPoliciesCount, err := s.analyticsRepo.GetTotalPolicyCount(ctx)
+	if err != nil {
+		log.Printf("KPIs: failed to get total policies count: %v", err)
+	}
+	totalClaimsCount, err := s.analyticsRepo.GetTotalClaimCount(ctx)
+	if err != nil {
+		log.Printf("KPIs: failed to get total claims count: %v", err)
+	}
+	fraudRate, err := s.analyticsRepo.GetFraudRate(ctx, start, end)
+	if err != nil {
+		log.Printf("KPIs: failed to get fraud rate: %v", err)
+	}
+	slaBreachCount, err := s.analyticsRepo.GetSLABreachCount(ctx)
+	if err != nil {
+		log.Printf("KPIs: failed to get SLA breach count: %v", err)
+	}
+	activeClaims := claimsVolume.TotalClaims - claimsVolume.RejectedClaims - claimsVolume.PaidClaims
 
 	kpis := map[string]interface{}{
 		"approval_rate":           approvalRate,
@@ -145,7 +183,13 @@ func (s *analyticsServiceImpl) GetKPIs(ctx context.Context, period string) *sche
 		"lapsed_policies":         lapsedPolicies,
 		"total_members":           totalMembers,
 		"renewal_rate":            renewalRate,
+		"total_documents":         totalDocuments,
 		"period":                  period,
+		"total_policies_count":    totalPoliciesCount,
+		"total_claims_count":      totalClaimsCount,
+		"fraud_rate":              fraudRate,
+		"active_claims_count":     activeClaims,
+		"sla_breach_count":        slaBreachCount,
 	}
 
 	return schema.NewServiceResponse[interface{}](kpis, http.StatusOK, "KPIs retrieved")

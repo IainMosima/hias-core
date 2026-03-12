@@ -94,6 +94,10 @@ func (h *ProviderHandler) ListProviders(ctx *gin.Context) {
 			return
 		}
 		countResp := h.providerSvc.CountProvidersFiltered(ctx.Request.Context(), search)
+		if countResp.Error != nil {
+			utils.RespondError(ctx, countResp.StatusCode, countResp.Message)
+			return
+		}
 		utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 		return
 	}
@@ -104,6 +108,10 @@ func (h *ProviderHandler) ListProviders(ctx *gin.Context) {
 		return
 	}
 	countResp := h.providerSvc.GetTotalCount(ctx.Request.Context())
+	if countResp.Error != nil {
+		utils.RespondError(ctx, countResp.StatusCode, countResp.Message)
+		return
+	}
 	utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 }
 

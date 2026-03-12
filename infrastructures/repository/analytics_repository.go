@@ -189,6 +189,60 @@ func (r *analyticsRepository) GetTotalMemberCount(ctx context.Context, start, en
 	return count, nil
 }
 
+func (r *analyticsRepository) GetDocumentStats(ctx context.Context, start, end time.Time) (*domainRepo.DocumentStats, error) {
+	result, err := r.store.GetDocumentStats(ctx, db.GetDocumentStatsParams{
+		StartDate: start,
+		EndDate:   end,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get document stats: %w", err)
+	}
+	return &domainRepo.DocumentStats{
+		TotalDocuments:   result.TotalDocuments,
+		ActiveDocuments:  result.ActiveDocuments,
+		PendingDocuments: result.PendingDocuments,
+		FailedDocuments:  result.FailedDocuments,
+	}, nil
+}
+
+func (r *analyticsRepository) GetTotalDocumentCount(ctx context.Context, start, end time.Time) (int64, error) {
+	count, err := r.store.GetTotalDocumentCount(ctx, db.GetTotalDocumentCountParams{
+		StartDate: start,
+		EndDate:   end,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("failed to get total document count: %w", err)
+	}
+	return count, nil
+}
+
+func (r *analyticsRepository) GetTotalPolicyCount(ctx context.Context) (int64, error) {
+	count, err := r.store.CountPolicies(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total policy count: %w", err)
+	}
+	return count, nil
+}
+
+func (r *analyticsRepository) GetTotalClaimCount(ctx context.Context) (int64, error) {
+	count, err := r.store.CountClaims(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total claim count: %w", err)
+	}
+	return count, nil
+}
+
+func (r *analyticsRepository) GetSLABreachCount(ctx context.Context) (int64, error) {
+	count, err := r.store.GetSLABreachCount(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get SLA breach count: %w", err)
+	}
+	return count, nil
+}
+
 func (r *analyticsRepository) GetRenewalRate(ctx context.Context, start, end time.Time) (float64, error) {
 	rate, err := r.store.GetRenewalRate(ctx, db.GetRenewalRateParams{
 		StartDate: start,

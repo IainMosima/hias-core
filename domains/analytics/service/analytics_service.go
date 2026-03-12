@@ -18,6 +18,8 @@ type DashboardData struct {
 	LapsedPolicies  int64       `json:"lapsed_policies"`
 	TotalMembers    int64       `json:"total_members"`
 	RenewalRate     float64     `json:"renewal_rate"`
+	TotalDocuments  int64       `json:"total_documents"`
+	DocumentStats   interface{} `json:"document_stats"`
 }
 
 type AnalyticsService interface {

@@ -93,6 +93,41 @@ func (q *Queries) GetClaimsVolume(ctx context.Context, arg GetClaimsVolumeParams
 	return i, err
 }
 
+const getDocumentStats = `-- name: GetDocumentStats :one
+SELECT
+    COUNT(*) as total_documents,
+    COUNT(CASE WHEN status = 'ACTIVE' THEN 1 END) as active_documents,
+    COUNT(CASE WHEN status = 'PENDING_UPLOAD' THEN 1 END) as pending_documents,
+    COUNT(CASE WHEN status = 'UPLOAD_FAILED' THEN 1 END) as failed_documents
+FROM documents
+WHERE deleted_at IS NULL
+  AND created_at >= $1 AND created_at <= $2
+`
+
+type GetDocumentStatsParams struct {
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
+}
+
+type GetDocumentStatsRow struct {
+	TotalDocuments   int64 `json:"total_documents"`
+	ActiveDocuments  int64 `json:"active_documents"`
+	PendingDocuments int64 `json:"pending_documents"`
+	FailedDocuments  int64 `json:"failed_documents"`
+}
+
+func (q *Queries) GetDocumentStats(ctx context.Context, arg GetDocumentStatsParams) (GetDocumentStatsRow, error) {
+	row := q.db.QueryRow(ctx, getDocumentStats, arg.StartDate, arg.EndDate)
+	var i GetDocumentStatsRow
+	err := row.Scan(
+		&i.TotalDocuments,
+		&i.ActiveDocuments,
+		&i.PendingDocuments,
+		&i.FailedDocuments,
+	)
+	return i, err
+}
+
 const getFraudRate = `-- name: GetFraudRate :one
 SELECT (
     CASE WHEN COUNT(DISTINCT c.id) > 0
@@ -218,6 +253,25 @@ func (q *Queries) GetTotalClaimsPaid(ctx context.Context, arg GetTotalClaimsPaid
 	var total_paid int64
 	err := row.Scan(&total_paid)
 	return total_paid, err
+}
+
+const getTotalDocumentCount = `-- name: GetTotalDocumentCount :one
+SELECT COUNT(*)::bigint as total_documents
+FROM documents
+WHERE status = 'ACTIVE' AND deleted_at IS NULL
+  AND created_at >= $1 AND created_at <= $2
+`
+
+type GetTotalDocumentCountParams struct {
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
+}
+
+func (q *Queries) GetTotalDocumentCount(ctx context.Context, arg GetTotalDocumentCountParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getTotalDocumentCount, arg.StartDate, arg.EndDate)
+	var total_documents int64
+	err := row.Scan(&total_documents)
+	return total_documents, err
 }
 
 const getTotalPremiumCollected = `-- name: GetTotalPremiumCollected :one

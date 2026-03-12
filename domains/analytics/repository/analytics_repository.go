@@ -19,6 +19,11 @@ type AnalyticsRepository interface {
 	GetLapsedPolicyCount(ctx context.Context, start, end time.Time) (int64, error)
 	GetTotalMemberCount(ctx context.Context, start, end time.Time) (int64, error)
 	GetRenewalRate(ctx context.Context, start, end time.Time) (float64, error)
+	GetDocumentStats(ctx context.Context, start, end time.Time) (*DocumentStats, error)
+	GetTotalDocumentCount(ctx context.Context, start, end time.Time) (int64, error)
+	GetTotalPolicyCount(ctx context.Context) (int64, error)
+	GetTotalClaimCount(ctx context.Context) (int64, error)
+	GetSLABreachCount(ctx context.Context) (int64, error)
 }
 
 type ClaimsVolume struct {
@@ -27,6 +32,13 @@ type ClaimsVolume struct {
 	RejectedClaims     int64 `json:"rejected_claims"`
 	ManualReviewClaims int64 `json:"manual_review_claims"`
 	PaidClaims         int64 `json:"paid_claims"`
+}
+
+type DocumentStats struct {
+	TotalDocuments   int64 `json:"total_documents"`
+	ActiveDocuments  int64 `json:"active_documents"`
+	PendingDocuments int64 `json:"pending_documents"`
+	FailedDocuments  int64 `json:"failed_documents"`
 }
 
 type TopProvider struct {

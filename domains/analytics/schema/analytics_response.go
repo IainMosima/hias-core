@@ -6,14 +6,15 @@ import (
 )
 
 type DashboardResponse struct {
-	ClaimsVolume    *ClaimsVolumeResponse `json:"claims_volume"`
-	ApprovalRate    float64               `json:"approval_rate"`
-	AverageTAT      float64               `json:"average_tat_hours"`
-	LossRatio       float64               `json:"loss_ratio"`
-	FraudRate       float64               `json:"fraud_rate"`
-	TotalPremium    int64                 `json:"total_premium_collected"`
-	TotalClaimsPaid int64                 `json:"total_claims_paid"`
-	TopProviders    []TopProviderResponse `json:"top_providers"`
+	ClaimsVolume    *ClaimsVolumeResponse  `json:"claims_volume"`
+	ApprovalRate    float64                `json:"approval_rate"`
+	AverageTAT      float64                `json:"average_tat_hours"`
+	LossRatio       float64                `json:"loss_ratio"`
+	FraudRate       float64                `json:"fraud_rate"`
+	TotalPremium    int64                  `json:"total_premium_collected"`
+	TotalClaimsPaid int64                  `json:"total_claims_paid"`
+	TopProviders    []TopProviderResponse  `json:"top_providers"`
+	DocumentStats   *DocumentStatsResponse `json:"document_stats"`
 }
 
 type ClaimsVolumeResponse struct {
@@ -30,6 +31,13 @@ type TopProviderResponse struct {
 	ClaimCount    int64     `json:"claim_count"`
 	TotalAmount   int64     `json:"total_amount"`
 	TotalApproved int64     `json:"total_approved"`
+}
+
+type DocumentStatsResponse struct {
+	TotalDocuments   int64 `json:"total_documents"`
+	ActiveDocuments  int64 `json:"active_documents"`
+	PendingDocuments int64 `json:"pending_documents"`
+	FailedDocuments  int64 `json:"failed_documents"`
 }
 
 type KPIResponse struct {
@@ -51,6 +59,18 @@ func ToClaimsVolumeResponse(cv *repository.ClaimsVolume) *ClaimsVolumeResponse {
 		RejectedClaims:     cv.RejectedClaims,
 		ManualReviewClaims: cv.ManualReviewClaims,
 		PaidClaims:         cv.PaidClaims,
+	}
+}
+
+func ToDocumentStatsResponse(ds *repository.DocumentStats) *DocumentStatsResponse {
+	if ds == nil {
+		return nil
+	}
+	return &DocumentStatsResponse{
+		TotalDocuments:   ds.TotalDocuments,
+		ActiveDocuments:  ds.ActiveDocuments,
+		PendingDocuments: ds.PendingDocuments,
+		FailedDocuments:  ds.FailedDocuments,
 	}
 }
 

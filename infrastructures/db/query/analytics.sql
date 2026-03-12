@@ -78,3 +78,19 @@ SELECT COALESCE(SUM(COALESCE(NULLIF(vetted_amount, 0), approved_amount)), 0)::bi
 FROM claims
 WHERE status IN ('PAID', 'PART_PAID')
   AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
+
+-- name: GetDocumentStats :one
+SELECT
+    COUNT(*) as total_documents,
+    COUNT(CASE WHEN status = 'ACTIVE' THEN 1 END) as active_documents,
+    COUNT(CASE WHEN status = 'PENDING_UPLOAD' THEN 1 END) as pending_documents,
+    COUNT(CASE WHEN status = 'UPLOAD_FAILED' THEN 1 END) as failed_documents
+FROM documents
+WHERE deleted_at IS NULL
+  AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');
+
+-- name: GetTotalDocumentCount :one
+SELECT COUNT(*)::bigint as total_documents
+FROM documents
+WHERE status = 'ACTIVE' AND deleted_at IS NULL
+  AND created_at >= sqlc.arg('start_date') AND created_at <= sqlc.arg('end_date');

@@ -115,6 +115,10 @@ func (h *PolicyHandler) ListPolicies(ctx *gin.Context) {
 			return
 		}
 		countResp := h.policySvc.CountPoliciesFiltered(ctx.Request.Context(), dateFrom, dateTo, search)
+		if countResp.Error != nil {
+			utils.RespondError(ctx, countResp.StatusCode, countResp.Message)
+			return
+		}
 		utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 		return
 	}
@@ -125,6 +129,10 @@ func (h *PolicyHandler) ListPolicies(ctx *gin.Context) {
 		return
 	}
 	countResp := h.policySvc.GetTotalCount(ctx.Request.Context())
+	if countResp.Error != nil {
+		utils.RespondError(ctx, countResp.StatusCode, countResp.Message)
+		return
+	}
 	utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 }
 

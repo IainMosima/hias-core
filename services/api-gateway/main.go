@@ -65,9 +65,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot parse database config: %v", err)
 	}
-	// Use DescribeExec mode to avoid prepared statement cache conflicts with PgBouncer/Supabase pooler
-	// while still correctly encoding JSONB and other typed parameters
-	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeDescribeExec
+	// Use Exec mode for full compatibility with Supabase Pooler (transaction mode).
+	// Exec infers parameter OIDs from Go types — no prepared statements, no Describe round-trip.
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
 
 	connPool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

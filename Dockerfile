@@ -21,12 +21,18 @@ FROM --platform=linux/amd64 alpine:latest
 
 RUN apk --no-cache add ca-certificates curl
 
-WORKDIR /root/
+WORKDIR /app
 
 COPY --from=builder /app/main .
 COPY --from=builder /app/configs ./configs
 COPY --from=builder /app/docs ./docs
 COPY --from=builder /app/infrastructures/db/migration ./infrastructures/db/migration
+
+RUN chmod +x main && \
+    chown -R 1001:0 /app && \
+    chmod -R g=u /app
+
+USER 1001
 
 EXPOSE 8080 9090
 

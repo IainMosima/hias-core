@@ -121,6 +121,10 @@ func (h *ClaimHandler) ListClaims(ctx *gin.Context) {
 			return
 		}
 		countResp := h.claimSvc.CountClaimsFiltered(ctx.Request.Context(), status, dateFrom, dateTo, search)
+		if countResp.Error != nil {
+			utils.RespondError(ctx, countResp.StatusCode, countResp.Message)
+			return
+		}
 		utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 		return
 	}
@@ -132,6 +136,10 @@ func (h *ClaimHandler) ListClaims(ctx *gin.Context) {
 			return
 		}
 		countResp := h.claimSvc.GetTotalCount(ctx.Request.Context())
+		if countResp.Error != nil {
+			utils.RespondError(ctx, countResp.StatusCode, countResp.Message)
+			return
+		}
 		utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 		return
 	}
@@ -148,6 +156,10 @@ func (h *ClaimHandler) ListClaims(ctx *gin.Context) {
 			return
 		}
 		countResp := h.claimSvc.GetTotalCount(ctx.Request.Context())
+		if countResp.Error != nil {
+			utils.RespondError(ctx, countResp.StatusCode, countResp.Message)
+			return
+		}
 		utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 		return
 	}
@@ -158,6 +170,10 @@ func (h *ClaimHandler) ListClaims(ctx *gin.Context) {
 		return
 	}
 	countResp := h.claimSvc.GetTotalCount(ctx.Request.Context())
+	if countResp.Error != nil {
+		utils.RespondError(ctx, countResp.StatusCode, countResp.Message)
+		return
+	}
 	utils.RespondPaginated(ctx, resp.Message, resp.Data, pagination.Page, pagination.PageSize, countResp.Data)
 }
 
