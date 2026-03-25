@@ -432,6 +432,9 @@ const (
 	AuditEntityTypeCaseRecord        AuditEntityType = "CASE_RECORD"
 	AuditEntityTypeClaimDocument     AuditEntityType = "CLAIM_DOCUMENT"
 	AuditEntityTypeProviderStatement AuditEntityType = "PROVIDER_STATEMENT"
+	AuditEntityTypeContract          AuditEntityType = "CONTRACT"
+	AuditEntityTypeRateCard          AuditEntityType = "RATE_CARD"
+	AuditEntityTypeInvoice           AuditEntityType = "INVOICE"
 )
 
 // AdjudicationDecision represents the adjudication engine decision

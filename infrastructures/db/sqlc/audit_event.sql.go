@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	uuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -52,18 +53,27 @@ func (q *Queries) CountAuditEventsByUser(ctx context.Context, userID pgtype.UUID
 
 const createAuditEvent = `-- name: CreateAuditEvent :one
 INSERT INTO audit_events (user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent, created_at
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5::jsonb,
+  $6::jsonb,
+  $7,
+  $8
+) RETURNING id, user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent, created_at
 `
 
 type CreateAuditEventParams struct {
-	UserID     pgtype.UUID `json:"user_id"`
-	EntityType string      `json:"entity_type"`
-	EntityID   uuid.UUID   `json:"entity_id"`
-	Action     string      `json:"action"`
-	OldValue   []byte      `json:"old_value"`
-	NewValue   []byte      `json:"new_value"`
-	IpAddress  pgtype.Text `json:"ip_address"`
-	UserAgent  pgtype.Text `json:"user_agent"`
+	UserID     pgtype.UUID     `json:"user_id"`
+	EntityType string          `json:"entity_type"`
+	EntityID   uuid.UUID       `json:"entity_id"`
+	Action     string          `json:"action"`
+	OldValue   json.RawMessage `json:"old_value"`
+	NewValue   json.RawMessage `json:"new_value"`
+	IpAddress  pgtype.Text     `json:"ip_address"`
+	UserAgent  pgtype.Text     `json:"user_agent"`
 }
 
 func (q *Queries) CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) (AuditEvent, error) {

@@ -263,6 +263,8 @@ func main() {
 	underwritingSvc := policy.NewUnderwritingService(underwritingRepo, policyRepo, memberRepo, underwritingRuleRepo, underwritingFlagRepo, auditSvc)
 
 	// Provider services
+	contractSvc := provider.NewContractService(contractRepo, auditSvc)
+	rateCardSvc := provider.NewRateCardService(rateCardRepo, auditSvc)
 	providerSvc := provider.NewProviderService(providerRepo, contractRepo, rateCardRepo, auditSvc)
 
 	// Claims services
@@ -275,6 +277,9 @@ func main() {
 	adjRuleSvc := claims.NewAdjudicationRuleService(adjudicationRuleRepo)
 	escRuleSvc := claims.NewEscalationRuleService(escalationRuleRepo)
 
+	// API Partner service
+	apiPartnerSvc := claims.NewAPIPartnerService(apiPartnerRepo, auditSvc)
+
 	// Claim intake service (multi-channel)
 	claimIntakeSvc := claims.NewClaimIntakeService(claimSvc, claimRepo, memberRepo, apiPartnerRepo)
 
@@ -286,6 +291,7 @@ func main() {
 
 	// Billing services
 	billingSvc := billing.NewBillingService(invoiceRepo, policyRepo)
+	invoiceSvc := billing.NewInvoiceService(invoiceRepo, policyRepo, auditSvc)
 	paymentSvc := billing.NewPaymentService(paymentRepo, invoiceRepo, queueManager)
 	remittanceSvc := billing.NewRemittanceService(remittanceRepo, claimRepo, providerRepo)
 	installmentSvc := billing.NewInstallmentService(installmentScheduleRepo, installmentRepo, policyRepo)
@@ -328,11 +334,11 @@ func main() {
 		Policy:           handlers.NewPolicyHandler(policySvc),
 		Member:           handlers.NewMemberHandler(memberSvc),
 		Provider:         handlers.NewProviderHandler(providerSvc),
-		Contract:         handlers.NewContractHandler(contractRepo),
-		RateCard:         handlers.NewRateCardHandler(rateCardRepo),
+		Contract:         handlers.NewContractHandler(contractSvc),
+		RateCard:         handlers.NewRateCardHandler(rateCardSvc),
 		Claim:            handlers.NewClaimHandler(claimSvc),
 		PreAuth:          handlers.NewPreAuthHandler(preauthSvc),
-		Invoice:          handlers.NewInvoiceHandler(invoiceRepo, policyRepo),
+		Invoice:          handlers.NewInvoiceHandler(invoiceSvc),
 		Payment:          handlers.NewPaymentHandler(paymentSvc),
 		Remittance:       handlers.NewRemittanceHandler(remittanceSvc),
 		Installment:      handlers.NewInstallmentHandler(installmentSvc),
@@ -379,7 +385,7 @@ func main() {
 		// Multi-channel claims intake
 		ExternalClaim: handlers.NewExternalClaimHandler(claimIntakeSvc),
 		DraftClaim:    handlers.NewDraftClaimHandler(claimIntakeSvc),
-		APIPartner:    handlers.NewAPIPartnerHandler(apiPartnerRepo),
+		APIPartner:    handlers.NewAPIPartnerHandler(apiPartnerSvc),
 	}
 
 	// 8. Scheduler (optional — only if enabled)

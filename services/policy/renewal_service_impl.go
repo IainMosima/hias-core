@@ -78,16 +78,16 @@ func (s *renewalServiceImpl) InitiateRenewal(ctx context.Context, req policySche
 		return schema.NewServiceErrorResponse[policySchema.RenewalResponse](http.StatusBadRequest, "Can only renew ACTIVE policies", nil)
 	}
 
-	renewalDate, err := time.Parse("2006-01-02", req.RenewalDate)
+	renewalDate, err := utils.ParseFlexibleDate(req.RenewalDate)
 	if err != nil {
-		return schema.NewServiceErrorResponse[policySchema.RenewalResponse](http.StatusBadRequest, "Invalid renewal date format (YYYY-MM-DD)", err)
+		return schema.NewServiceErrorResponse[policySchema.RenewalResponse](http.StatusBadRequest, "Invalid renewal date format (YYYY-MM-DD or ISO 8601)", err)
 	}
 
 	var expiresAt *time.Time
 	if req.ExpiresAt != "" {
-		t, err := time.Parse("2006-01-02", req.ExpiresAt)
+		t, err := utils.ParseFlexibleDate(req.ExpiresAt)
 		if err != nil {
-			return schema.NewServiceErrorResponse[policySchema.RenewalResponse](http.StatusBadRequest, "Invalid expires_at format (YYYY-MM-DD)", err)
+			return schema.NewServiceErrorResponse[policySchema.RenewalResponse](http.StatusBadRequest, "Invalid expires_at format (YYYY-MM-DD or ISO 8601)", err)
 		}
 		expiresAt = &t
 	}

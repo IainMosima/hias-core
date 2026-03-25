@@ -659,12 +659,12 @@ func parseDateRange(startStr, endStr string) (time.Time, time.Time) {
 	end := now
 
 	if startStr != "" {
-		if t, err := time.Parse("2006-01-02", startStr); err == nil {
+		if t, err := utils.ParseFlexibleDate(startStr); err == nil {
 			start = t
 		}
 	}
 	if endStr != "" {
-		if t, err := time.Parse("2006-01-02", endStr); err == nil {
+		if t, err := utils.ParseFlexibleDate(endStr); err == nil {
 			end = t.Add(24*time.Hour - time.Second)
 		}
 	}

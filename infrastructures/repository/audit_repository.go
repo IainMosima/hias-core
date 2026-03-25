@@ -20,13 +20,22 @@ func NewAuditRepository(store db.Store) domainRepo.AuditRepository {
 }
 
 func (r *auditRepository) Create(ctx context.Context, event *entity.AuditEvent) (*entity.AuditEvent, error) {
+	oldValue := event.OldValue
+	if len(oldValue) == 0 {
+		oldValue = []byte("null")
+	}
+	newValue := event.NewValue
+	if len(newValue) == 0 {
+		newValue = []byte("null")
+	}
+
 	dbEvent, err := r.store.CreateAuditEvent(ctx, db.CreateAuditEventParams{
 		UserID:     uuidToPgtype(event.UserID),
 		EntityType: event.EntityType,
 		EntityID:   event.EntityID,
 		Action:     event.Action,
-		OldValue:   event.OldValue,
-		NewValue:   event.NewValue,
+		OldValue:   oldValue,
+		NewValue:   newValue,
 		IpAddress:  stringToPgtypeText(event.IPAddress),
 		UserAgent:  stringToPgtypeText(event.UserAgent),
 	})

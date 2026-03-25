@@ -2,7 +2,6 @@ package schema
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -12,8 +11,8 @@ type CreatePolicyRequest struct {
 	PolicyholderName  string    `json:"policyholder_name" binding:"required"`
 	PolicyholderEmail string    `json:"policyholder_email" binding:"required,email"`
 	PolicyholderPhone string    `json:"policyholder_phone" binding:"required"`
-	StartDate         time.Time `json:"start_date"`
-	EndDate           time.Time `json:"end_date"`
+	StartDate         string `json:"start_date"`
+	EndDate           string `json:"end_date"`
 }
 
 type EnrollMemberRequest struct {
@@ -37,8 +36,8 @@ type UpdatePolicyRequest struct {
 	PolicyholderName  *string    `json:"policyholder_name"`
 	PolicyholderEmail *string    `json:"policyholder_email"`
 	PolicyholderPhone *string    `json:"policyholder_phone"`
-	StartDate         *time.Time `json:"start_date"`
-	EndDate           *time.Time `json:"end_date"`
+	StartDate         *string `json:"start_date"`
+	EndDate           *string `json:"end_date"`
 }
 
 type ChangePlanRequest struct {

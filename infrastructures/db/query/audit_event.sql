@@ -1,6 +1,15 @@
 -- name: CreateAuditEvent :one
 INSERT INTO audit_events (user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+VALUES (
+  sqlc.arg('user_id'),
+  sqlc.arg('entity_type'),
+  sqlc.arg('entity_id'),
+  sqlc.arg('action'),
+  sqlc.arg('old_value')::jsonb,
+  sqlc.arg('new_value')::jsonb,
+  sqlc.arg('ip_address'),
+  sqlc.arg('user_agent')
+) RETURNING *;
 
 -- name: GetAuditEventByID :one
 SELECT * FROM audit_events WHERE id = $1;

@@ -16,6 +16,7 @@ import (
 	productSchema "github.com/bitbiz/hias-core/domains/product/schema"
 	"github.com/bitbiz/hias-core/domains/product/service"
 	"github.com/bitbiz/hias-core/shared"
+	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
 )
 
@@ -55,14 +56,14 @@ func (s *premiumRuleServiceImpl) CreatePremiumRule(ctx context.Context, planID u
 
 	effectiveFrom := time.Now()
 	if req.EffectiveFrom != "" {
-		if parsed, err := time.Parse("2006-01-02", req.EffectiveFrom); err == nil {
+		if parsed, err := utils.ParseFlexibleDate(req.EffectiveFrom); err == nil {
 			effectiveFrom = parsed
 		}
 	}
 
 	var effectiveTo *time.Time
 	if req.EffectiveTo != nil && *req.EffectiveTo != "" {
-		if parsed, err := time.Parse("2006-01-02", *req.EffectiveTo); err == nil {
+		if parsed, err := utils.ParseFlexibleDate(*req.EffectiveTo); err == nil {
 			effectiveTo = &parsed
 		}
 	}
@@ -313,7 +314,7 @@ func findFamilyRule(rules []*entity.PremiumRule, memberCount int) *entity.Premiu
 
 // calculateAge computes age from a date_of_birth string (YYYY-MM-DD format)
 func calculateAge(dob string) int {
-	t, err := time.Parse("2006-01-02", dob)
+	t, err := utils.ParseFlexibleDate(dob)
 	if err != nil {
 		return 0
 	}

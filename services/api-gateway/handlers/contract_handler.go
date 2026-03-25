@@ -3,21 +3,19 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/bitbiz/hias-core/domains/provider/entity"
-	"github.com/bitbiz/hias-core/domains/provider/repository"
 	providerSchema "github.com/bitbiz/hias-core/domains/provider/schema"
-	"github.com/bitbiz/hias-core/shared"
+	"github.com/bitbiz/hias-core/domains/provider/service"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type ContractHandler struct {
-	contractRepo repository.ContractRepository
+	contractSvc service.ContractService
 }
 
-func NewContractHandler(contractRepo repository.ContractRepository) *ContractHandler {
-	return &ContractHandler{contractRepo: contractRepo}
+func NewContractHandler(contractSvc service.ContractService) *ContractHandler {
+	return &ContractHandler{contractSvc: contractSvc}
 }
 
 // CreateContract godoc
@@ -45,21 +43,12 @@ func (h *ContractHandler) CreateContract(ctx *gin.Context) {
 		return
 	}
 
-	contract := &entity.Contract{
-		ProviderID: providerID,
-		StartDate:  req.StartDate,
-		EndDate:    req.EndDate,
-		Terms:      req.Terms,
-		Status:     string(shared.ContractStatusActive),
-	}
-
-	created, err := h.contractRepo.Create(ctx.Request.Context(), contract)
-	if err != nil {
-		utils.RespondError(ctx, http.StatusInternalServerError, "Failed to create contract")
+	resp := h.contractSvc.CreateContract(ctx.Request.Context(), providerID, req)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return
 	}
-
-	utils.RespondSuccess(ctx, http.StatusCreated, "Contract created", providerSchema.ToContractResponse(created))
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
 // ListContracts godoc
@@ -80,16 +69,10 @@ func (h *ContractHandler) ListContracts(ctx *gin.Context) {
 		return
 	}
 
-	contracts, err := h.contractRepo.ListByProvider(ctx.Request.Context(), providerID)
-	if err != nil {
-		utils.RespondError(ctx, http.StatusInternalServerError, "Failed to list contracts")
+	resp := h.contractSvc.ListContracts(ctx.Request.Context(), providerID)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return
 	}
-
-	responses := make([]providerSchema.ContractResponse, len(contracts))
-	for i, c := range contracts {
-		responses[i] = providerSchema.ToContractResponse(c)
-	}
-
-	utils.RespondSuccess(ctx, http.StatusOK, "Contracts retrieved", responses)
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }

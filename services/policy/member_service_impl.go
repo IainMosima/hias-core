@@ -74,9 +74,9 @@ func (s *memberServiceImpl) EnrollMember(ctx context.Context, policyID uuid.UUID
 		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusBadRequest, fmt.Sprintf("Cannot enroll members in %s policy", pol.Status), nil)
 	}
 
-	dob, err := time.Parse("2006-01-02", req.DateOfBirth)
+	dob, err := utils.ParseFlexibleDate(req.DateOfBirth)
 	if err != nil {
-		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusBadRequest, "Invalid date of birth format (YYYY-MM-DD)", err)
+		return schema.NewServiceErrorResponse[policySchema.MemberResponse](http.StatusBadRequest, "Invalid date of birth format (YYYY-MM-DD or ISO 8601)", err)
 	}
 
 	// Underwriting: double insurance check

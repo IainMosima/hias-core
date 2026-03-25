@@ -14,6 +14,7 @@ import (
 	providerSchema "github.com/bitbiz/hias-core/domains/provider/schema"
 	"github.com/bitbiz/hias-core/domains/provider/service"
 	"github.com/bitbiz/hias-core/shared"
+	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
 )
 
@@ -215,16 +216,34 @@ func (s *providerServiceImpl) ListByTier(ctx context.Context, tier string, page,
 func (s *providerServiceImpl) UpdateAccreditation(ctx context.Context, id uuid.UUID, req providerSchema.UpdateAccreditationRequest, userID uuid.UUID) *schema.ServiceResponse[providerSchema.ProviderResponse] {
 	var expiry *time.Time
 	if req.AccreditationExpiry != "" {
-		t, err := time.Parse("2006-01-02", req.AccreditationExpiry)
-		if err != nil {
-			return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusBadRequest, "Invalid accreditation_expiry format (YYYY-MM-DD)", err)
+		if t, err := utils.ParseFlexibleDate(req.AccreditationExpiry); err == nil {
+			expiry = &t
+		} else {
+			return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](
+				http.StatusBadRequest, "Invalid accreditation_expiry format (YYYY-MM-DD or ISO 8601)", err)
 		}
-		expiry = &t
 	}
 
 	updated, err := s.providerRepo.UpdateAccreditation(ctx, id, req.AccreditationStatus, expiry, req.AccreditationBody)
 	if err != nil {
 		return schema.NewServiceErrorResponse[providerSchema.ProviderResponse](http.StatusInternalServerError, "Failed to update accreditation", err)
+	}
+
+	// Auto-advance provider status based on accreditation outcome
+	switch req.AccreditationStatus {
+	case string(shared.AccreditationStatusAccredited):
+		// PENDING → CREDENTIALING → ACTIVE
+		if updated.Status == string(shared.ProviderStatusPending) {
+			updated, _ = s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusCredentialing))
+		}
+		if updated.Status == string(shared.ProviderStatusCredentialing) {
+			updated, _ = s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusActive))
+		}
+	case string(shared.AccreditationStatusRevoked), string(shared.AccreditationStatusExpired):
+		// Auto-suspend if currently ACTIVE
+		if updated.Status == string(shared.ProviderStatusActive) {
+			updated, _ = s.providerRepo.UpdateStatus(ctx, id, string(shared.ProviderStatusSuspended))
+		}
 	}
 
 	s.logAudit(ctx, userID, string(shared.AuditEntityTypeProvider), id, string(shared.AuditActionUpdate))

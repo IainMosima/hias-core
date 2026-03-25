@@ -837,7 +837,7 @@ func (s *claimServiceImpl) ImportClaimsCSV(ctx context.Context, csvData []byte, 
 			return ""
 		}
 
-		serviceDate, err := time.Parse("2006-01-02", getField("service_date"))
+		serviceDate, err := utils.ParseFlexibleDate(getField("service_date"))
 		if err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("Line %d: invalid service_date", lineNum))

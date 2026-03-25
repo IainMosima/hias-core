@@ -1,23 +1,21 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 
-	"github.com/bitbiz/hias-core/domains/provider/entity"
-	"github.com/bitbiz/hias-core/domains/provider/repository"
 	providerSchema "github.com/bitbiz/hias-core/domains/provider/schema"
+	"github.com/bitbiz/hias-core/domains/provider/service"
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type RateCardHandler struct {
-	rateCardRepo repository.RateCardRepository
+	rateCardSvc service.RateCardService
 }
 
-func NewRateCardHandler(rateCardRepo repository.RateCardRepository) *RateCardHandler {
-	return &RateCardHandler{rateCardRepo: rateCardRepo}
+func NewRateCardHandler(rateCardSvc service.RateCardService) *RateCardHandler {
+	return &RateCardHandler{rateCardSvc: rateCardSvc}
 }
 
 // CreateRateCard godoc
@@ -45,21 +43,12 @@ func (h *RateCardHandler) CreateRateCard(ctx *gin.Context) {
 		return
 	}
 
-	rateCard := &entity.RateCard{
-		ProviderID:    providerID,
-		ProcedureCode: req.ProcedureCode,
-		ProcedureName: req.ProcedureName,
-		RateAmount:    req.RateAmount,
-		EffectiveDate: req.EffectiveDate,
-	}
-
-	created, err := h.rateCardRepo.Create(ctx.Request.Context(), rateCard)
-	if err != nil {
-		utils.RespondError(ctx, http.StatusInternalServerError, "Failed to create rate card")
+	resp := h.rateCardSvc.CreateRateCard(ctx.Request.Context(), providerID, req)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return
 	}
-
-	utils.RespondSuccess(ctx, http.StatusCreated, "Rate card created", providerSchema.ToRateCardResponse(created))
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
 // ListRateCards godoc
@@ -80,18 +69,12 @@ func (h *RateCardHandler) ListRateCards(ctx *gin.Context) {
 		return
 	}
 
-	rateCards, err := h.rateCardRepo.ListByProvider(ctx.Request.Context(), providerID)
-	if err != nil {
-		utils.RespondError(ctx, http.StatusInternalServerError, "Failed to list rate cards")
+	resp := h.rateCardSvc.ListRateCards(ctx.Request.Context(), providerID)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return
 	}
-
-	responses := make([]providerSchema.RateCardResponse, len(rateCards))
-	for i, r := range rateCards {
-		responses[i] = providerSchema.ToRateCardResponse(r)
-	}
-
-	utils.RespondSuccess(ctx, http.StatusOK, "Rate cards retrieved", responses)
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
 // BulkCreateRateCards godoc
@@ -119,26 +102,10 @@ func (h *RateCardHandler) BulkCreateRateCards(ctx *gin.Context) {
 		return
 	}
 
-	var responses []providerSchema.RateCardResponse
-	for _, rc := range req.RateCards {
-		rateCard := &entity.RateCard{
-			ProviderID:    providerID,
-			ProcedureCode: rc.ProcedureCode,
-			ProcedureName: rc.ProcedureName,
-			RateAmount:    rc.RateAmount,
-			EffectiveDate: rc.EffectiveDate,
-			AgeFrom:       rc.AgeFrom,
-			AgeTo:         rc.AgeTo,
-			Gender:        rc.Gender,
-			Relationship:  rc.Relationship,
-		}
-		created, createErr := h.rateCardRepo.Create(ctx.Request.Context(), rateCard)
-		if createErr != nil {
-			utils.RespondError(ctx, http.StatusInternalServerError, fmt.Sprintf("Failed to create rate card for %s: %v", rc.ProcedureCode, createErr))
-			return
-		}
-		responses = append(responses, providerSchema.ToRateCardResponse(created))
+	resp := h.rateCardSvc.BulkCreateRateCards(ctx.Request.Context(), providerID, req)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
 	}
-
-	utils.RespondSuccess(ctx, http.StatusCreated, fmt.Sprintf("%d rate cards created", len(responses)), responses)
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }

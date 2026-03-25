@@ -63,12 +63,24 @@ func (s *policyServiceImpl) CreatePolicy(ctx context.Context, req policySchema.C
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusNotFound, "Plan not found", err)
 	}
 
-	startDate := req.StartDate
-	if startDate.IsZero() {
+	var startDate time.Time
+	if req.StartDate != "" {
+		if t, err := utils.ParseFlexibleDate(req.StartDate); err == nil {
+			startDate = t
+		} else {
+			return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, "Invalid start_date format, use YYYY-MM-DD or ISO 8601", fmt.Errorf("invalid date: %s", req.StartDate))
+		}
+	} else {
 		startDate = time.Now()
 	}
-	endDate := req.EndDate
-	if endDate.IsZero() {
+	var endDate time.Time
+	if req.EndDate != "" {
+		if t, err := utils.ParseFlexibleDate(req.EndDate); err == nil {
+			endDate = t
+		} else {
+			return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, "Invalid end_date format, use YYYY-MM-DD or ISO 8601", fmt.Errorf("invalid date: %s", req.EndDate))
+		}
+	} else {
 		endDate = startDate.AddDate(1, 0, 0)
 	}
 
@@ -88,6 +100,7 @@ func (s *policyServiceImpl) CreatePolicy(ctx context.Context, req policySchema.C
 
 	created, err := s.policyRepo.Create(ctx, policy)
 	if err != nil {
+		log.Printf("Policy creation failed: %v", err)
 		return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusInternalServerError, "Failed to create policy", err)
 	}
 
@@ -292,10 +305,18 @@ func (s *policyServiceImpl) UpdatePolicy(ctx context.Context, id uuid.UUID, req 
 		policy.PolicyholderPhone = *req.PolicyholderPhone
 	}
 	if req.StartDate != nil {
-		policy.StartDate = *req.StartDate
+		if t, err := utils.ParseFlexibleDate(*req.StartDate); err == nil {
+			policy.StartDate = t
+		} else {
+			return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, "Invalid start_date format, use YYYY-MM-DD or ISO 8601", fmt.Errorf("invalid date: %s", *req.StartDate))
+		}
 	}
 	if req.EndDate != nil {
-		policy.EndDate = *req.EndDate
+		if t, err := utils.ParseFlexibleDate(*req.EndDate); err == nil {
+			policy.EndDate = t
+		} else {
+			return schema.NewServiceErrorResponse[policySchema.PolicyResponse](http.StatusBadRequest, "Invalid end_date format, use YYYY-MM-DD or ISO 8601", fmt.Errorf("invalid date: %s", *req.EndDate))
+		}
 	}
 
 	updated, err := s.policyRepo.Update(ctx, policy)

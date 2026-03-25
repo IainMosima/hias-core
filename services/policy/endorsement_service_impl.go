@@ -17,6 +17,7 @@ import (
 	productRepo "github.com/bitbiz/hias-core/domains/product/repository"
 	productService "github.com/bitbiz/hias-core/domains/product/service"
 	"github.com/bitbiz/hias-core/shared"
+	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
 )
 
@@ -81,9 +82,9 @@ func (s *endorsementServiceImpl) CreateEndorsement(ctx context.Context, req poli
 		return schema.NewServiceErrorResponse[policySchema.EndorsementResponse](http.StatusBadRequest, "Invalid endorsement type", nil)
 	}
 
-	effectiveDate, err := time.Parse("2006-01-02", req.EffectiveDate)
+	effectiveDate, err := utils.ParseFlexibleDate(req.EffectiveDate)
 	if err != nil {
-		return schema.NewServiceErrorResponse[policySchema.EndorsementResponse](http.StatusBadRequest, "Invalid effective date format (YYYY-MM-DD)", err)
+		return schema.NewServiceErrorResponse[policySchema.EndorsementResponse](http.StatusBadRequest, "Invalid effective date format (YYYY-MM-DD or ISO 8601)", err)
 	}
 
 	// Effective date must be within policy term
@@ -137,8 +138,8 @@ func (s *endorsementServiceImpl) validateChangesPayload(ctx context.Context, end
 		if req.DateOfBirth == "" {
 			return schema.NewServiceErrorResponse[policySchema.EndorsementResponse](http.StatusBadRequest, "ADD_MEMBER: date_of_birth is required", nil)
 		}
-		if _, err := time.Parse("2006-01-02", req.DateOfBirth); err != nil {
-			return schema.NewServiceErrorResponse[policySchema.EndorsementResponse](http.StatusBadRequest, "ADD_MEMBER: invalid date_of_birth format (YYYY-MM-DD)", err)
+		if _, err := utils.ParseFlexibleDate(req.DateOfBirth); err != nil {
+			return schema.NewServiceErrorResponse[policySchema.EndorsementResponse](http.StatusBadRequest, "ADD_MEMBER: invalid date_of_birth format (YYYY-MM-DD or ISO 8601)", err)
 		}
 		if req.Gender == "" {
 			return schema.NewServiceErrorResponse[policySchema.EndorsementResponse](http.StatusBadRequest, "ADD_MEMBER: gender is required", nil)

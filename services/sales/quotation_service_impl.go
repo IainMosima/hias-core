@@ -718,9 +718,9 @@ func (s *quotationServiceImpl) ConvertToPolicy(ctx context.Context, id uuid.UUID
 	}
 
 	// Parse start date
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	startDate, err := utils.ParseFlexibleDate(req.StartDate)
 	if err != nil {
-		return schema.NewServiceErrorResponse[salesSchema.ConversionResultResponse](http.StatusBadRequest, "Invalid start date format, use YYYY-MM-DD", err)
+		return schema.NewServiceErrorResponse[salesSchema.ConversionResultResponse](http.StatusBadRequest, "Invalid start date format, use YYYY-MM-DD or ISO 8601", err)
 	}
 	endDate := startDate.AddDate(1, 0, 0)
 
@@ -730,8 +730,8 @@ func (s *quotationServiceImpl) ConvertToPolicy(ctx context.Context, id uuid.UUID
 		PolicyholderName:  quotation.ClientName,
 		PolicyholderEmail: quotation.ClientEmail,
 		PolicyholderPhone: quotation.ClientPhone,
-		StartDate:         startDate,
-		EndDate:           endDate,
+		StartDate:         startDate.Format("2006-01-02"),
+		EndDate:           endDate.Format("2006-01-02"),
 	}
 	policyResp := s.policySvc.CreatePolicy(ctx, policyReq, convertedBy)
 	if policyResp.Error != nil {

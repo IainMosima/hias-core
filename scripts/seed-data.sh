@@ -131,10 +131,10 @@ ON CONFLICT DO NOTHING;
 -- ============================================================
 -- LAYER 4: PROVIDERS + Contracts + Rate Cards
 -- ============================================================
-INSERT INTO providers (id, name, type, license_number, status, county, address, phone, email, contact_person, tier) VALUES
-  ('40000000-0000-0000-0000-000000000001', 'Nairobi General Hospital', 'hospital', 'LIC-NGH-001', 'ACTIVE', 'Nairobi', 'Kenyatta Avenue, Nairobi CBD',     '+254201234567', 'admin@nairobigeneral.co.ke', 'Dr. Otieno',      'TIER_1'),
-  ('40000000-0000-0000-0000-000000000002', 'City Medical Centre',      'clinic',   'LIC-CMC-002', 'ACTIVE', 'Nairobi', 'Westlands Road, Westlands',        '+254202345678', 'info@citymedical.co.ke',    'Dr. Njeri',       'TIER_2'),
-  ('40000000-0000-0000-0000-000000000003', 'Wellness Pharmacy',        'pharmacy', 'LIC-WPH-003', 'ACTIVE', 'Nairobi', 'Moi Avenue, Nairobi CBD',          '+254203456789', 'orders@wellnesspharm.co.ke','James Ochieng',   'TIER_3')
+INSERT INTO providers (id, name, type, license_number, status, county, address, phone, email, contact_person, tier, accreditation_status) VALUES
+  ('40000000-0000-0000-0000-000000000001', 'Nairobi General Hospital', 'hospital', 'LIC-NGH-001', 'ACTIVE', 'Nairobi', 'Kenyatta Avenue, Nairobi CBD',     '+254201234567', 'admin@nairobigeneral.co.ke', 'Dr. Otieno',      'TIER_1', 'ACCREDITED'),
+  ('40000000-0000-0000-0000-000000000002', 'City Medical Centre',      'clinic',   'LIC-CMC-002', 'ACTIVE', 'Nairobi', 'Westlands Road, Westlands',        '+254202345678', 'info@citymedical.co.ke',    'Dr. Njeri',       'TIER_2', 'ACCREDITED'),
+  ('40000000-0000-0000-0000-000000000003', 'Wellness Pharmacy',        'pharmacy', 'LIC-WPH-003', 'ACTIVE', 'Nairobi', 'Moi Avenue, Nairobi CBD',          '+254203456789', 'orders@wellnesspharm.co.ke','James Ochieng',   'TIER_3', 'ACCREDITED')
 ON CONFLICT (license_number) DO NOTHING;
 
 -- Contracts (active, current year)
@@ -419,11 +419,13 @@ ON CONFLICT (reference_number) DO NOTHING;
 
 -- Remittance for CLM-3 (fully paid to Wellness Pharmacy)
 INSERT INTO remittances (id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, wht_rate, wht_amount, net_amount, created_by) VALUES
-  ('92000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003', '["70000000-0000-0000-0000-000000000003"]', 350000, 'KES', 'PAID', true, '2026-02-01', '2026-02-28', '91000000-0000-0000-0000-000000000003', 0.05, 17500, 332500, '20000000-0000-0000-0000-000000000004');
+  ('92000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003', '["70000000-0000-0000-0000-000000000003"]', 350000, 'KES', 'PAID', true, '2026-02-01', '2026-02-28', '91000000-0000-0000-0000-000000000003', 0.05, 17500, 332500, '20000000-0000-0000-0000-000000000004')
+ON CONFLICT DO NOTHING;
 
 -- Remittance for CLM-8 (partial — City Medical, pending remainder)
 INSERT INTO remittances (id, provider_id, claim_ids, total_amount, currency, status, remittance_advice_sent, period_start, period_end, payment_id, wht_rate, wht_amount, net_amount, created_by) VALUES
-  ('92000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', '["70000000-0000-0000-0000-000000000008"]', 3780000, 'KES', 'PARTIAL', false, '2026-02-01', '2026-02-28', '91000000-0000-0000-0000-000000000004', 0.05, 125000, 2375000, '20000000-0000-0000-0000-000000000004');
+  ('92000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', '["70000000-0000-0000-0000-000000000008"]', 3780000, 'KES', 'PARTIAL', false, '2026-02-01', '2026-02-28', '91000000-0000-0000-0000-000000000004', 0.05, 125000, 2375000, '20000000-0000-0000-0000-000000000004')
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- LAYER 8b: FRAUD FLAGS
@@ -539,84 +541,177 @@ WHERE policy_id IN (SELECT id FROM policies WHERE status = 'DRAFT');
 -- LAYER 13: AUDIT EVENTS
 -- ============================================================
 INSERT INTO audit_events (user_id, entity_type, entity_id, action, old_value, new_value, ip_address, user_agent, created_at) VALUES
-  -- User management
-  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"email":"jane@hias.co.ke","role":"ClaimsOfficer"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:15:00+03'),
-  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"email":"peter@hias.co.ke","role":"Underwriter"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:22:00+03'),
-  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000004', 'CREATE', NULL, '{"email":"mary@hias.co.ke","role":"Finance"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:30:00+03'),
-  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000002', 'UPDATE', '{"status":"ACTIVE"}', '{"status":"ACTIVE","permissions":["claims:create","claims:read","claims:update"]}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 09:00:00+03'),
 
-  -- Member enrollment
-  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"member_number":"MBR-2026-000001","name":"John Doe","relationship":"PRINCIPAL"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:00:00+03'),
-  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"member_number":"MBR-2026-000002","name":"Jane Doe","relationship":"SPOUSE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:15:00+03'),
-  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"member_number":"MBR-2026-000003","name":"Grace Mwangi","relationship":"SPOUSE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:30:00+03'),
+  -- ── USER MANAGEMENT (Jan 2026) ──────────────────────────────
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"email":"jane@hias.co.ke","name":"Jane Muthoni","role":"ClaimsOfficer"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:15:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"email":"peter@hias.co.ke","name":"Peter Kamau","role":"Underwriter"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:22:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000004', 'CREATE', NULL, '{"email":"sarah@hias.co.ke","name":"Sarah Wanjiku","role":"Finance"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:30:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000005', 'CREATE', NULL, '{"email":"iain.mosima@bitbiz.co.ke","name":"Iain Mosima","role":"Admin"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 08:45:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000006', 'CREATE', NULL, '{"email":"info@bitbiz.co.ke","name":"BitBiz Admin","role":"Admin"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-02 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000002', 'UPDATE', '{"status":"ACTIVE"}', '{"status":"ACTIVE","permissions":["claims:create","claims:read","claims:update"]}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000003', 'UPDATE', '{"status":"ACTIVE"}', '{"status":"ACTIVE","permissions":["policies:create","policies:read","policies:update","members:create","members:read","members:update"]}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 09:10:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000004', 'UPDATE', '{"status":"ACTIVE"}', '{"status":"ACTIVE","permissions":["payments:create","payments:read","invoices:create","invoices:read"]}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 09:20:00+03'),
 
-  -- Policy lifecycle: POL-1 (DRAFT → ACTIVE)
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"policy_number":"POL-2026-000001","status":"DRAFT","plan":"Silver Family","premium":250000}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 09:00:00+03'),
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"PENDING_UNDERWRITING"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 09:05:00+03'),
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING_UNDERWRITING"}', '{"status":"ACTIVE","underwriting_decision":"APPROVED"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:30:00+03'),
+  -- ── PLAN / BENEFIT SETUP (Jan 2026) ─────────────────────────
+  ('20000000-0000-0000-0000-000000000001', 'PLAN', '30000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"name":"Silver Family","type":"INDIVIDUAL","segment":"RETAIL","base_premium":250000}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'PLAN', '30000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"name":"Gold Corporate","type":"GROUP","segment":"CORPORATE","base_premium":500000}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 10:30:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'PLAN', '30000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"name":"Bronze Basic","type":"INDIVIDUAL","segment":"SME","base_premium":120000}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'BENEFIT', '31000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"name":"Inpatient Cover","plan":"Silver Family","limit":500000000}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 11:30:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'BENEFIT', '31000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"name":"Outpatient Cover","plan":"Silver Family","limit":200000000}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 11:45:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'PLAN', '30000000-0000-0000-0000-000000000001', 'UPDATE', '{"base_premium":250000}', '{"base_premium":275000,"reason":"Annual rate adjustment"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-04 09:00:00+03'),
 
-  -- Policy lifecycle: POL-2 (DRAFT → ACTIVE)
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"policy_number":"POL-2026-000002","status":"DRAFT","plan":"Gold Corporate","premium":500000}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-08 11:00:00+03'),
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"ACTIVE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-08 15:00:00+03'),
+  -- ── MEMBER ENROLLMENT (Jan 2026) ────────────────────────────
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"member_number":"MBR-2026-000001","name":"John Doe","relationship":"PRINCIPAL","dob":"1985-03-15"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"member_number":"MBR-2026-000002","name":"Jane Doe","relationship":"SPOUSE","dob":"1987-07-22"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:15:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"member_number":"MBR-2026-000003","name":"Grace Mwangi","relationship":"SPOUSE","dob":"1990-11-08"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 10:30:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000004', 'CREATE', NULL, '{"member_number":"MBR-2026-000004","name":"David Ouma","relationship":"PRINCIPAL","dob":"1978-05-20"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000005', 'CREATE', NULL, '{"member_number":"MBR-2026-000005","name":"Lucy Wambui","relationship":"CHILD","dob":"2015-09-12"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-05 11:15:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"ACTIVE","activated_with":"POL-2026-000001"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:30:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"ACTIVE","activated_with":"POL-2026-000001"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:30:00+03'),
 
-  -- Premium payments
-  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"reference":"MPESA-REF-20260125-001","amount":250000,"type":"PREMIUM","method":"MPESA"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-01-25 13:45:00+03'),
-  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"CONFIRMED","confirmed_by":"MPESA callback"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-01-25 13:46:00+03'),
+  -- ── POLICY LIFECYCLE: POL-1 (DRAFT → ACTIVE) ───────────────
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"policy_number":"POL-2026-000001","status":"DRAFT","plan":"Silver Family","premium":250000,"corporate":"Acme Corp"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"PENDING_UNDERWRITING","submitted_by":"Peter Kamau"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 09:05:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'UNDERWRITING', '50000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"policy":"POL-2026-000001","decision":"APPROVED","risk_score":72,"notes":"Standard risk, no loading"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING_UNDERWRITING"}', '{"status":"ACTIVE","underwriting_decision":"APPROVED","effective_date":"2026-01-07"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:30:00+03'),
 
-  -- Claim CLM-1: Full lifecycle (RECEIVED → ADJUDICATED)
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"claim_number":"CLM-2026-000001","status":"RECEIVED","total_amount":1250000,"provider":"Nairobi Hospital"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:30:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED","validation":"passed document check"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:35:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":1125000,"co_pay":125000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 11:00:00+03'),
+  -- ── POLICY LIFECYCLE: POL-2 (DRAFT → ACTIVE) ───────────────
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"policy_number":"POL-2026-000002","status":"DRAFT","plan":"Gold Corporate","premium":500000,"corporate":"TechVentures Ltd"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-08 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"PENDING_UNDERWRITING"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-08 11:10:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'UNDERWRITING', '50000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"policy":"POL-2026-000002","decision":"APPROVED","risk_score":65,"loading":0}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-08 14:45:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"PENDING_UNDERWRITING"}', '{"status":"ACTIVE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-08 15:00:00+03'),
 
-  -- Claim CLM-2: Vetted claim
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"claim_number":"CLM-2026-000002","status":"RECEIVED","total_amount":850000,"provider":"Kenyatta National"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 14:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 14:10:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":765000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 16:30:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-13 09:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":680000,"vetted_by":"jane@hias.co.ke"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-14 10:15:00+03'),
+  -- ── POLICY LIFECYCLE: POL-3 (DRAFT only) ────────────────────
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"policy_number":"POL-2026-000003","status":"DRAFT","plan":"Bronze Basic","premium":120000}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-10 09:00:00+03'),
 
-  -- Claim CLM-3: Full lifecycle to PAID
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"claim_number":"CLM-2026-000003","status":"RECEIVED","total_amount":350000,"provider":"Wellness Pharmacy"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 08:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 08:10:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":350000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 09:30:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 10:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":350000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 11:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"VETTED"}', '{"status":"READY_FOR_PAYMENT"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 14:00:00+03'),
-  ('20000000-0000-0000-0000-000000000004', 'claim',   '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"READY_FOR_PAYMENT"}', '{"status":"PAID","payment_reference":"BNK-CLM-20260221-001"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-02-21 15:30:00+03'),
+  -- ── PROVIDER NETWORK ────────────────────────────────────────
+  ('20000000-0000-0000-0000-000000000001', 'PROVIDER', '80000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"name":"Nairobi Hospital","type":"HOSPITAL","tier":"TIER_1","location":"Nairobi"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-04 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'PROVIDER', '80000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"name":"Kenyatta National Hospital","type":"HOSPITAL","tier":"TIER_1","location":"Nairobi"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-04 14:15:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'PROVIDER', '80000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"name":"Wellness Pharmacy","type":"PHARMACY","tier":"TIER_2","location":"Westlands"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-04 14:30:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'PROVIDER', '80000000-0000-0000-0000-000000000004', 'CREATE', NULL, '{"name":"City Medical Centre","type":"HOSPITAL","tier":"TIER_1","location":"Mombasa"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-04 14:45:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'PROVIDER_NETWORK', '80000000-0000-0000-0000-000000000001', 'UPDATE', '{"contract_status":"PENDING"}', '{"contract_status":"ACTIVE","contract_start":"2026-01-15","discount_rate":12}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-15 09:00:00+03'),
 
-  -- Claim CLM-4: Rejected
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000004', 'CREATE', NULL, '{"claim_number":"CLM-2026-000004","status":"RECEIVED","total_amount":180000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-25 10:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000004', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"REJECTED","rejection_reason":"Service not covered under policy exclusions"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-25 14:30:00+03'),
-
-  -- Claim CLM-8: Emergency appendectomy → PART_PAID
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'CREATE', NULL, '{"claim_number":"CLM-2026-000008","status":"RECEIVED","total_amount":4200000,"provider":"City Medical","type":"INPATIENT"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-05 16:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-05 16:20:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":3780000,"co_pay":420000}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-06 09:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-07 11:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":3780000}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-10 10:00:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"VETTED"}', '{"status":"READY_FOR_PAYMENT"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-10 14:00:00+03'),
-  ('20000000-0000-0000-0000-000000000004', 'claim',   '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"READY_FOR_PAYMENT"}', '{"status":"PART_PAID","paid_amount":2500000,"remaining":1280000,"note":"Partial payment — remainder pending budget approval"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-02-12 16:00:00+03'),
-
-  -- Invoice lifecycle
-  ('20000000-0000-0000-0000-000000000004', 'invoice', '90000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"invoice_number":"INV-2026-000001","amount":250000,"policy":"POL-2026-000001"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-01-20 09:00:00+03'),
+  -- ── INVOICES & PREMIUM PAYMENTS (Jan–Feb 2026) ──────────────
+  ('20000000-0000-0000-0000-000000000004', 'invoice', '90000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"invoice_number":"INV-2026-000001","amount":250000,"policy":"POL-2026-000001","due_date":"2026-01-31"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-01-20 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"reference":"MPESA-REF-20260125-001","amount":250000,"type":"PREMIUM","method":"MPESA","policy":"POL-2026-000001"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-01-25 13:45:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"CONFIRMED","confirmed_by":"MPESA callback","transaction_id":"QHJ7Y8K2LP"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-01-25 13:46:00+03'),
   ('20000000-0000-0000-0000-000000000004', 'invoice', '90000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"PAID","payment_reference":"MPESA-REF-20260125-001"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-01-25 13:46:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'invoice', '90000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"invoice_number":"INV-2026-000002","amount":500000,"policy":"POL-2026-000002","due_date":"2026-02-15"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-01-22 10:00:00+03'),
 
-  -- Document uploads
-  ('20000000-0000-0000-0000-000000000002', 'document','D0000000-0000-0000-0002-000000000001', 'CREATE', NULL, '{"file_name":"CLM-2026-000001-receipt.pdf","file_size":128000,"claim":"CLM-2026-000001"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:32:00+03'),
-  ('20000000-0000-0000-0000-000000000002', 'document','D0000000-0000-0000-0002-000000000006', 'CREATE', NULL, '{"file_name":"CLM-2026-000008-discharge.pdf","file_size":320000,"claim":"CLM-2026-000008"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-08 10:00:00+03'),
-  ('20000000-0000-0000-0000-000000000003', 'document','D0000000-0000-0000-0001-000000000001', 'CREATE', NULL, '{"file_name":"POL-2026-000001-schedule.pdf","document_type":"POLICY_SCHEDULE"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:35:00+03'),
+  -- ── SALES / QUOTATION LIFECYCLE ─────────────────────────────
+  ('20000000-0000-0000-0000-000000000005', 'LEAD', 'A0000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"company":"Safaricom PLC","contact":"James Kariuki","source":"REFERRAL","estimated_premium":1200000}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-01-15 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'LEAD', 'A0000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"NEW"}', '{"status":"CONTACTED","notes":"Initial call completed, RFQ received"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-01-16 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'QUOTATION', 'A1A00000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"quotation_number":"QUO-2026-000001","lead":"Safaricom PLC","plan":"Gold Corporate","lives":150,"annual_premium":18000000}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-01-18 09:30:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'QUOTATION', 'A1A00000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"SENT","sent_to":"james.kariuki@safaricom.co.ke"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-01-18 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'LEAD', 'A0000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"CONTACTED"}', '{"status":"PROPOSAL_SENT"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-01-18 14:05:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'LEAD', 'A0000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"company":"Equity Bank","contact":"Alice Njeri","source":"WEBSITE","estimated_premium":800000}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-01-20 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'QUOTATION', 'A1000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"quotation_number":"QUO-2026-000002","lead":"Equity Bank","plan":"Silver Family","lives":50,"annual_premium":6000000}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-01-22 10:00:00+03'),
 
-  -- API calls (system-level audit)
-  ('20000000-0000-0000-0000-000000000002', 'claim',   '70000000-0000-0000-0000-000000000001', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/claims/70000000-0000-0000-0000-000000000001","status_code":200}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 11:05:00+03'),
-  ('20000000-0000-0000-0000-000000000001', 'analytics','00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/analytics/dashboard","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-01 08:00:00+03'),
-  ('20000000-0000-0000-0000-000000000001', 'analytics','00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/analytics/kpis","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-01 08:01:00+03'),
-  ('20000000-0000-0000-0000-000000000003', 'policy',  '50000000-0000-0000-0000-000000000001', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/policies/50000000-0000-0000-0000-000000000001","status_code":200}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-02 10:00:00+03'),
+  -- ── CLAIM CLM-1: Full lifecycle (RECEIVED → ADJUDICATED) ────
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"claim_number":"CLM-2026-000001","status":"RECEIVED","total_amount":1250000,"provider":"Nairobi Hospital","member":"John Doe","diagnosis":"Acute Bronchitis"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:30:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED","validation":"passed document check, member eligible"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:35:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":1125000,"co_pay":125000,"adjudication":"AUTO"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 11:00:00+03'),
 
-  -- Recent activity (March 2026)
-  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"reference":"BNK-REF-20260301-001","amount":500000,"type":"PREMIUM","method":"BANK_TRANSFER"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-03-01 11:00:00+03'),
-  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"CONFIRMED"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-03-01 11:05:00+03'),
-  ('20000000-0000-0000-0000-000000000003', 'member',  '60000000-0000-0000-0000-000000000001', 'UPDATE', '{"phone":"+254700000001"}', '{"phone":"+254712345678","updated_field":"phone_number"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-05 09:30:00+03'),
-  ('20000000-0000-0000-0000-000000000001', 'user',    '20000000-0000-0000-0000-000000000002', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/users/20000000-0000-0000-0000-000000000002","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-10 14:00:00+03');
+  -- ── CLAIM CLM-2: Full lifecycle to VETTED ───────────────────
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"claim_number":"CLM-2026-000002","status":"RECEIVED","total_amount":850000,"provider":"Kenyatta National","member":"David Ouma","diagnosis":"Malaria"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 14:10:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":765000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-12 16:30:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED","approved_by":"Jane Muthoni"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-13 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":680000,"vetted_by":"Jane Muthoni","variance_reason":"Pharmacy charges adjusted per tariff"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-14 10:15:00+03'),
+
+  -- ── CLAIM CLM-3: Full lifecycle to PAID ─────────────────────
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000003', 'CREATE', NULL, '{"claim_number":"CLM-2026-000003","status":"RECEIVED","total_amount":350000,"provider":"Wellness Pharmacy","member":"Jane Doe","type":"OUTPATIENT"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 08:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 08:10:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":350000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 09:30:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":350000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"VETTED"}', '{"status":"READY_FOR_PAYMENT"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-20 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'CLAIM', '70000000-0000-0000-0000-000000000003', 'STATE_CHANGE', '{"status":"READY_FOR_PAYMENT"}', '{"status":"PAID","payment_reference":"BNK-CLM-20260221-001","paid_to":"Wellness Pharmacy"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-02-21 15:30:00+03'),
+
+  -- ── CLAIM CLM-4: Rejected ───────────────────────────────────
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000004', 'CREATE', NULL, '{"claim_number":"CLM-2026-000004","status":"RECEIVED","total_amount":180000,"provider":"City Medical","member":"Grace Mwangi"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-25 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000004', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"REJECTED","rejection_reason":"Service not covered under policy exclusions (cosmetic procedure)","rejected_by":"Jane Muthoni"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-25 14:30:00+03'),
+
+  -- ── CLAIM CLM-8: Emergency appendectomy → PART_PAID ─────────
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000008', 'CREATE', NULL, '{"claim_number":"CLM-2026-000008","status":"RECEIVED","total_amount":4200000,"provider":"City Medical","type":"INPATIENT","member":"John Doe","diagnosis":"Acute Appendicitis"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-05 16:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-05 16:20:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":3780000,"co_pay":420000}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-06 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"ADJUDICATED"}', '{"status":"APPROVED"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-07 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"APPROVED"}', '{"status":"VETTED","vetted_amount":3780000}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-10 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"VETTED"}', '{"status":"READY_FOR_PAYMENT"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-10 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'CLAIM', '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"READY_FOR_PAYMENT"}', '{"status":"PART_PAID","paid_amount":2500000,"remaining":1280000,"note":"Partial payment — remainder pending budget approval"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-02-12 16:00:00+03'),
+
+  -- ── DOCUMENT GENERATION & UPLOADS ───────────────────────────
+  ('20000000-0000-0000-0000-000000000003', 'POLICY_DOCUMENT', 'D0000000-0000-0000-0001-000000000001', 'CREATE', NULL, '{"file_name":"POL-2026-000001-schedule.pdf","document_type":"POLICY_SCHEDULE","generation_mode":"MANUAL"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:35:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'POLICY_DOCUMENT', 'D0000000-0000-0000-0001-000000000002', 'CREATE', NULL, '{"file_name":"Welcome_Letter_POL-2026-000001.pdf","document_type":"WELCOME_LETTER","generation_mode":"AUTO"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-01-06 14:36:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM_DOCUMENT', 'D0000000-0000-0000-0002-000000000001', 'CREATE', NULL, '{"file_name":"CLM-2026-000001-receipt.pdf","file_size":128000,"claim":"CLM-2026-000001","uploaded_by":"Jane Muthoni"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 09:32:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM_DOCUMENT', 'D0000000-0000-0000-0002-000000000006', 'CREATE', NULL, '{"file_name":"CLM-2026-000008-discharge.pdf","file_size":320000,"claim":"CLM-2026-000008"}', '10.0.0.5', 'Mozilla/5.0 Safari/17', '2026-02-08 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'POLICY_DOCUMENT', 'D0000000-0000-0000-0001-000000000003', 'CREATE', NULL, '{"file_name":"HIAS_Technical_Proposal.pdf","document_type":"OTHER","generation_mode":"UPLOAD","file_size":4279313}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-11 01:07:00+03'),
+
+  -- ── ENDORSEMENT (mid-term policy changes) ───────────────────
+  ('20000000-0000-0000-0000-000000000003', 'ENDORSEMENT', 'E0000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"policy":"POL-2026-000001","type":"ADD_MEMBER","description":"Adding child dependent Lucy Wambui","premium_impact":35000}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-02-01 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'ENDORSEMENT', 'E0000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"APPROVED","approved_by":"Peter Kamau"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-02-01 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000005', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"ACTIVE","endorsement":"E0000000-0000-0000-0000-000000000001"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-02-01 14:05:00+03'),
+
+  -- ── PREAUTHORIZATION ────────────────────────────────────────
+  ('20000000-0000-0000-0000-000000000002', 'CASE_RECORD', 'C0000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"member":"John Doe","provider":"Nairobi Hospital","type":"PREAUTH","diagnosis":"Knee Surgery","estimated_cost":3500000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-28 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CASE_RECORD', 'C0000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"APPROVED","approved_amount":3200000,"notes":"Pre-auth approved, 10% co-pay applies"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-28 14:00:00+03'),
+
+  -- ── CREDIT NOTES ────────────────────────────────────────────
+  ('20000000-0000-0000-0000-000000000004', 'CREDIT_NOTE', 'C1000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"amount":50000,"policy":"POL-2026-000001","reason":"Premium overpayment refund","invoice":"INV-2026-000001"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-02-15 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'CREDIT_NOTE', 'C1000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"APPROVED","approved_by":"Sarah Wanjiku"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-02-15 15:00:00+03'),
+
+  -- ── APPROVAL LIMITS ─────────────────────────────────────────
+  ('20000000-0000-0000-0000-000000000001', 'APPROVAL_LIMIT', 'A1A00000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"user":"Jane Muthoni","role":"ClaimsOfficer","claim_limit":500000,"description":"Standard claims officer limit"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'APPROVAL_LIMIT', 'A1A00000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"user":"Admin User","role":"Admin","claim_limit":10000000,"description":"Admin approval — unlimited"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-01-03 11:10:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'APPROVAL_LIMIT', 'A1A00000-0000-0000-0000-000000000001', 'UPDATE', '{"claim_limit":500000}', '{"claim_limit":750000,"reason":"Promoted to Senior Claims Officer"}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-01 09:00:00+03'),
+
+  -- ── MARCH 2026: RECENT ACTIVITY (dense, realistic) ──────────
+
+  -- Payments
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000002', 'CREATE', NULL, '{"reference":"BNK-REF-20260301-001","amount":500000,"type":"PREMIUM","method":"BANK_TRANSFER","policy":"POL-2026-000002"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-03-01 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'payment', '91000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"CONFIRMED","transaction_id":"BNK-TXN-20260301-4521"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-03-01 11:05:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'invoice', '90000000-0000-0000-0000-000000000002', 'STATE_CHANGE', '{"status":"PENDING"}', '{"status":"PAID","payment_reference":"BNK-REF-20260301-001"}', '192.168.1.20', 'HIAS-PaymentGateway/1.0', '2026-03-01 11:06:00+03'),
+
+  -- New claim in March
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000006', 'CREATE', NULL, '{"claim_number":"CLM-2026-000006","status":"RECEIVED","total_amount":275000,"provider":"Wellness Pharmacy","member":"David Ouma","type":"OUTPATIENT","diagnosis":"Upper Respiratory Infection"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-03-03 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000006', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-03-03 09:15:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000006', 'STATE_CHANGE', '{"status":"VALIDATED"}', '{"status":"ADJUDICATED","approved_amount":275000}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-03-03 10:00:00+03'),
+
+  -- Member updates
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000001', 'UPDATE', '{"phone":"+254700000001"}', '{"phone":"+254712345678","updated_field":"phone_number"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-05 09:30:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'MEMBER', '60000000-0000-0000-0000-000000000002', 'UPDATE', '{"email":"jane.doe@old.com"}', '{"email":"jane.doe@gmail.com","updated_field":"email"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-05 09:45:00+03'),
+
+  -- Provider statement
+  ('20000000-0000-0000-0000-000000000004', 'PROVIDER_STATEMENT', 'B5000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"provider":"Nairobi Hospital","period":"2026-02","total_claims":3,"total_amount":5300000,"status":"DRAFT"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-03-06 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'PROVIDER_STATEMENT', 'B5000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"DRAFT"}', '{"status":"FINALIZED","reconciled_amount":5100000}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-03-06 16:00:00+03'),
+
+  -- Policy document generation
+  ('20000000-0000-0000-0000-000000000005', 'POLICY_DOCUMENT', 'D0000000-0000-0000-0001-000000000004', 'CREATE', NULL, '{"document_type":"MEMBER_CARD","member":"John Doe","generation_mode":"MANUAL"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-07 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'POLICY_DOCUMENT', 'D0000000-0000-0000-0001-000000000005', 'CREATE', NULL, '{"document_type":"MEMBER_CARD","member":"Jane Doe","generation_mode":"MANUAL"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-07 10:01:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'POLICY_DOCUMENT', 'D0000000-0000-0000-0001-000000000006', 'CREATE', NULL, '{"document_type":"MEMBER_CARD","member":"Grace Mwangi","generation_mode":"MANUAL"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-07 10:02:00+03'),
+
+  -- Renewal lifecycle
+  ('20000000-0000-0000-0000-000000000003', 'RENEWAL', 'B6000000-0000-0000-0000-000000000001', 'CREATE', NULL, '{"policy":"POL-2026-000001","renewal_date":"2027-01-07","proposed_premium":285000,"increase_pct":14}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-08 09:00:00+03'),
+
+  -- API calls & system events
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000001', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/claims/70000000-0000-0000-0000-000000000001","status_code":200}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-02-10 11:05:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'analytics', '00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/analytics/dashboard","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-01 08:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'analytics', '00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/analytics/kpis","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-01 08:01:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000001', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/policies/50000000-0000-0000-0000-000000000001","status_code":200}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-02 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'analytics', '00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/analytics/claims-summary","status_code":200}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-09 08:30:00+03'),
+
+  -- Very recent activity (last few days)
+  ('20000000-0000-0000-0000-000000000001', 'USER', '20000000-0000-0000-0000-000000000002', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/users/20000000-0000-0000-0000-000000000002","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-10 14:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000007', 'CREATE', NULL, '{"claim_number":"CLM-2026-000007","status":"RECEIVED","total_amount":520000,"provider":"Nairobi Hospital","member":"Lucy Wambui","type":"OUTPATIENT","diagnosis":"Dental Surgery"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-03-10 10:00:00+03'),
+  ('20000000-0000-0000-0000-000000000002', 'CLAIM', '70000000-0000-0000-0000-000000000007', 'STATE_CHANGE', '{"status":"RECEIVED"}', '{"status":"VALIDATED"}', '192.168.1.12', 'Mozilla/5.0 Chrome/120', '2026-03-10 10:20:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'POLICY_DOCUMENT', '106b606e-2dbf-4d53-b66f-bb56d22baafc', 'UPDATE', NULL, '{"document_type":"WELCOME_LETTER","action":"regenerated","version":2,"generation_mode":"MANUAL"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-11 20:02:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'POLICY_DOCUMENT', '83e9e111-a1f9-46ef-a52e-466578c58338', 'UPDATE', NULL, '{"document_type":"POLICY_SCHEDULE","action":"regenerated","version":2,"generation_mode":"MANUAL"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-11 20:49:00+03'),
+  ('20000000-0000-0000-0000-000000000003', 'POLICY', '50000000-0000-0000-0000-000000000001', 'UPDATE', '{"premium":250000}', '{"premium":275000,"reason":"Endorsement premium adjustment — added dependent"}', '192.168.1.15', 'Mozilla/5.0 Chrome/120', '2026-03-11 11:00:00+03'),
+  ('20000000-0000-0000-0000-000000000004', 'CLAIM', '70000000-0000-0000-0000-000000000008', 'STATE_CHANGE', '{"status":"PART_PAID","paid_amount":2500000}', '{"status":"PAID","paid_amount":3780000,"final_payment_ref":"BNK-CLM-20260311-002","note":"Remaining balance settled after budget approval"}', '192.168.1.20', 'Mozilla/5.0 Chrome/120', '2026-03-11 15:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'LEAD', 'A0000000-0000-0000-0000-000000000001', 'STATE_CHANGE', '{"status":"PROPOSAL_SENT"}', '{"status":"NEGOTIATION","notes":"Client requested revised benefits structure, meeting scheduled for March 15"}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-12 09:00:00+03'),
+  ('20000000-0000-0000-0000-000000000001', 'analytics', '00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/analytics/dashboard","status_code":200}', '192.168.1.10', 'Mozilla/5.0 Chrome/120', '2026-03-12 08:00:00+03'),
+  ('20000000-0000-0000-0000-000000000005', 'analytics', '00000000-0000-0000-0000-000000000000', 'API_CALL', NULL, '{"method":"GET","path":"/api/v1/audit-events","status_code":200}', '192.168.1.25', 'Mozilla/5.0 Chrome/120', '2026-03-12 09:30:00+03');
 
 -- ============================================================
 -- LAYER 14: DOCUMENTS (policy + claim)
