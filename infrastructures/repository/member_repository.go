@@ -32,6 +32,8 @@ func (r *memberRepository) Create(ctx context.Context, member *entity.Member) (*
 		Email:        stringToPgtypeText(member.Email),
 		KraPin:       stringToPgtypeText(member.KRAPin),
 		County:       stringToPgtypeText(member.County),
+		City:         member.City,
+		Country:      member.Country,
 		Address:      stringToPgtypeText(member.Address),
 	})
 	if err != nil {
@@ -100,6 +102,8 @@ func (r *memberRepository) Update(ctx context.Context, member *entity.Member) (*
 		Email:   stringToPgtypeText(member.Email),
 		KraPin:  stringToPgtypeText(member.KRAPin),
 		County:  stringToPgtypeText(member.County),
+		City:    stringToPgtypeText(member.City),
+		Country: stringToPgtypeText(member.Country),
 		Address: stringToPgtypeText(member.Address),
 	})
 	if err != nil {
@@ -169,6 +173,8 @@ func sqlcMemberToDomain(m db.Member) *entity.Member {
 		Email:             m.Email.String,
 		KRAPin:            m.KraPin.String,
 		County:            m.County.String,
+		City:              m.City,
+		Country:           m.Country,
 		Address:           m.Address.String,
 		Status:            m.Status,
 		Verified:          m.Verified,

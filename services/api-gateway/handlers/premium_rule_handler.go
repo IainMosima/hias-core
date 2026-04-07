@@ -104,6 +104,65 @@ func (h *PremiumRuleHandler) DeletePremiumRule(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// GetPremiumRule godoc
+// @Summary      Get a premium rule by ID
+// @Description  Retrieve a single premium rule by its unique identifier
+// @Tags         PremiumRules
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Premium Rule ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/premium-rules/{id} [get]
+func (h *PremiumRuleHandler) GetPremiumRule(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid premium rule ID")
+		return
+	}
+
+	resp := h.premiumRuleSvc.GetPremiumRule(ctx.Request.Context(), id)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
+// UpdatePremiumRule godoc
+// @Summary      Update a premium rule
+// @Description  Update an existing premium rule by its unique identifier
+// @Tags         PremiumRules
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Premium Rule ID"
+// @Param        request body schema.UpdatePremiumRuleRequest true "Premium rule update payload"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/premium-rules/{id} [put]
+func (h *PremiumRuleHandler) UpdatePremiumRule(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid premium rule ID")
+		return
+	}
+
+	var req schema.UpdatePremiumRuleRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	resp := h.premiumRuleSvc.UpdatePremiumRule(ctx.Request.Context(), id, req)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
 // GetRateSheet godoc
 // @Summary      Get rate sheet for a plan
 // @Description  Retrieve the rate sheet associated with the specified plan

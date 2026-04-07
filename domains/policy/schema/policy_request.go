@@ -25,6 +25,8 @@ type EnrollMemberRequest struct {
 	Email        string `json:"email"`
 	KRAPin       string `json:"kra_pin"`
 	County       string `json:"county"`
+	City         string `json:"city"`
+	Country      string `json:"country"`
 	Address      string `json:"address"`
 }
 
@@ -51,7 +53,25 @@ type UpdateMemberRequest struct {
 	Email   *string `json:"email"`
 	KRAPin  *string `json:"kra_pin"`
 	County  *string `json:"county"`
+	City    *string `json:"city"`
+	Country *string `json:"country"`
 	Address *string `json:"address"`
+}
+
+type CreateMemberRequest struct {
+	PolicyID     string `json:"policy_id" binding:"required,uuid"`
+	NationalID   string `json:"national_id"`
+	Name         string `json:"name" binding:"required"`
+	DateOfBirth  string `json:"date_of_birth" binding:"required"`
+	Gender       string `json:"gender" binding:"required"`
+	Relationship string `json:"relationship" binding:"required"`
+	Phone        string `json:"phone"`
+	Email        string `json:"email"`
+	KRAPin       string `json:"kra_pin"`
+	County       string `json:"county"`
+	City         string `json:"city"`
+	Country      string `json:"country"`
+	Address      string `json:"address"`
 }
 
 type RemoveMemberRequest struct {

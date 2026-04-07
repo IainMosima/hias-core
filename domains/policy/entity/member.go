@@ -18,6 +18,8 @@ type Member struct {
 	Email             string     `json:"email"`
 	KRAPin            string     `json:"kra_pin"`
 	County            string     `json:"county"`
+	City              string     `json:"city"`
+	Country           string     `json:"country"`
 	Address           string     `json:"address"`
 	Status            string     `json:"status"` // ACTIVE, SUSPENDED, REMOVED
 	Verified          bool       `json:"verified"`

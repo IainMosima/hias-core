@@ -492,6 +492,8 @@ type Member struct {
 	Status            string             `json:"status"`
 	CoverageStartDate pgtype.Timestamptz `json:"coverage_start_date"`
 	CoverageEndDate   pgtype.Timestamptz `json:"coverage_end_date"`
+	City              string             `json:"city"`
+	Country           string             `json:"country"`
 }
 
 type Notification struct {

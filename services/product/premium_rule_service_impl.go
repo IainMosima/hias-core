@@ -94,6 +94,14 @@ func (s *premiumRuleServiceImpl) CreatePremiumRule(ctx context.Context, planID u
 	return schema.NewServiceResponse(productSchema.ToPremiumRuleResponse(created), http.StatusCreated, "Premium rule created")
 }
 
+func (s *premiumRuleServiceImpl) GetPremiumRule(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[productSchema.PremiumRuleResponse] {
+	rule, err := s.ruleRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.PremiumRuleResponse](http.StatusNotFound, "Premium rule not found", err)
+	}
+	return schema.NewServiceResponse(productSchema.ToPremiumRuleResponse(rule), http.StatusOK, "Premium rule retrieved")
+}
+
 func (s *premiumRuleServiceImpl) ListPremiumRulesByPlan(ctx context.Context, planID uuid.UUID) *schema.ServiceResponse[[]productSchema.PremiumRuleResponse] {
 	rules, err := s.ruleRepo.ListByPlan(ctx, planID)
 	if err != nil {
@@ -106,6 +114,65 @@ func (s *premiumRuleServiceImpl) ListPremiumRulesByPlan(ctx context.Context, pla
 	}
 
 	return schema.NewServiceResponse(responses, http.StatusOK, "Premium rules retrieved")
+}
+
+func (s *premiumRuleServiceImpl) UpdatePremiumRule(ctx context.Context, id uuid.UUID, req productSchema.UpdatePremiumRuleRequest) *schema.ServiceResponse[productSchema.PremiumRuleResponse] {
+	existing, err := s.ruleRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.PremiumRuleResponse](http.StatusNotFound, "Premium rule not found", err)
+	}
+
+	if req.CalculationType != nil {
+		existing.CalculationType = *req.CalculationType
+	}
+	if req.Relationship != nil {
+		existing.Relationship = *req.Relationship
+	}
+	if req.RateAmount != nil {
+		existing.RateAmount = *req.RateAmount
+	}
+	if req.DiscountType != nil {
+		existing.DiscountType = *req.DiscountType
+	}
+	if req.DiscountValue != nil {
+		existing.DiscountValue = *req.DiscountValue
+	}
+	if req.MinMembers != nil {
+		existing.MinMembers = *req.MinMembers
+	}
+	if req.MinAge != nil {
+		existing.MinAge = *req.MinAge
+	}
+	if req.MaxAge != nil {
+		existing.MaxAge = *req.MaxAge
+	}
+	if req.RuleType != nil {
+		existing.RuleType = *req.RuleType
+	}
+	if req.EffectiveFrom != nil {
+		if parsed, err := utils.ParseFlexibleDate(*req.EffectiveFrom); err == nil {
+			existing.EffectiveFrom = parsed
+		}
+	}
+	if req.EffectiveTo != nil {
+		if *req.EffectiveTo == "" {
+			existing.EffectiveTo = nil
+		} else if parsed, err := utils.ParseFlexibleDate(*req.EffectiveTo); err == nil {
+			existing.EffectiveTo = &parsed
+		}
+	}
+	if req.SortOrder != nil {
+		existing.SortOrder = *req.SortOrder
+	}
+
+	updated, err := s.ruleRepo.Update(ctx, existing)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.PremiumRuleResponse](http.StatusInternalServerError, "Failed to update premium rule", err)
+	}
+
+	s.logAudit(ctx, uuid.Nil, string(shared.AuditEntityTypePremiumRule), updated.ID, string(shared.AuditActionUpdate))
+
+	return schema.NewServiceResponse(productSchema.ToPremiumRuleResponse(updated), http.StatusOK, "Premium rule updated")
 }
 
 func (s *premiumRuleServiceImpl) DeletePremiumRule(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[string] {

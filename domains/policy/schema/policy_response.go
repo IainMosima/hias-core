@@ -41,6 +41,8 @@ type MemberResponse struct {
 	Email             string     `json:"email"`
 	KRAPin            string     `json:"kra_pin"`
 	County            string     `json:"county"`
+	City              string     `json:"city"`
+	Country           string     `json:"country"`
 	Address           string     `json:"address"`
 	Status            string     `json:"status"`
 	Verified          bool       `json:"verified"`
@@ -179,7 +181,8 @@ func ToMemberResponse(m *entity.Member) MemberResponse {
 		Name: m.Name, DateOfBirth: m.DateOfBirth, Gender: m.Gender,
 		Relationship: m.Relationship, MemberNumber: m.MemberNumber,
 		Phone: m.Phone, Email: m.Email, KRAPin: m.KRAPin,
-		County: m.County, Address: m.Address, Status: m.Status,
+		County: m.County, City: m.City, Country: m.Country,
+		Address: m.Address, Status: m.Status,
 		Verified: m.Verified, VerifiedAt: m.VerifiedAt,
 		CoverageStartDate: m.CoverageStartDate, CoverageEndDate: m.CoverageEndDate,
 		CreatedAt: m.CreatedAt,

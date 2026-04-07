@@ -1,6 +1,6 @@
 -- name: CreateMember :one
-INSERT INTO members (policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, address)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+INSERT INTO members (policy_id, national_id, name, date_of_birth, gender, relationship, member_number, phone, email, kra_pin, county, city, country, address)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
 
 -- name: GetMemberByID :one
 SELECT * FROM members WHERE id = $1;
@@ -27,6 +27,8 @@ UPDATE members SET
     email = COALESCE(sqlc.narg('email'), email),
     kra_pin = COALESCE(sqlc.narg('kra_pin'), kra_pin),
     county = COALESCE(sqlc.narg('county'), county),
+    city = COALESCE(sqlc.narg('city'), city),
+    country = COALESCE(sqlc.narg('country'), country),
     address = COALESCE(sqlc.narg('address'), address),
     updated_at = NOW()
 WHERE id = sqlc.arg('id') RETURNING *;

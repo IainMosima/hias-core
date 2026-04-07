@@ -104,6 +104,13 @@ func (s *memberServiceImpl) EnrollMember(ctx context.Context, policyID uuid.UUID
 	// Underwriting: evaluate plan-specific underwriting rules
 	s.evaluateUnderwritingRules(ctx, policyID, pol.PlanID, req, dob)
 
+	// Default country to Kenya if not provided
+	country := req.Country
+	if country == "" {
+		country = "Kenya"
+	}
+	req.Country = country
+
 	// Members start as PENDING unless the policy is already ACTIVE
 	memberStatus := string(shared.MemberStatusPending)
 	if pol.Status == string(shared.PolicyStatusActive) {
@@ -122,6 +129,8 @@ func (s *memberServiceImpl) EnrollMember(ctx context.Context, policyID uuid.UUID
 		Email:        req.Email,
 		KRAPin:       req.KRAPin,
 		County:       req.County,
+		City:         req.City,
+		Country:      req.Country,
 		Address:      req.Address,
 		Status:       memberStatus,
 		Verified:     false,
@@ -169,6 +178,12 @@ func (s *memberServiceImpl) UpdateMember(ctx context.Context, memberID uuid.UUID
 	}
 	if req.County != nil {
 		member.County = *req.County
+	}
+	if req.City != nil {
+		member.City = *req.City
+	}
+	if req.Country != nil {
+		member.Country = *req.Country
 	}
 	if req.Address != nil {
 		member.Address = *req.Address
@@ -391,6 +406,8 @@ func (s *memberServiceImpl) ImportMembersCSV(ctx context.Context, policyID uuid.
 			Email:        getCSVField(record, colIndex, "email"),
 			KRAPin:       getCSVField(record, colIndex, "kra_pin"),
 			County:       getCSVField(record, colIndex, "county"),
+			City:         getCSVField(record, colIndex, "city"),
+			Country:      getCSVField(record, colIndex, "country"),
 			Address:      getCSVField(record, colIndex, "address"),
 		}
 		reqs = append(reqs, req)

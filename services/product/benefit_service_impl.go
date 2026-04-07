@@ -66,6 +66,14 @@ func (s *benefitServiceImpl) CreateBenefit(ctx context.Context, planID uuid.UUID
 	return schema.NewServiceResponse(productSchema.ToBenefitResponse(created), http.StatusCreated, "Benefit created")
 }
 
+func (s *benefitServiceImpl) GetBenefit(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[productSchema.BenefitResponse] {
+	benefit, err := s.benefitRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.BenefitResponse](http.StatusNotFound, "Benefit not found", err)
+	}
+	return schema.NewServiceResponse(productSchema.ToBenefitResponse(benefit), http.StatusOK, "Benefit retrieved")
+}
+
 func (s *benefitServiceImpl) ListBenefitsByPlan(ctx context.Context, planID uuid.UUID) *schema.ServiceResponse[[]productSchema.BenefitResponse] {
 	benefits, err := s.benefitRepo.ListByPlan(ctx, planID)
 	if err != nil {
@@ -103,6 +111,76 @@ func (s *benefitServiceImpl) CalculateCoPay(ctx context.Context, benefitID uuid.
 	}
 
 	return schema.NewServiceResponse(copay, http.StatusOK, "Co-pay calculated")
+}
+
+func (s *benefitServiceImpl) UpdateBenefit(ctx context.Context, id uuid.UUID, req productSchema.UpdateBenefitRequest) *schema.ServiceResponse[productSchema.BenefitResponse] {
+	existing, err := s.benefitRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.BenefitResponse](http.StatusNotFound, "Benefit not found", err)
+	}
+
+	if req.Name != nil {
+		existing.Name = *req.Name
+	}
+	if req.Category != nil {
+		existing.Category = *req.Category
+	}
+	if req.AnnualLimit != nil {
+		existing.AnnualLimit = *req.AnnualLimit
+	}
+	if req.CoPayType != nil {
+		existing.CoPayType = *req.CoPayType
+	}
+	if req.CoPayValue != nil {
+		existing.CoPayValue = *req.CoPayValue
+	}
+	if req.WaitingPeriodDays != nil {
+		existing.WaitingPeriodDays = *req.WaitingPeriodDays
+	}
+	if req.SubLimitType != nil {
+		existing.SubLimitType = *req.SubLimitType
+	}
+	if req.SubLimitValue != nil {
+		existing.SubLimitValue = *req.SubLimitValue
+	}
+	if req.MinAge != nil {
+		existing.MinAge = *req.MinAge
+	}
+	if req.MaxAge != nil {
+		existing.MaxAge = *req.MaxAge
+	}
+	if req.WaitingPeriodType != nil {
+		existing.WaitingPeriodType = *req.WaitingPeriodType
+	}
+	if req.DeductibleAmount != nil {
+		existing.DeductibleAmount = *req.DeductibleAmount
+	}
+	if req.IsOptional != nil {
+		existing.IsOptional = *req.IsOptional
+	}
+	if req.AddonPremium != nil {
+		existing.AddonPremium = *req.AddonPremium
+	}
+
+	updated, err := s.benefitRepo.Update(ctx, existing)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.BenefitResponse](http.StatusInternalServerError, "Failed to update benefit", err)
+	}
+
+	s.logAudit(ctx, uuid.Nil, string(shared.AuditEntityTypeBenefit), updated.ID, string(shared.AuditActionUpdate))
+
+	return schema.NewServiceResponse(productSchema.ToBenefitResponse(updated), http.StatusOK, "Benefit updated")
+}
+
+func (s *benefitServiceImpl) DeleteBenefit(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[string] {
+	err := s.benefitRepo.Delete(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[string](http.StatusInternalServerError, "Failed to delete benefit", err)
+	}
+
+	s.logAudit(ctx, uuid.Nil, string(shared.AuditEntityTypeBenefit), id, string(shared.AuditActionDelete))
+
+	return schema.NewServiceResponse("Benefit deleted", http.StatusOK, "Benefit deleted")
 }
 
 func (s *benefitServiceImpl) CreateSubBenefit(ctx context.Context, parentID uuid.UUID, req productSchema.CreateBenefitRequest) *schema.ServiceResponse[productSchema.BenefitResponse] {

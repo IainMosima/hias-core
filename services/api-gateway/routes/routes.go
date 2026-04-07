@@ -164,29 +164,36 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker, 
 			plans.POST("/:id/underwriting-rules", h.UnderwritingRule.CreateRule)
 		}
 
-		// Benefits (standalone for sub-benefits)
+		// Benefits (standalone for CRUD + sub-benefits)
 		benefits := authenticated.Group("/benefits")
 		{
+			benefits.GET("/:id", h.Benefit.GetBenefit)
+			benefits.PUT("/:id", h.Benefit.UpdateBenefit)
+			benefits.DELETE("/:id", h.Benefit.DeleteBenefit)
 			benefits.GET("/:id/sub-benefits", h.Benefit.ListSubBenefits)
 			benefits.POST("/:id/sub-benefits", h.Benefit.CreateSubBenefit)
 		}
 
-		// Exclusions (standalone for update/delete)
+		// Exclusions (standalone for CRUD)
 		exclusions := authenticated.Group("/exclusions")
 		{
+			exclusions.GET("/:id", h.Exclusion.GetExclusion)
 			exclusions.PUT("/:id", h.Exclusion.UpdateExclusion)
 			exclusions.DELETE("/:id", h.Exclusion.DeleteExclusion)
 		}
 
-		// Premium Rules (standalone for delete)
+		// Premium Rules (standalone for CRUD)
 		premiumRules := authenticated.Group("/premium-rules")
 		{
+			premiumRules.GET("/:id", h.PremiumRule.GetPremiumRule)
+			premiumRules.PUT("/:id", h.PremiumRule.UpdatePremiumRule)
 			premiumRules.DELETE("/:id", h.PremiumRule.DeletePremiumRule)
 		}
 
-		// Provider Networks (standalone for update/delete)
+		// Provider Networks (standalone for CRUD)
 		providerNetworks := authenticated.Group("/provider-networks")
 		{
+			providerNetworks.GET("/:id", h.ProviderNetwork.GetProviderNetwork)
 			providerNetworks.PUT("/:id/status", h.ProviderNetwork.UpdateProviderNetworkStatus)
 			providerNetworks.DELETE("/:id", h.ProviderNetwork.DeleteProviderNetwork)
 		}
@@ -260,6 +267,7 @@ func RegisterRoutes(router *gin.Engine, h Handlers, tokenMaker auth.TokenMaker, 
 		members := authenticated.Group("/members")
 		{
 			members.GET("", h.Member.ListAllMembers)
+			members.POST("", h.Member.CreateMember)
 			members.GET("/:id", h.Member.GetMember)
 			members.PUT("/:id", h.Member.UpdateMember)
 			members.PUT("/:id/verify", h.Member.VerifyMember)

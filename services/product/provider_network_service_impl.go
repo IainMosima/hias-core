@@ -61,6 +61,14 @@ func (s *providerNetworkServiceImpl) CreateProviderNetwork(ctx context.Context, 
 	return schema.NewServiceResponse(productSchema.ToProviderNetworkResponse(created), http.StatusCreated, "Provider network created")
 }
 
+func (s *providerNetworkServiceImpl) GetProviderNetwork(ctx context.Context, id uuid.UUID) *schema.ServiceResponse[productSchema.ProviderNetworkResponse] {
+	network, err := s.networkRepo.GetByID(ctx, id)
+	if err != nil {
+		return schema.NewServiceErrorResponse[productSchema.ProviderNetworkResponse](http.StatusNotFound, "Provider network not found", err)
+	}
+	return schema.NewServiceResponse(productSchema.ToProviderNetworkResponse(network), http.StatusOK, "Provider network retrieved")
+}
+
 func (s *providerNetworkServiceImpl) ListProviderNetworksByPlan(ctx context.Context, planID uuid.UUID) *schema.ServiceResponse[[]productSchema.ProviderNetworkResponse] {
 	networks, err := s.networkRepo.ListByPlan(ctx, planID)
 	if err != nil {

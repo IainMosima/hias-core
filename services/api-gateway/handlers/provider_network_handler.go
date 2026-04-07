@@ -77,6 +77,32 @@ func (h *ProviderNetworkHandler) ListProviderNetworks(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// GetProviderNetwork godoc
+// @Summary      Get a provider network by ID
+// @Description  Retrieve a single provider network by its unique identifier
+// @Tags         ProviderNetworks
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Provider Network ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/provider-networks/{id} [get]
+func (h *ProviderNetworkHandler) GetProviderNetwork(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid provider network ID")
+		return
+	}
+
+	resp := h.networkSvc.GetProviderNetwork(ctx.Request.Context(), id)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
 // UpdateProviderNetworkStatus godoc
 // @Summary      Update provider network status
 // @Description  Update the status of an existing provider network by its unique identifier

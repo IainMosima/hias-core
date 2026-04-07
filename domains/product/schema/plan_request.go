@@ -38,6 +38,23 @@ type CreateBenefitRequest struct {
 	AddonPremium      int64  `json:"addon_premium"`
 }
 
+type UpdateBenefitRequest struct {
+	Name              *string `json:"name"`
+	Category          *string `json:"category"`
+	AnnualLimit       *int64  `json:"annual_limit"`
+	CoPayType         *string `json:"co_pay_type"`
+	CoPayValue        *int64  `json:"co_pay_value"`
+	WaitingPeriodDays *int    `json:"waiting_period_days"`
+	SubLimitType      *string `json:"sub_limit_type"`
+	SubLimitValue     *int64  `json:"sub_limit_value"`
+	MinAge            *int    `json:"min_age"`
+	MaxAge            *int    `json:"max_age"`
+	WaitingPeriodType *string `json:"waiting_period_type"`
+	DeductibleAmount  *int64  `json:"deductible_amount"`
+	IsOptional        *bool   `json:"is_optional"`
+	AddonPremium      *int64  `json:"addon_premium"`
+}
+
 type CreateExclusionRequest struct {
 	Description string   `json:"description" binding:"required"`
 	Type        string   `json:"type" binding:"required,oneof=pre_existing cosmetic experimental"`

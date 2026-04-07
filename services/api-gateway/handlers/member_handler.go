@@ -21,6 +21,53 @@ func NewMemberHandler(memberSvc service.MemberService) *MemberHandler {
 	return &MemberHandler{memberSvc: memberSvc}
 }
 
+// CreateMember godoc
+// @Summary      Create a new member (standalone)
+// @Description  Creates a new member by specifying the policy ID in the request body
+// @Tags         Members
+// @Accept       json
+// @Produce      json
+// @Param        request body policySchema.CreateMemberRequest true "Create member request"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/members [post]
+func (h *MemberHandler) CreateMember(ctx *gin.Context) {
+	var req policySchema.CreateMemberRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	policyID, err := uuid.Parse(req.PolicyID)
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid policy ID")
+		return
+	}
+
+	enrollReq := policySchema.EnrollMemberRequest{
+		NationalID:   req.NationalID,
+		Name:         req.Name,
+		DateOfBirth:  req.DateOfBirth,
+		Gender:       req.Gender,
+		Relationship: req.Relationship,
+		Phone:        req.Phone,
+		Email:        req.Email,
+		KRAPin:       req.KRAPin,
+		County:       req.County,
+		City:         req.City,
+		Country:      req.Country,
+		Address:      req.Address,
+	}
+
+	resp := h.memberSvc.EnrollMember(ctx.Request.Context(), policyID, enrollReq)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
 // EnrollMember godoc
 // @Summary      Enroll a new member in a policy
 // @Description  Enrolls a new member under the specified policy

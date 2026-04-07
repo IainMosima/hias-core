@@ -77,6 +77,32 @@ func (h *ExclusionHandler) ListExclusions(ctx *gin.Context) {
 	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
 }
 
+// GetExclusion godoc
+// @Summary      Get an exclusion by ID
+// @Description  Retrieve a single exclusion by its unique identifier
+// @Tags         Exclusions
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Exclusion ID"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Security     BearerAuth
+// @Router       /api/v1/exclusions/{id} [get]
+func (h *ExclusionHandler) GetExclusion(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.RespondError(ctx, http.StatusBadRequest, "Invalid exclusion ID")
+		return
+	}
+
+	resp := h.exclusionSvc.GetExclusion(ctx.Request.Context(), id)
+	if resp.Error != nil {
+		utils.RespondError(ctx, resp.StatusCode, resp.Message)
+		return
+	}
+	utils.RespondSuccess(ctx, resp.StatusCode, resp.Message, resp.Data)
+}
+
 // UpdateExclusion godoc
 // @Summary      Update an exclusion
 // @Description  Update an existing exclusion by its unique identifier
