@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	auditService "github.com/bitbiz/hias-core/domains/audit/service"
@@ -27,6 +29,8 @@ import (
 	"github.com/bitbiz/hias-core/shared/utils"
 	"github.com/google/uuid"
 )
+
+var claimCounterInitOnce sync.Once
 
 type claimServiceImpl struct {
 	claimRepo          claimRepo.ClaimRepository
@@ -80,6 +84,20 @@ func NewClaimService(
 }
 
 func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.SubmitClaimRequest, createdBy uuid.UUID) *schema.ServiceResponse[claimsSchema.ClaimResponse] {
+	log.Printf("[CLAIMS-SVC] SubmitClaim ENTRY: policy=%s member=%s provider=%s claim_type=%s line_items=%d diagnosis=%v created_by=%s",
+		req.PolicyID, req.MemberID, req.ProviderID, req.ClaimType, len(req.LineItems), req.DiagnosisCodes, createdBy)
+
+	// Prime the in-memory counter once per process from the DB max so we don't collide with seeded data.
+	claimCounterInitOnce.Do(func() {
+		maxCounter, err := s.claimRepo.GetMaxCounterForYear(ctx, time.Now().Year())
+		if err != nil {
+			log.Printf("[CLAIMS-SVC] Failed to prime claim counter (will start from 0): %v", err)
+		} else {
+			utils.InitClaimCounter(maxCounter)
+			log.Printf("[CLAIMS-SVC] Claim counter primed to %d", maxCounter)
+		}
+	})
+
 	policyID, _ := uuid.Parse(req.PolicyID)
 	memberID, _ := uuid.Parse(req.MemberID)
 	providerID, _ := uuid.Parse(req.ProviderID)
@@ -91,6 +109,7 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 	for _, li := range req.LineItems {
 		totalAmount += li.UnitPrice * int64(li.Quantity)
 	}
+	log.Printf("[CLAIMS-SVC] total_amount=%d (from %d line items)", totalAmount, len(req.LineItems))
 
 	// Set claim type (default DIRECT)
 	claimType := string(shared.ClaimTypeDirect)
@@ -102,7 +121,6 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 	slaBreachAt := time.Now().Add(time.Duration(shared.ClaimSLAHours) * time.Hour)
 
 	claim := &entity.Claim{
-		ClaimNumber:    utils.GenerateClaimNumber(),
 		PolicyID:       policyID,
 		MemberID:       memberID,
 		ProviderID:     providerID,
@@ -123,10 +141,45 @@ func (s *claimServiceImpl) SubmitClaim(ctx context.Context, req claimsSchema.Sub
 		claim.PreAuthID = preAuthID
 	}
 
-	created, err := s.claimRepo.Create(ctx, claim)
-	if err != nil {
+	// Retry on claim number collision (up to 3 attempts) — happens when in-memory counter
+	// falls behind the DB (e.g. after a process restart with pre-seeded data).
+	var created *entity.Claim
+	var err error
+	const maxRetries = 3
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		claim.ClaimNumber = utils.GenerateClaimNumber()
+		log.Printf("[CLAIMS-SVC] Attempting claim create: attempt=%d claim_number=%s", attempt, claim.ClaimNumber)
+		created, err = s.claimRepo.Create(ctx, claim)
+		if err == nil {
+			break
+		}
+		if errors.Is(err, claimRepo.ErrClaimNumberCollision) {
+			log.Printf("[CLAIMS-SVC] Claim number collision on %s (attempt %d/%d), re-syncing counter",
+				claim.ClaimNumber, attempt, maxRetries)
+			if maxCounter, qErr := s.claimRepo.GetMaxCounterForYear(ctx, time.Now().Year()); qErr == nil {
+				utils.ResetClaimCounterForCollision(maxCounter)
+			}
+			continue
+		}
+		// FK violation — bad policy/member/provider UUID — return 400
+		var fkErr *claimRepo.ClaimFKViolationError
+		if errors.As(err, &fkErr) {
+			log.Printf("[CLAIMS-SVC] FK violation: constraint=%s detail=%s", fkErr.Constraint, fkErr.Detail)
+			return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](
+				http.StatusBadRequest,
+				fmt.Sprintf("Invalid reference: check policy, member, or provider ID (%s)", fkErr.Constraint),
+				err,
+			)
+		}
+		// All other DB errors
+		log.Printf("[CLAIMS-SVC] Create FAILED (attempt %d): %v", attempt, err)
 		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to create claim", err)
 	}
+	if err != nil {
+		log.Printf("[CLAIMS-SVC] All %d create attempts exhausted, last error: %v", maxRetries, err)
+		return schema.NewServiceErrorResponse[claimsSchema.ClaimResponse](http.StatusInternalServerError, "Failed to create claim after retries", err)
+	}
+	log.Printf("[CLAIMS-SVC] Claim created: id=%s claim_number=%s status=%s", created.ID, created.ClaimNumber, created.Status)
 
 	s.recordTimeline(ctx, created.ID, "", string(shared.ClaimStatusReceived), "Claim Submitted", "", createdBy)
 

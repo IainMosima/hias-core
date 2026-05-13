@@ -654,6 +654,19 @@ func (q *Queries) GetClaimsForAdjudication(ctx context.Context, limit int32) ([]
 	return items, nil
 }
 
+const getMaxClaimCounterForYear = `-- name: GetMaxClaimCounterForYear :one
+SELECT COALESCE(MAX(CAST(SPLIT_PART(claim_number, '-', 3) AS BIGINT)), 0)::bigint AS max_counter
+FROM claims
+WHERE claim_number LIKE $1
+`
+
+func (q *Queries) GetMaxClaimCounterForYear(ctx context.Context, claimNumber string) (int64, error) {
+	row := q.db.QueryRow(ctx, getMaxClaimCounterForYear, claimNumber)
+	var max_counter int64
+	err := row.Scan(&max_counter)
+	return max_counter, err
+}
+
 const listApproachingSLAClaims = `-- name: ListApproachingSLAClaims :many
 SELECT id, claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, approved_amount, co_pay_amount, member_responsibility, diagnosis_codes, service_date, admission_date, discharge_date, notes, rejection_reason, created_by, created_at, updated_at, claim_type, vetted_amount, vetted_by, vetted_at, sla_breach_at, escalated_to, claim_source, idempotency_key, external_claim_id, source_metadata, is_draft, draft_completed_at FROM claims
 WHERE sla_breach_at IS NOT NULL

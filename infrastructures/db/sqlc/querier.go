@@ -228,6 +228,7 @@ type Querier interface {
 	GetLeadByNumber(ctx context.Context, leadNumber string) (Lead, error)
 	GetLossRatio(ctx context.Context, arg GetLossRatioParams) (int64, error)
 	GetLossRatioData(ctx context.Context, arg GetLossRatioDataParams) ([]GetLossRatioDataRow, error)
+	GetMaxClaimCounterForYear(ctx context.Context, claimNumber string) (int64, error)
 	GetMemberByID(ctx context.Context, id uuid.UUID) (Member, error)
 	GetMemberByNationalID(ctx context.Context, nationalID pgtype.Text) (Member, error)
 	GetMemberByNumber(ctx context.Context, memberNumber string) (Member, error)

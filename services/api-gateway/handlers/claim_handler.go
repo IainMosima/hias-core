@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -32,13 +33,20 @@ func NewClaimHandler(claimSvc service.ClaimService) *ClaimHandler {
 // @Security     BearerAuth
 // @Router       /api/v1/claims [post]
 func (h *ClaimHandler) SubmitClaim(ctx *gin.Context) {
+	log.Printf("[CLAIMS-HANDLER] >>> ENTRY remote=%s content_length=%d", ctx.ClientIP(), ctx.Request.ContentLength)
+
 	var req claimsSchema.SubmitClaimRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
+		log.Printf("[CLAIMS-HANDLER] BIND FAILED: %v", err)
 		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
+	log.Printf("[CLAIMS-HANDLER] BIND OK: policy=%s member=%s provider=%s claim_type=%s line_items=%d preauth=%q",
+		req.PolicyID, req.MemberID, req.ProviderID, req.ClaimType, len(req.LineItems), req.PreAuthID)
 
 	resp := h.claimSvc.SubmitClaim(ctx.Request.Context(), req, getUserID(ctx))
+	log.Printf("[CLAIMS-HANDLER] SERVICE RESPONSE: status=%d message=%q error=%v", resp.StatusCode, resp.Message, resp.Error)
+
 	if resp.Error != nil {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return

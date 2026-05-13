@@ -14,7 +14,7 @@ type Config struct {
 	GRPCServerAddress string `mapstructure:"GRPC_SERVER_ADDRESS"`
 
 	// Database
-	DBSource string `mapstructure:"DB_SOURCE"`
+	DBSource string `mapstructure:"DB_SOURCE_HIAS"`
 
 	// Redis
 	RedisURL string `mapstructure:"REDIS_URL"`

@@ -2,13 +2,16 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/bitbiz/hias-core/domains/claims/entity"
 	domainRepo "github.com/bitbiz/hias-core/domains/claims/repository"
 	db "github.com/bitbiz/hias-core/infrastructures/db/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type claimRepository struct {
@@ -20,6 +23,8 @@ func NewClaimRepository(store db.Store) domainRepo.ClaimRepository {
 }
 
 func (r *claimRepository) Create(ctx context.Context, claim *entity.Claim) (*entity.Claim, error) {
+	log.Printf("[CLAIMS-REPO] Create called: claim_number=%s policy=%s member=%s provider=%s total=%d type=%s",
+		claim.ClaimNumber, claim.PolicyID, claim.MemberID, claim.ProviderID, claim.TotalAmount, claim.ClaimType)
 	dbClaim, err := r.store.CreateClaim(ctx, db.CreateClaimParams{
 		ClaimNumber:    claim.ClaimNumber,
 		PolicyID:       claim.PolicyID,
@@ -38,9 +43,34 @@ func (r *claimRepository) Create(ctx context.Context, claim *entity.Claim) (*ent
 		CreatedBy:      uuidToPgtype(claim.CreatedBy),
 	})
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			log.Printf("[CLAIMS-REPO] CreateClaim pg error: code=%s constraint=%s detail=%s message=%s",
+				pgErr.Code, pgErr.ConstraintName, pgErr.Detail, pgErr.Message)
+			switch pgErr.Code {
+			case "23505":
+				return nil, domainRepo.ErrClaimNumberCollision
+			case "23503":
+				return nil, &domainRepo.ClaimFKViolationError{
+					Constraint: pgErr.ConstraintName,
+					Detail:     pgErr.Detail,
+				}
+			}
+		}
+		log.Printf("[CLAIMS-REPO] CreateClaim FAILED claim_number=%s err=%v", claim.ClaimNumber, err)
 		return nil, fmt.Errorf("failed to create claim: %w", err)
 	}
+	log.Printf("[CLAIMS-REPO] CreateClaim OK id=%s claim_number=%s", dbClaim.ID, dbClaim.ClaimNumber)
 	return sqlcClaimToDomain(dbClaim), nil
+}
+
+func (r *claimRepository) GetMaxCounterForYear(ctx context.Context, year int) (int64, error) {
+	prefix := fmt.Sprintf("CLM-%d-%%", year)
+	maxCounter, err := r.store.GetMaxClaimCounterForYear(ctx, prefix)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get max claim counter for year %d: %w", year, err)
+	}
+	return maxCounter, nil
 }
 
 func (r *claimRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Claim, error) {

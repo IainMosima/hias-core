@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/bitbiz/hias-core/domains/identity/schema"
@@ -55,13 +56,22 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 // @Failure      400 {object} map[string]string
 // @Router       /api/v1/auth/register [post]
 func (h *AuthHandler) Register(ctx *gin.Context) {
+	log.Printf("[REGISTER-HANDLER] >>> ENTRY remote=%s ua=%q content_type=%q content_length=%d",
+		ctx.ClientIP(), ctx.GetHeader("User-Agent"), ctx.ContentType(), ctx.Request.ContentLength)
+
 	var req schema.RegisterRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
+		log.Printf("[REGISTER-HANDLER] BIND FAILED: %v", err)
 		utils.RespondError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
+	log.Printf("[REGISTER-HANDLER] BIND OK: email=%s name=%s phone=%s national_id=%q role=%q password_len=%d",
+		req.Email, req.Name, req.Phone, req.NationalID, req.RoleName, len(req.Password))
 
 	resp := h.authSvc.Register(ctx.Request.Context(), req)
+	log.Printf("[REGISTER-HANDLER] SERVICE RESPONSE: status=%d message=%q error=%v",
+		resp.StatusCode, resp.Message, resp.Error)
+
 	if resp.Error != nil {
 		utils.RespondError(ctx, resp.StatusCode, resp.Message)
 		return

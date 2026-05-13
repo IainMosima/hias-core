@@ -10,6 +10,7 @@ import (
 
 type ClaimRepository interface {
 	Create(ctx context.Context, claim *entity.Claim) (*entity.Claim, error)
+	GetMaxCounterForYear(ctx context.Context, year int) (int64, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entity.Claim, error)
 	GetByNumber(ctx context.Context, number string) (*entity.Claim, error)
 	List(ctx context.Context, limit, offset int) ([]*entity.Claim, error)

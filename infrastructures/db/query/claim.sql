@@ -2,6 +2,11 @@
 INSERT INTO claims (claim_number, policy_id, member_id, provider_id, preauth_id, status, total_amount, diagnosis_codes, service_date, admission_date, discharge_date, notes, created_by, claim_type, sla_breach_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
 
+-- name: GetMaxClaimCounterForYear :one
+SELECT COALESCE(MAX(CAST(SPLIT_PART(claim_number, '-', 3) AS BIGINT)), 0)::bigint AS max_counter
+FROM claims
+WHERE claim_number LIKE $1;
+
 -- name: GetClaimByID :one
 SELECT * FROM claims WHERE id = $1;
 

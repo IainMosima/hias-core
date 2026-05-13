@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/bitbiz/hias-core/domains/identity/entity"
 	domainRepo "github.com/bitbiz/hias-core/domains/identity/repository"
@@ -19,6 +20,8 @@ func NewUserRepository(store db.Store) domainRepo.UserRepository {
 }
 
 func (r *userRepository) Create(ctx context.Context, user *entity.User) (*entity.User, error) {
+	log.Printf("[USER-REPO] Create called: email=%s role_id=%s status=%s phone=%q national_id=%q",
+		user.Email, user.RoleID, user.Status, user.Phone, user.NationalID)
 	dbUser, err := r.store.CreateUser(ctx, db.CreateUserParams{
 		CognitoSub:   stringToPgtypeText(user.CognitoSub),
 		Email:        user.Email,
@@ -31,8 +34,10 @@ func (r *userRepository) Create(ctx context.Context, user *entity.User) (*entity
 		PasswordHash: user.PasswordHash,
 	})
 	if err != nil {
+		log.Printf("[USER-REPO] CreateUser SQL FAILED email=%s err=%v", user.Email, err)
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
+	log.Printf("[USER-REPO] CreateUser SQL OK email=%s id=%s", user.Email, dbUser.ID)
 	return sqlcUserToDomain(dbUser), nil
 }
 

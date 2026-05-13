@@ -100,26 +100,32 @@ func (s *authServiceImpl) Login(ctx context.Context, req schema.LoginRequest) *s
 }
 
 func (s *authServiceImpl) Register(ctx context.Context, req schema.RegisterRequest) *schema.ServiceResponse[schema.RegisterResponse] {
+	log.Printf("[REGISTER-SVC] >>> ENTRY email=%s name=%s phone=%s role=%q", req.Email, req.Name, req.Phone, req.RoleName)
+
 	// Hash password
 	passwordHash, err := utils.HashPassword(req.Password)
 	if err != nil {
+		log.Printf("[REGISTER-SVC] HASH FAILED: %v", err)
 		return schema.NewServiceErrorResponse[schema.RegisterResponse](http.StatusInternalServerError, "Registration failed", err)
 	}
-	log.Printf("[REGISTER] Password hashed: len=%d, starts_with=%s", len(passwordHash), passwordHash[:7])
+	log.Printf("[REGISTER-SVC] Password hashed: len=%d, starts_with=%s", len(passwordHash), passwordHash[:7])
 
 	// Find role
 	roleName := req.RoleName
 	if roleName == "" {
 		roleName = string(shared.UserRoleAdmin)
+		log.Printf("[REGISTER-SVC] role_name empty — defaulting to %s", roleName)
 	}
 	role, err := s.roleRepo.GetByName(ctx, roleName)
 	if err != nil {
+		log.Printf("[REGISTER-SVC] ROLE LOOKUP FAILED role=%s err=%v", roleName, err)
 		return schema.NewServiceErrorResponse[schema.RegisterResponse](
 			http.StatusBadRequest,
 			fmt.Sprintf("Role '%s' not found. Please ensure roles are seeded.", roleName),
 			err,
 		)
 	}
+	log.Printf("[REGISTER-SVC] role resolved: id=%s name=%s", role.ID, role.Name)
 
 	// Create user in DB
 	user := &entity.User{
@@ -133,10 +139,13 @@ func (s *authServiceImpl) Register(ctx context.Context, req schema.RegisterReque
 		Status:       string(shared.UserStatusActive),
 	}
 
+	log.Printf("[REGISTER-SVC] Calling userRepo.Create for email=%s", user.Email)
 	created, err := s.userRepo.Create(ctx, user)
 	if err != nil {
+		log.Printf("[REGISTER-SVC] USER CREATE FAILED email=%s err=%v", req.Email, err)
 		return schema.NewServiceErrorResponse[schema.RegisterResponse](http.StatusInternalServerError, "Failed to create user", err)
 	}
+	log.Printf("[REGISTER-SVC] User created: id=%s email=%s", created.ID, created.Email)
 
 	response := schema.RegisterResponse{
 		UserID:  created.ID.String(),
