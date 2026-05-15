@@ -57,7 +57,12 @@ func main() {
 		log.Printf("Warning: Could not load local config: %v", err)
 	}
 
-	// 2. Database connection
+	// 2. Run migrations (idempotent — no-ops if already at latest)
+	if err := runMigrations(cfg.DBSource); err != nil {
+		log.Fatalf("Cannot apply migrations: %v", err)
+	}
+
+	// 3. Database connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
