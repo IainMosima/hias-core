@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE_NAME: bitbiz/hias-core
+  IMAGE_NAME: mosimaiain/hias-core
   IMAGE_TAG: v1
 
 jobs:
