@@ -21,9 +21,6 @@ migrateforce:
 sqlc:
 	sqlc generate
 
-swagger:
-	swag init -g services/api-gateway/main.go -o docs/swagger --parseDependency --parseInternal
-
 proto:
 	protoc \
 		--proto_path=services/api-gateway/grpc/proto \
@@ -48,4 +45,4 @@ seed:
 migrate-reset:
 	bash scripts/migrate-reset.sh
 
-.PHONY: postgres createdb dropdb migrateup migratedown migrateforce sqlc swagger proto run test lint seed migrate-reset
+.PHONY: postgres createdb dropdb migrateup migratedown migrateforce sqlc proto run test lint seed migrate-reset

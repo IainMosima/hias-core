@@ -8,11 +8,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-RUN go install github.com/swaggo/swag/cmd/swag@latest
-
 COPY . .
-
-RUN swag init -g services/api-gateway/main.go -o docs/swagger --parseDependency --parseInternal
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o main ./services/api-gateway
 
@@ -25,7 +21,6 @@ WORKDIR /app
 
 COPY --from=builder /app/main .
 COPY --from=builder /app/configs ./configs
-COPY --from=builder /app/docs ./docs
 COPY --from=builder /app/infrastructures/db/migration ./infrastructures/db/migration
 
 RUN chmod +x main && \

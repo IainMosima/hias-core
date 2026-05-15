@@ -1,6 +1,10 @@
 .git
 .github
+.claude
 .idea
 *.md
+docs/*
 scripts/
-.env*
+.env
+*.env
+node_modules
