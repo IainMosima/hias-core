@@ -67,7 +67,7 @@ services:
       - "8080:8080"
       - "9090:9090"
     env_file:
-      - .env
+      - docker.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
