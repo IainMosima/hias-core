@@ -35,22 +35,6 @@ services:
       - hias_network
     restart: unless-stopped
 
-  migrate:
-    image: migrate/migrate:v4.17.0
-    container_name: hias_migrate
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./infrastructures/db/migration:/migrations
-    command:
-      - "-path=/migrations"
-      - "-database=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-supersecret}@postgres:5432/${POSTGRES_DB:-hias_db}?sslmode=disable"
-      - "up"
-    networks:
-      - hias_network
-    restart: "no"
-
   hias-core:
     image: mosimaiain/hias-core:v1
     build:
@@ -64,8 +48,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     ports:
       - "8080:8080"
       - "9090:9090"
