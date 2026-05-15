@@ -50,3 +50,5 @@ bin/api-gateway
 bin/main
 
 Technical Evaluation Demo Script.xlsx
+
+docker.env

@@ -53,6 +53,9 @@ services:
 
   hias-core:
     image: mosimaiain/hias-core:v1
+    build:
+      context: .
+      dockerfile: Dockerfile
     pull_policy: always
     platform: linux/amd64
     container_name: hias_core
